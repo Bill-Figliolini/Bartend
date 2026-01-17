@@ -1,10 +1,13 @@
+#[derive(Debug)]
 pub struct Config {
-    theme: iced::Theme,
+    pub theme: iced::Theme,
 }
 
-pub fn build_config() -> Config {
-    Config {
-        theme: iced::Theme::TokyoNight,
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            theme: iced::Theme::TokyoNight,
+        }
     }
 }
 
