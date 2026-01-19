@@ -6,7 +6,7 @@ use iced::{
     widget::{Container, button, column, container, row, text},
 };
 
-use crate::presentation::screen::{Page, overview};
+use crate::presentation::screen::{Screen, overview};
 
 pub fn run() -> iced::Result {
     //Application requires the boot component to have default implemented,
@@ -17,7 +17,7 @@ pub fn run() -> iced::Result {
 #[derive(Debug)]
 struct AppState {
     count: u64,
-    page: Page,
+    page: Screen,
     theme: Theme,
 }
 
@@ -30,7 +30,7 @@ impl AppState {
     fn new() -> Self {
         AppState {
             count: 0,
-            page: Page::Overview,
+            page: Screen::Overview,
             theme: Theme::TokyoNight,
         }
     }
