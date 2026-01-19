@@ -1,4 +1,3 @@
-mod config;
 mod presentation;
 
 use presentation::application;
