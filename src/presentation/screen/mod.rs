@@ -1,9 +1,8 @@
 use iced::overlay::Element;
 
+//Screens are self contained and will contain their own state. Transitions between them, as of current design,
+// Will be handled by the main application.
 pub(super) mod overview;
-
-//Page Ideas:
-// Interfaces will need to be compliant with being called by view and update in main.
 
 #[derive(Debug, Default)]
 pub enum Screen {
