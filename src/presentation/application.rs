@@ -49,22 +49,30 @@ impl AppState {
     //Personal Reminder:
     // This is for displays and views of the current app state.
     fn view(&self) -> Element<'_, Message> {
-        let palette = self.theme.extended_palette();
+        //Not sure if I will keep the Menu Bar. It doesn't match modern styles, and I am not sure how well it would work compared to a settings screen.
+        let menu_bar = container("I am a menu bar!")
+            .style(container::rounded_box)
+            .height(10);
+
+        //TODO: Create a sidebar struct to handle store width and syncronize style
+        let sidebar = column![
+            sidebar::item("I am a sidebar!", || Message::ButtonPressed),
+            sidebar::item("with a button!", || Message::ButtonPressed)
+        ]
+        .width(400)
+        .padding(10);
+
+        let main_screen = column!["I am the center top!", "I am the center bottom!"]
+            .width(Fill)
+            .spacing(10);
+        //Do I really need this Container?
         container(
             column![
-                container("I am a menu bar!")
-                    .style(container::rounded_box)
-                    .height(10),
+                menu_bar,
                 row![
-                    column![
-                        sidebar::item("I am a sidebar!", || Message::ButtonPressed),
-                        sidebar::item("with a button!", || Message::ButtonPressed)
-                    ]
-                    .width(400)
-                    .padding(10),
-                    column!["I am the center top!", "I am the center bottom!"]
-                        .width(Fill)
-                        .spacing(10)
+                    //TODO: Refactor the Column and width pattern here into a
+                    sidebar,
+                    main_screen
                 ]
                 .spacing(10),
             ]
