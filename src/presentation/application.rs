@@ -2,41 +2,55 @@ use iced::{
     Element,
     Length::Fill,
     Theme,
-    widget::{button, column, container, row},
+    widget::{column, container, row},
 };
 
-use crate::presentation::{screen::overview, widget::sidebar};
+use crate::presentation::{
+    screen::{
+        inventory::{self, Inventory},
+        overview::{self, Overview},
+        recipe::{self, Recipe},
+    },
+    widget::sidebar,
+};
 
 pub fn run() -> iced::Result {
     //Application requires the boot component to have default implemented,
     // Which is probably a good practice as it avoids inconsistency due to partial
     // state initialization
-    iced::application(move || AppState::new(), AppState::update, AppState::view).run()
+    iced::application(AppState::new, AppState::update, AppState::view).run()
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 enum Screen {
-    #[default]
-    Overview,
+    About,
+    Overview(Overview),
+    Recipe(Recipe),
+    Inventory(Inventory),
 }
 
 #[derive(Debug)]
 struct AppState {
-    count: u64,
-    page: Screen,
+    screen: Screen,
     theme: Theme,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ButtonPressed,
+    NoOp,
+    OpenOverview,
+    OpenRecipe,
+    OpenInventory,
+    //Messages for forwarding to relevant structs
+    Overview(overview::Message),
+    Recipe(recipe::Message),
+    Inventory(inventory::Message),
 }
 
 impl AppState {
     fn new() -> Self {
         AppState {
-            count: 0,
-            page: Screen::Overview,
+            screen: Screen::Overview(Overview::new()),
             theme: Theme::TokyoNight,
         }
     }
@@ -46,7 +60,10 @@ impl AppState {
     // Given my trying to keep this program modular, this will likely be a branching function between pages' update functions.
     fn update(&mut self, message: Message) {
         match message {
-            _ => {}
+            Message::OpenOverview => self.screen = Screen::Overview(Overview::new()),
+            Message::OpenRecipe => self.screen = Screen::Recipe(Recipe::new()),
+            Message::OpenInventory => self.screen = Screen::Inventory(Inventory::new()),
+            Message::NoOp => {}
         }
     }
 
@@ -56,29 +73,29 @@ impl AppState {
         //Not sure if I will keep the Menu Bar. It doesn't match modern styles, and I am not sure how well it would work compared to a settings screen.
         let menu_bar = container("I am a menu bar!")
             .style(container::rounded_box)
-            .height(10);
+            .width(Fill)
+            .height(20);
 
         //TODO: Create a sidebar struct to handle store width and syncronize style
         let sidebar = column![
-            sidebar::item("I am a sidebar!", || Message::ButtonPressed),
-            sidebar::item("with a button!", || Message::ButtonPressed)
+            sidebar::button("Overview", || Message::OpenOverview),
+            sidebar::button("Inventory", || Message::OpenInventory),
+            sidebar::button("Recipes", || Message::OpenRecipe)
         ]
-        .width(400)
+        .width(300)
         .padding(10);
 
-        let main_screen = column!["I am the center top!", "I am the center bottom!"]
-            .width(Fill)
-            .spacing(10);
+        let screen = match &self.screen {
+            Screen::Overview(overview) => overview.view(),
+            Screen::Recipe(recipe) => recipe.view(),
+            Screen::Inventory(inventory) => inventory.view(),
+            _ => todo!(),
+        };
         //Do I really need this Container?
         container(
             column![
                 menu_bar,
-                row![
-                    //TODO: Refactor the Column and width pattern here into a
-                    sidebar,
-                    main_screen
-                ]
-                .spacing(10),
+                row![sidebar, container(screen).padding(10).width(Fill)].spacing(10),
             ]
             .spacing(10),
         )
@@ -87,6 +104,7 @@ impl AppState {
         .into()
     }
 }
+
 #[cfg(test)]
 mod test {
     use super::*;

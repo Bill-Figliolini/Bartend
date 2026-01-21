@@ -1,18 +1,18 @@
-use iced::{Element, widget::column};
+use iced::{Element, widget::row};
 
-use crate::application;
+use crate::presentation::application;
 
 #[derive(Debug, Clone)]
 pub enum Message {}
 
 #[derive(Debug)]
-pub struct Overview {}
+pub struct Recipe {}
 
-impl Overview {
+impl Recipe {
     pub fn new() -> Self {
         Self {}
     }
     pub fn view(&self) -> Element<'_, application::Message> {
-        column!["Welcome to Bartending!"].into()
+        row!["Heres where your recipes go!"].into()
     }
 }

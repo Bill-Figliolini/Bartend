@@ -1,4 +1,4 @@
-use iced::{Element, widget::column};
+use iced::{Element, widget::row};
 
 use crate::application;
 
@@ -6,13 +6,13 @@ use crate::application;
 pub enum Message {}
 
 #[derive(Debug)]
-pub struct Overview {}
+pub struct Inventory {}
 
-impl Overview {
+impl Inventory {
     pub fn new() -> Self {
         Self {}
     }
     pub fn view(&self) -> Element<'_, application::Message> {
-        column!["Welcome to Bartending!"].into()
+        row!["Welcome to the Inventory!"].into()
     }
 }
