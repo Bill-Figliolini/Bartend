@@ -1,7 +1,7 @@
 use iced::{
     Element,
     Length::Fill,
-    Theme,
+    Task, Theme,
     widget::{column, container, row},
 };
 
@@ -58,12 +58,22 @@ impl AppState {
     //Question I still need to figure out; What should a message be in the context of this application?
     //As a personal reminder while developing. Update is for transformations over AppState
     // Given my trying to keep this program modular, this will likely be a branching function between pages' update functions.
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
-            Message::OpenOverview => self.screen = Screen::Overview(Overview::new()),
-            Message::OpenRecipe => self.screen = Screen::Recipe(Recipe::new()),
-            Message::OpenInventory => self.screen = Screen::Inventory(Inventory::new()),
-            Message::NoOp => {}
+            //TODO: Clean up state transitions here
+            Message::OpenOverview => {
+                self.screen = Screen::Overview(Overview::new());
+                Task::none()
+            }
+            Message::OpenRecipe => {
+                self.screen = Screen::Recipe(Recipe::new());
+                Task::none()
+            }
+            Message::OpenInventory => {
+                self.screen = Screen::Inventory(Inventory::new());
+                Task::none()
+            }
+            Message::NoOp => Task::none(),
         }
     }
 
