@@ -2,11 +2,13 @@ use iced::{
     Element,
     Length::Fill,
     Theme,
-    theme::Base,
-    widget::{Container, button, column, container, row, text},
+    widget::{button, column, container, row},
 };
 
-use crate::presentation::screen::{Screen, overview};
+use crate::presentation::{
+    screen::{Screen, overview},
+    widget::sidebar,
+};
 
 pub fn run() -> iced::Result {
     //Application requires the boot component to have default implemented,
@@ -22,7 +24,7 @@ struct AppState {
 }
 
 #[derive(Debug, Clone)]
-enum Message {
+pub enum Message {
     ButtonPressed,
 }
 
@@ -40,7 +42,7 @@ impl AppState {
     // Given my trying to keep this program modular, this will likely be a branching function between pages' update functions.
     fn update(&mut self, message: Message) {
         match message {
-            Message::ButtonPressed => {}
+            _ => {}
         }
     }
 
@@ -50,21 +52,19 @@ impl AppState {
         let palette = self.theme.extended_palette();
         container(
             column![
-                "I am a menu bar!",
+                container("I am a menu bar!")
+                    .style(container::rounded_box)
+                    .height(10),
                 row![
                     column![
-                        "I am a sidebar!",
-                        button("with a button!")
-                            .on_press(Message::ButtonPressed)
-                            .style(|theme: &Theme, status| {
-                                match status {
-                                    button::Status::Active => button::Style::default()
-                                        .with_background(palette.success.strong.color),
-                                    _ => button::primary(theme, status),
-                                }
-                            })
-                    ],
-                    column!["I am the center top!", "I am the center bottom!"].spacing(10)
+                        sidebar::item("I am a sidebar!", || Message::ButtonPressed),
+                        sidebar::item("with a button!", || Message::ButtonPressed)
+                    ]
+                    .width(400)
+                    .padding(10),
+                    column!["I am the center top!", "I am the center bottom!"]
+                        .width(Fill)
+                        .spacing(10)
                 ]
                 .spacing(10),
             ]
