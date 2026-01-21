@@ -5,10 +5,7 @@ use iced::{
     widget::{button, column, container, row},
 };
 
-use crate::presentation::{
-    screen::{Screen, overview},
-    widget::sidebar,
-};
+use crate::presentation::{screen::overview, widget::sidebar};
 
 pub fn run() -> iced::Result {
     //Application requires the boot component to have default implemented,
@@ -16,6 +13,13 @@ pub fn run() -> iced::Result {
     // state initialization
     iced::application(move || AppState::new(), AppState::update, AppState::view).run()
 }
+
+#[derive(Debug, Default)]
+enum Screen {
+    #[default]
+    Overview,
+}
+
 #[derive(Debug)]
 struct AppState {
     count: u64,
