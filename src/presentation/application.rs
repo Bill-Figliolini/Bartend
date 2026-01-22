@@ -47,6 +47,11 @@ pub enum Message {
     Inventory(inventory::Message),
 }
 
+#[derive(Debug, Clone)]
+pub enum Event {
+    None,
+}
+
 impl AppState {
     fn new() -> Self {
         AppState {
