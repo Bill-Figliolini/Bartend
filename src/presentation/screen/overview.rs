@@ -1,6 +1,6 @@
 use iced::{Element, widget::column};
 
-use crate::application;
+use crate::{application, presentation::widget::text_style::title};
 
 #[derive(Debug, Clone)]
 pub enum Message {}
@@ -13,6 +13,9 @@ impl Overview {
         Self {}
     }
     pub fn view(&self) -> Element<'_, application::Message> {
-        column!["Welcome to Bartending!"].into()
+        let title = title("Overview");
+        let body = column!["Welcome to Bartending!"];
+
+        column![title, body].into()
     }
 }

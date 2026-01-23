@@ -11,7 +11,7 @@ use crate::presentation::{
         overview::{self, Overview},
         recipe::{self, Recipe},
     },
-    widget::sidebar,
+    widget::{sidebar, text_style::title},
 };
 
 pub fn run() -> iced::Result {
@@ -93,6 +93,7 @@ impl AppState {
 
         //TODO: Create a sidebar struct to handle store width and syncronize style
         let sidebar = column![
+            title("Sidebar"),
             sidebar::button("Overview", || Message::OpenOverview),
             sidebar::button("Inventory", || Message::OpenInventory),
             sidebar::button("Recipes", || Message::OpenRecipe)

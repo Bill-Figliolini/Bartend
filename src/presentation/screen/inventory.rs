@@ -17,7 +17,7 @@ impl Inventory {
     }
     pub fn view(&self) -> Element<'_, application::Message> {
         let title = title("Inventory");
-        let body = row!["Welcome to the Inventory!"];
-        column![title, body].padding(10).into()
+        let body = text("Welcome to the Inventory!");
+        column![title, body].into()
     }
 }
