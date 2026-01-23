@@ -5,13 +5,16 @@ use iced::{
     widget::{column, container, row},
 };
 
-use crate::presentation::{
-    screen::{
-        inventory::{self, Inventory},
-        overview::{self, Overview},
-        recipe::{self, Recipe},
+use crate::{
+    logic,
+    presentation::{
+        screen::{
+            inventory::{self, Inventory},
+            overview::{self, Overview},
+            recipe::{self, Recipe},
+        },
+        widget::{sidebar, text_style::title},
     },
-    widget::{sidebar, text_style::title},
 };
 
 pub fn run() -> iced::Result {
@@ -33,6 +36,7 @@ enum Screen {
 struct AppState {
     screen: Screen,
     theme: Theme,
+    recipe_and_inventory: logic::RecipeAndInventoryManager,
 }
 
 #[derive(Debug, Clone)]
