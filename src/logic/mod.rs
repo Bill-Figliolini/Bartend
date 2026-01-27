@@ -1,9 +1,12 @@
 mod inventory;
+mod item;
 
 #[derive(Debug)]
-pub struct RecipeAndInventoryManager {}
+pub struct BarCollection {
+    
+}
 
-impl RecipeAndInventoryManager {}
+impl BarCollection {}
 #[cfg(test)]
 mod tests {
     use super::*;
