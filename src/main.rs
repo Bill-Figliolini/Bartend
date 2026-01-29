@@ -1,4 +1,5 @@
 mod logic;
+mod persistence;
 mod presentation;
 
 use presentation::application;
