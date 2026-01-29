@@ -6,7 +6,7 @@ use iced::{
 };
 
 use crate::{
-    logic,
+    logic::{self, BarCollection},
     presentation::{
         screen::{
             inventory::{self, Inventory},
@@ -36,7 +36,7 @@ enum Screen {
 struct AppState {
     screen: Screen,
     theme: Theme,
-    recipe_and_inventory: logic::RecipeAndInventoryManager,
+    bar_collection: logic::BarCollection,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +61,7 @@ impl AppState {
         AppState {
             screen: Screen::Overview(Overview::new()),
             theme: Theme::TokyoNight,
+            bar_collection: BarCollection::new(),
         }
     }
 
