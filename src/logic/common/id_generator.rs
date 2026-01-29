@@ -1,3 +1,7 @@
+//! Generates a sequence of unique ids, starting from 0
+//! Is thread safe.
+//!
+
 use std::sync::atomic::{AtomicU32, Ordering::Relaxed};
 
 pub struct IdGenerator {
