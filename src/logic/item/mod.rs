@@ -12,10 +12,13 @@ use crate::logic::{Error, Quantity, common::id_table::IdTable};
 pub(super) struct Items {
     table: IdTable<ItemID, Item>,
 }
-
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 struct ItemID(u32);
 
-struct Item {}
+struct Item {
+    name: String,
+    volume: u32,
+}
 
 impl Items {
     fn new() -> Self {
