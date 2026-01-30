@@ -1,6 +1,8 @@
 //! Generates a sequence of unique ids, starting from 0
 //! Is thread safe.
 //!
+//! Has a nominal failure condition if the U32 reaches capacity. Given the usecase as a local inventory,
+//! This is unlikely to occur as it would require the using library to generate 2^32-1 entries.
 
 use std::sync::atomic::{AtomicU32, Ordering::Relaxed};
 
