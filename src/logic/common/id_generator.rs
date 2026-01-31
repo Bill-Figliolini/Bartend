@@ -6,6 +6,7 @@
 
 use std::sync::atomic::{AtomicU32, Ordering::Relaxed};
 
+#[derive(Debug)]
 pub struct IdGenerator {
     counter: AtomicU32,
 }

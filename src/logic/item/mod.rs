@@ -6,7 +6,7 @@
 //!
 
 use crate::logic::common::id_table::IdTable;
-
+#[derive(Debug)]
 struct Item {
     name: String,
     quantity: u32,
@@ -17,15 +17,15 @@ impl Item {
         Item { name, quantity }
     }
 }
-
+#[derive(Debug)]
 pub(super) struct Items {
     table: IdTable<ItemID, Item>,
 }
-#[derive(Hash, PartialEq, Eq, Clone, Copy)]
-pub struct ItemID(u32);
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub(super) struct ItemID(u32);
 
 impl Items {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             table: IdTable::new(ItemID),
         }
@@ -42,7 +42,7 @@ impl Items {
     }
     fn update_quantities<const N: usize>(&mut self, ids: [&ItemID; N], quantities: [&u32; N]) {
         let values = self.table.get_disjoint_mut(ids);
-        for i in (0..N) {
+        for i in 0..N {
             values[i].quantity -= quantities[i];
         }
     }

@@ -2,7 +2,8 @@
 //! Creates a mapping from an Internal ID to a provided struct.
 
 use crate::logic::common::id_generator::IdGenerator;
-use std::{collections::HashMap, fmt::Display, hash::Hash};
+use std::{collections::HashMap, hash::Hash};
+#[derive(Debug)]
 pub struct IdTable<KeyType, ValueType>
 where
     KeyType: Hash + Eq + PartialEq + Copy,
