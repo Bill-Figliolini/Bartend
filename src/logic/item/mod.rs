@@ -7,15 +7,19 @@
 
 use crate::logic::{Quantity, common::id_generator::IdGenerator};
 use std::{collections::HashMap, fmt::Display};
+
+//All members of Item must have display implemented
 #[derive(Debug)]
-struct Item<'a> {
+pub struct Item<'a> {
     name: &'a str,
     quantity: &'a u32,
 }
 
-impl<'a> Display for Item<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Item: {}, Quantity: {}", self.name, self.quantity)
+impl<'a> Item<'a> {
+    fn get_displayables(&'a self) -> [String; 2] {
+        let name = self.name.to_string();
+        let quantity = self.quantity.to_string();
+        [name, quantity]
     }
 }
 
@@ -24,6 +28,7 @@ impl<'a> Item<'a> {
         Item { name, quantity }
     }
 }
+
 #[derive(Debug)]
 pub(super) struct Items {
     names: HashMap<ItemID, String>,
@@ -51,7 +56,7 @@ impl Items {
         self.names.remove(&id);
         self.quantities.remove(&id);
     }
-    fn get(&self, id: &ItemID) -> Item {
+    fn get(&self, id: &ItemID) -> Item<'_> {
         let name = self
             .names
             .get(id)
@@ -75,21 +80,40 @@ impl Items {
 #[cfg(test)]
 mod test {
     use super::*;
-    #[test]
-    fn batch_updates_table() {
-        let mut items = Items::new();
-        let mut ids = vec![];
-        for char in "abc".chars() {
-            let index = items.insert(char.to_string(), 750);
-            ids.push(index);
+    mod items {
+        use super::*;
+        #[test]
+        fn batch_updates_table() {
+            let mut items = Items::new();
+            let mut ids = vec![];
+            for char in "abc".chars() {
+                let index = items.insert(char.to_string(), 750);
+                ids.push(index);
+            }
+            let changed_ids = [&ids[0], &ids[2]];
+            let changed_quantities = [&200, &100];
+
+            items.update_quantities(changed_ids, changed_quantities);
+
+            assert_eq!(*items.get(&ids[0]).quantity, 550);
+            assert_eq!(*items.get(&ids[1]).quantity, 750);
+            assert_eq!(*items.get(&ids[2]).quantity, 650);
         }
-        let changed_ids = [&ids[0], &ids[2]];
-        let changed_quantities = [&200, &100];
+    }
+    mod item {
+        use super::*;
+        #[test]
+        fn can_can_be_unwrapped_into_displayables() {
+            let mut items = Items::new();
+            let name = "a".to_string();
+            let quantity = 750;
+            let index = items.insert(name.clone(), quantity);
+            let item = items.get(&index);
 
-        items.update_quantities(changed_ids, changed_quantities);
+            let internals = item.get_displayables();
 
-        assert_eq!(*items.get(&ids[0]).quantity, 550);
-        assert_eq!(*items.get(&ids[1]).quantity, 750);
-        assert_eq!(*items.get(&ids[2]).quantity, 650);
+            assert!(internals[0].contains(&name));
+            assert!(internals[1].contains(&quantity.to_string()));
+        }
     }
 }
