@@ -10,13 +10,13 @@ use std::{collections::HashMap, fmt::Display};
 
 //All members of Item must have display implemented
 #[derive(Debug)]
-pub struct Item<'a> {
+pub(super) struct Item<'a> {
     name: &'a str,
     quantity: &'a u32,
 }
 
 impl<'a> Item<'a> {
-    fn get_displayables(&'a self) -> [String; 2] {
+    pub fn get_displayables(&'a self) -> [String; 2] {
         let name = self.name.to_string();
         let quantity = self.quantity.to_string();
         [name, quantity]
@@ -46,17 +46,17 @@ impl Items {
             id_generator: IdGenerator::new(),
         }
     }
-    fn insert(&mut self, name: String, quantity: u32) -> ItemID {
+    pub fn insert(&mut self, name: String, quantity: u32) -> ItemID {
         let id = self.id_generator.get_next_id();
         self.quantities.insert(ItemID(id), quantity);
         self.names.insert(ItemID(id), name);
         ItemID(id)
     }
-    fn delete(&mut self, id: ItemID) {
+    pub fn delete(&mut self, id: ItemID) {
         self.names.remove(&id);
         self.quantities.remove(&id);
     }
-    fn get(&self, id: &ItemID) -> Item<'_> {
+    pub fn get(&self, id: &ItemID) -> Item<'_> {
         let name = self
             .names
             .get(id)
