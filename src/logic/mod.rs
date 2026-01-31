@@ -1,4 +1,4 @@
-use crate::logic::item::{Item, ItemID, Items};
+use crate::logic::item::{ItemID, Items};
 
 mod common;
 mod item;
@@ -33,13 +33,17 @@ impl BarCollection {
             item_ids: Vec::new(),
         }
     }
-    pub fn get_items<'a>(&self) -> Vec<[String; 2]> {
+    pub fn get_items(&self) -> Vec<[String; 2]> {
         let mut results = Vec::with_capacity(self.item_ids.len());
         for id in self.item_ids.iter() {
             let item = self.inventory.get(&id);
             results.push(item.get_displayables());
         }
         results
+    }
+    pub fn add_item(&mut self, name: String, quantity: u32) {
+        let id = self.inventory.insert(name, quantity);
+        self.item_ids.push(id);
     }
 }
 #[cfg(test)]
