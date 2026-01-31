@@ -17,10 +17,10 @@ impl<K, V> IdTable<K, V>
 where
     K: Hash + Eq + PartialEq + Copy,
 {
-    pub fn new(id_constructor: fn(u32) -> K) -> Self {
+    pub fn new(id_constructor: fn(u32) -> K, id_generator: IdGenerator) -> Self {
         IdTable {
             table: HashMap::new(),
-            id_generator: IdGenerator::new(),
+            id_generator,
             id_constructor,
         }
     }

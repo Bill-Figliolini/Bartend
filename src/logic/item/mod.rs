@@ -5,7 +5,7 @@
 //! Items are given unique IDs, so that they can be edited.
 //!
 
-use crate::logic::common::id_table::IdTable;
+use crate::logic::common::{id_generator::IdGenerator, id_table::IdTable};
 #[derive(Debug)]
 struct Item {
     name: String,
@@ -26,8 +26,9 @@ pub(super) struct ItemID(u32);
 
 impl Items {
     pub fn new() -> Self {
+        let shared_id_generator = IdGenerator::new();
         Self {
-            table: IdTable::new(ItemID),
+            table: IdTable::new(ItemID, shared_id_generator),
         }
     }
     fn insert(&mut self, name: String, quantity: u32) -> ItemID {
