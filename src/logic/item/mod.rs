@@ -5,6 +5,8 @@
 //! Items are given unique IDs, so that they can be edited.
 //!
 
+use std::collections::HashMap;
+
 use crate::logic::common::{id_generator::IdGenerator, id_table::IdTable};
 #[derive(Debug)]
 struct Item {
@@ -19,30 +21,36 @@ impl Item {
 }
 #[derive(Debug)]
 pub(super) struct Items {
-    table: IdTable<ItemID, Item>,
+    table: HashMap<ItemID, Item>,
+    id_generator: IdGenerator,
 }
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub(super) struct ItemID(u32);
 
 impl Items {
     pub fn new() -> Self {
-        let shared_id_generator = IdGenerator::new();
         Self {
-            table: IdTable::new(ItemID, shared_id_generator),
+            table: HashMap::new(),
+            id_generator: IdGenerator::new(),
         }
     }
     fn insert(&mut self, name: String, quantity: u32) -> ItemID {
         let item = Item::new(name, quantity);
-        self.table.insert(item)
+        let id = self.id_generator.get_next_id();
+        self.table.insert(ItemID(id), item);
+        ItemID(id)
     }
     fn delete(&mut self, id: ItemID) {
-        self.table.remove(id);
+        self.table.remove(&id);
     }
     fn get(&self, id: &ItemID) -> &Item {
-        self.table.get(id)
+        self.table
+            .get(id)
+            .expect("Unused IDs should not remain in use")
     }
     fn update_quantities<const N: usize>(&mut self, ids: [&ItemID; N], quantities: [&u32; N]) {
         let values = self.table.get_disjoint_mut(ids);
+        let values = values.map(|i| i.expect("Unused IDs should not remain in use"));
         for i in 0..N {
             values[i].quantity -= quantities[i];
         }
