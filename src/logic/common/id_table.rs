@@ -2,7 +2,7 @@
 //! Creates a mapping from an Internal ID to a provided struct.
 
 use crate::logic::common::id_generator::IdGenerator;
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, fmt::Display, hash::Hash};
 pub struct IdTable<KeyType, ValueType>
 where
     KeyType: Hash + Eq + PartialEq + Copy,
@@ -28,13 +28,17 @@ where
         _ = self.table.insert(key, input);
         key
     }
-    pub fn get(&self, key: &K) -> Option<&V> {
-        self.table.get(key)
+    pub fn get(&self, key: &K) -> &V {
+        let result = self.table.get(key);
+        if result.is_none() {
+            panic!("ERROR: INVALID ID IN CIRCULATION");
+        }
+        result.unwrap()
     }
-    pub fn get_disjoint_mut<const N: usize>(&mut self, keys: [&K; N]) -> [Option<&mut V>; N] {
-        self.table.get_disjoint_mut(keys)
+    pub fn get_disjoint_mut<const N: usize>(&mut self, keys: [&K; N]) -> [&mut V; N] {
+        self.table.get_disjoint_mut(keys).map(|i| i.unwrap())
     }
-    pub fn remove(mut self, key: K) {
+    pub fn remove(&mut self, key: K) {
         self.table.remove(&key);
         //TODO: Idea for later to save memory: Save deleted Keys in Id_generator to be reissued
     }
@@ -71,8 +75,7 @@ mod test {
             let index = table.insert(value);
             let result_value = table.get(&index);
 
-            assert!(result_value.is_some());
-            assert_eq!(*result_value.unwrap(), value);
+            assert_eq!(*result_value, value);
         }
     }
     mod get_disjoint_mut {
