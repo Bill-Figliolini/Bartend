@@ -5,9 +5,7 @@
 //! Items are given unique IDs, so that they can be edited.
 //!
 
-use fnv::FnvHashMap;
-
-use crate::logic::{Error, Quantity, common::id_table::IdTable};
+use crate::logic::common::id_table::IdTable;
 
 struct Item {
     name: String,

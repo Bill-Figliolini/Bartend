@@ -1,6 +1,5 @@
 mod common;
 mod item;
-use std::ops::Add;
 
 /// Defines potential manners in which the quantity of an ingredient can be defined.
 /// Mass and Volume are handled by uom measures
