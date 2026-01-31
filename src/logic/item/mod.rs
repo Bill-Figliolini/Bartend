@@ -5,23 +5,29 @@
 //! Items are given unique IDs, so that they can be edited.
 //!
 
-use std::collections::HashMap;
-
-use crate::logic::common::id_generator::IdGenerator;
+use crate::logic::{Quantity, common::id_generator::IdGenerator};
+use std::{collections::HashMap, fmt::Display};
 #[derive(Debug)]
-struct Item {
-    name: String,
-    quantity: u32,
+struct Item<'a> {
+    name: &'a str,
+    quantity: &'a u32,
 }
 
-impl Item {
-    fn new(name: String, quantity: u32) -> Item {
+impl<'a> Display for Item<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Item: {}, Quantity: {}", self.name, self.quantity)
+    }
+}
+
+impl<'a> Item<'a> {
+    fn new(name: &'a String, quantity: &'a u32) -> Item<'a> {
         Item { name, quantity }
     }
 }
 #[derive(Debug)]
 pub(super) struct Items {
-    table: HashMap<ItemID, Item>,
+    names: HashMap<ItemID, String>,
+    quantities: HashMap<ItemID, u32>,
     id_generator: IdGenerator,
 }
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -30,29 +36,38 @@ pub(super) struct ItemID(u32);
 impl Items {
     pub fn new() -> Self {
         Self {
-            table: HashMap::new(),
+            names: HashMap::new(),
+            quantities: HashMap::new(),
             id_generator: IdGenerator::new(),
         }
     }
     fn insert(&mut self, name: String, quantity: u32) -> ItemID {
-        let item = Item::new(name, quantity);
         let id = self.id_generator.get_next_id();
-        self.table.insert(ItemID(id), item);
+        self.quantities.insert(ItemID(id), quantity);
+        self.names.insert(ItemID(id), name);
         ItemID(id)
     }
     fn delete(&mut self, id: ItemID) {
-        self.table.remove(&id);
+        self.names.remove(&id);
+        self.quantities.remove(&id);
     }
-    fn get(&self, id: &ItemID) -> &Item {
-        self.table
+    fn get(&self, id: &ItemID) -> Item {
+        let name = self
+            .names
             .get(id)
-            .expect("Unused IDs should not remain in use")
+            .expect("Unused IDs should not remain in use");
+        let quantity = self
+            .quantities
+            .get(id)
+            .expect("Unused IDs should not remain in use");
+
+        Item::new(name, quantity)
     }
     fn update_quantities<const N: usize>(&mut self, ids: [&ItemID; N], quantities: [&u32; N]) {
-        let values = self.table.get_disjoint_mut(ids);
+        let values = self.quantities.get_disjoint_mut(ids);
         let values = values.map(|i| i.expect("Unused IDs should not remain in use"));
         for i in 0..N {
-            values[i].quantity -= quantities[i];
+            *values[i] -= quantities[i];
         }
     }
 }
@@ -73,8 +88,8 @@ mod test {
 
         items.update_quantities(changed_ids, changed_quantities);
 
-        assert_eq!(items.get(&ids[0]).quantity, 550);
-        assert_eq!(items.get(&ids[1]).quantity, 750);
-        assert_eq!(items.get(&ids[2]).quantity, 650);
+        assert_eq!(*items.get(&ids[0]).quantity, 550);
+        assert_eq!(*items.get(&ids[1]).quantity, 750);
+        assert_eq!(*items.get(&ids[2]).quantity, 650);
     }
 }
