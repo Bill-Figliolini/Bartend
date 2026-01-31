@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use crate::logic::common::{id_generator::IdGenerator, id_table::IdTable};
+use crate::logic::common::id_generator::IdGenerator;
 #[derive(Debug)]
 struct Item {
     name: String,
