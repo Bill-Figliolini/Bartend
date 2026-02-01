@@ -2,7 +2,7 @@ use iced::{
     Element,
     Length::Fill,
     Task, Theme,
-    widget::{column, container, row},
+    widget::{column, container, row, text},
 };
 
 use crate::{
@@ -27,9 +27,7 @@ pub fn run() -> iced::Result {
 #[derive(Debug)]
 enum Screen {
     About,
-    Overview(Overview),
-    Recipe(Recipe),
-    Inventory(Inventory),
+    Inventory,
 }
 
 #[derive(Debug)]
@@ -42,13 +40,7 @@ struct AppState {
 #[derive(Debug, Clone)]
 pub enum Message {
     NoOp,
-    OpenOverview,
-    OpenRecipe,
     OpenInventory,
-    //Messages for forwarding to relevant structs
-    Overview(overview::Message),
-    Recipe(recipe::Message),
-    Inventory(inventory::Message),
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +51,7 @@ pub enum Event {
 impl AppState {
     fn new() -> Self {
         AppState {
-            screen: Screen::Overview(Overview::new()),
+            screen: Screen::Inventory,
             theme: Theme::TokyoNight,
             bar_collection: BarCollection::new(),
         }
@@ -70,17 +62,8 @@ impl AppState {
     // Given my trying to keep this program modular, this will likely be a branching function between pages' update functions.
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
-            //TODO: Clean up state transitions here
-            Message::OpenOverview => {
-                self.screen = Screen::Overview(Overview::new());
-                Task::none()
-            }
-            Message::OpenRecipe => {
-                self.screen = Screen::Recipe(Recipe::new());
-                Task::none()
-            }
             Message::OpenInventory => {
-                self.screen = Screen::Inventory(Inventory::new());
+                self.screen = Screen::Inventory;
                 Task::none()
             }
             Message::NoOp => Task::none(),
@@ -90,35 +73,26 @@ impl AppState {
     //Personal Reminder:
     // This is for displays and views of the current app state.
     fn view(&self) -> Element<'_, Message> {
-        //Not sure if I will keep the Menu Bar. It doesn't match modern styles, and I am not sure how well it would work compared to a settings screen.
-        let menu_bar = container("I am a menu bar!")
-            .style(container::rounded_box)
-            .width(Fill)
-            .height(20);
-
         //TODO: Create a sidebar struct to handle store width and syncronize style
         let sidebar = column![
             title("Sidebar"),
-            sidebar::button("Overview", || Message::OpenOverview),
             sidebar::button("Inventory", || Message::OpenInventory),
-            sidebar::button("Recipes", || Message::OpenRecipe)
         ]
         .width(300)
         .padding(10);
 
         let screen = match &self.screen {
-            Screen::Overview(overview) => overview.view(),
-            Screen::Recipe(recipe) => recipe.view(),
-            Screen::Inventory(inventory) => inventory.view(),
+            Screen::Inventory => {
+                let title = title("Inventory");
+                let body = text("Welcome to the Inventory!");
+                column![title, body]
+            }
             _ => todo!(),
         };
         //Do I really need this Container?
         container(
-            column![
-                menu_bar,
-                row![sidebar, container(screen).padding(10).width(Fill)].spacing(10),
-            ]
-            .spacing(10),
+            column![row![sidebar, container(screen).padding(10).width(Fill)].spacing(10),]
+                .spacing(10),
         )
         .height(Fill)
         .width(Fill)
