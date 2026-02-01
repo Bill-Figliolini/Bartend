@@ -11,9 +11,6 @@ use crate::{
 };
 
 pub fn run() -> iced::Result {
-    //Application requires the boot component to have default implemented,
-    // Which is probably a good practice as it avoids inconsistency due to partial
-    // state initialization
     iced::application(Bartend::new, Bartend::update, Bartend::view)
         .title(Bartend::title)
         .window_size((500.0, 600.0))
@@ -47,10 +44,6 @@ impl Bartend {
     fn title(&self) -> String {
         format!("Bartend")
     }
-
-    //Question I still need to figure out; What should a message be in the context of this application?
-    //As a personal reminder while developing. Update is for transformations over AppState
-    // Given my trying to keep this program modular, this will likely be a branching function between pages' update functions.
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::OpenInventory => {
@@ -60,10 +53,7 @@ impl Bartend {
         }
     }
 
-    //Personal Reminder:
-    // This is for displays and views of the current app state.
     fn view(&self) -> Element<'_, Message> {
-        //TODO: Create a sidebar struct to handle store width and syncronize style
         let sidebar = column![
             title("Sidebar"),
             sidebar::button("Inventory", || Message::OpenInventory),
