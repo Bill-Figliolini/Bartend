@@ -22,7 +22,6 @@ pub fn run() -> iced::Result {
 
 #[derive(Debug)]
 enum Screen {
-    About,
     Inventory,
 }
 
@@ -34,7 +33,6 @@ struct Bartend {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    NoOp,
     OpenInventory,
 }
 
@@ -59,7 +57,6 @@ impl Bartend {
                 self.screen = Screen::Inventory;
                 Task::none()
             }
-            Message::NoOp => Task::none(),
         }
     }
 
@@ -82,7 +79,6 @@ impl Bartend {
             }
             _ => todo!(),
         };
-        //Do I really need this Container?
         container(
             column![row![sidebar, container(screen).padding(10).width(Fill)].spacing(10),]
                 .spacing(10),
