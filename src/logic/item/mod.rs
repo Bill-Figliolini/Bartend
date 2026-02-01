@@ -5,8 +5,8 @@
 //! Items are given unique IDs, so that they can be edited.
 //!
 
-use crate::logic::{Quantity, common::id_generator::IdGenerator};
-use std::{collections::HashMap, fmt::Display};
+use crate::logic::common::id_generator::IdGenerator;
+use std::collections::HashMap;
 
 //All members of Item must have display implemented
 #[derive(Debug)]
