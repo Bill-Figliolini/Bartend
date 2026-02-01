@@ -7,21 +7,17 @@ use iced::{
 
 use crate::{
     logic::{self, BarCollection},
-    presentation::{
-        screen::{
-            inventory::{self, Inventory},
-            overview::{self, Overview},
-            recipe::{self, Recipe},
-        },
-        widget::{sidebar, text_style::title},
-    },
+    presentation::widget::{sidebar, text_style::title},
 };
 
 pub fn run() -> iced::Result {
     //Application requires the boot component to have default implemented,
     // Which is probably a good practice as it avoids inconsistency due to partial
     // state initialization
-    iced::application(AppState::new, AppState::update, AppState::view).run()
+    iced::application(Bartend::new, Bartend::update, Bartend::view)
+        .title(Bartend::title)
+        .window_size((500.0, 600.0))
+        .run()
 }
 
 #[derive(Debug)]
@@ -31,9 +27,8 @@ enum Screen {
 }
 
 #[derive(Debug)]
-struct AppState {
+struct Bartend {
     screen: Screen,
-    theme: Theme,
     bar_collection: logic::BarCollection,
 }
 
@@ -43,18 +38,16 @@ pub enum Message {
     OpenInventory,
 }
 
-#[derive(Debug, Clone)]
-pub enum Event {
-    None,
-}
-
-impl AppState {
+impl Bartend {
     fn new() -> Self {
-        AppState {
+        Bartend {
             screen: Screen::Inventory,
-            theme: Theme::TokyoNight,
             bar_collection: BarCollection::new(),
         }
+    }
+
+    fn title(&self) -> String {
+        format!("Bartend")
     }
 
     //Question I still need to figure out; What should a message be in the context of this application?
