@@ -3,7 +3,7 @@ use std::{collections::HashSet, mem::take};
 use iced::{
     Element,
     Length::Fill,
-    Task, Theme,
+    Task,
     widget::{column, container, row, text, text_input},
 };
 

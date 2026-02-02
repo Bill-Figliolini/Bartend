@@ -36,7 +36,7 @@ impl BarCollection {
     pub fn get_items(&self) -> Vec<[String; 2]> {
         let mut results = Vec::with_capacity(self.item_ids.len());
         for id in self.item_ids.iter() {
-            let item = self.inventory.get(&id);
+            let item = self.inventory.get(id);
             results.push(item.get_displayables());
         }
         results
