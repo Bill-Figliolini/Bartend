@@ -3,6 +3,14 @@
 version = 4
 
 [[package]]
+name = "Bartend"
+version = "0.1.0"
+dependencies = [
+ "fnv",
+ "iced",
+]
+
+[[package]]
 name = "ab_glyph"
 version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -245,14 +253,6 @@ name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
-
-[[package]]
-name = "bartending-rs"
-version = "0.1.0"
-dependencies = [
- "fnv",
- "iced",
-]
 
 [[package]]
 name = "bincode"

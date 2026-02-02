@@ -1,5 +1,5 @@
 [package]
-name = "bartending-rs"
+name = "Bartend"
 version = "0.1.0"
 edition = "2024"
 
