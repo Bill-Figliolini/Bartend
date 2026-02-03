@@ -1,16 +1,27 @@
-//! Module for handling user provided ingredients and items.
-//!
-//! Each Item is Composed of a Name and a Quantity
-//! Each Item is Stored inside and owned by Items, a HashTable
-//! Items are given unique IDs, so that they can be edited.
-//!
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU32, Ordering::Relaxed},
+};
 
-use crate::logic::common::id_generator::IdGenerator;
-use std::collections::HashMap;
+#[derive(Debug)]
+struct IdGenerator {
+    counter: AtomicU32,
+}
+
+impl IdGenerator {
+    fn new() -> IdGenerator {
+        IdGenerator {
+            counter: AtomicU32::new(0),
+        }
+    }
+    fn get_next_id(&mut self) -> u32 {
+        self.counter.fetch_add(1, Relaxed)
+    }
+}
 
 //All members of Item must have display implemented
 #[derive(Debug)]
-pub(super) struct Item<'a> {
+pub struct Item<'a> {
     name: &'a str,
     quantity: &'a u32,
 }
@@ -30,13 +41,13 @@ impl<'a> Item<'a> {
 }
 
 #[derive(Debug)]
-pub(super) struct Items {
+pub struct Items {
     names: HashMap<ItemID, String>,
     quantities: HashMap<ItemID, u32>,
     id_generator: IdGenerator,
 }
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub(super) struct ItemID(u32);
+pub struct ItemID(u32);
 
 impl Items {
     pub fn new() -> Self {
@@ -76,10 +87,24 @@ impl Items {
         }
     }
 }
-
 #[cfg(test)]
 mod test {
     use super::*;
+    mod id_gen {
+        use super::*;
+        #[test]
+        fn begins_at_0() {
+            let mut generator = IdGenerator::new();
+            assert_eq!(generator.get_next_id(), 0)
+        }
+        #[test]
+        fn increments_by_one() {
+            let mut generator = IdGenerator::new();
+            assert_eq!(generator.get_next_id(), 0);
+            assert_eq!(generator.get_next_id(), 1)
+        }
+    }
+
     mod items {
         use super::*;
         #[test]

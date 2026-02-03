@@ -1,7 +1,5 @@
-use crate::logic::item::{ItemID, Items};
+use crate::persistence::mock_items::{ItemID, Items};
 
-mod common;
-mod item;
 ///Boundary with presentation module.
 ///Must be able to:
 ///     Retrive Items, preferably in a collection
