@@ -120,9 +120,9 @@ mod test {
 
             items.update_quantities(changed_ids, changed_quantities);
 
-            assert_eq!(*items.get(&ids[0]).quantity, 550);
-            assert_eq!(*items.get(&ids[1]).quantity, 750);
-            assert_eq!(*items.get(&ids[2]).quantity, 650);
+            assert_eq!(*items.get(ids[0]).quantity, 550);
+            assert_eq!(*items.get(ids[1]).quantity, 750);
+            assert_eq!(*items.get(ids[2]).quantity, 650);
         }
     }
     mod item {
@@ -133,7 +133,7 @@ mod test {
             let name = "a".to_string();
             let quantity = 750;
             let index = items.insert(name.clone(), quantity);
-            let item = items.get(&index);
+            let item = items.get(index);
 
             let internals = item.get_displayables();
 
