@@ -9,12 +9,12 @@ struct IdGenerator {
 }
 
 impl IdGenerator {
-    fn new() -> IdGenerator {
-        IdGenerator {
+    const fn new() -> Self {
+        Self {
             counter: AtomicU32::new(0),
         }
     }
-    fn get_next_id(&mut self) -> u32 {
+    fn get_next_id(&self) -> u32 {
         self.counter.fetch_add(1, Relaxed)
     }
 }
@@ -35,7 +35,7 @@ impl<'a> Item<'a> {
 }
 
 impl<'a> Item<'a> {
-    fn new(name: &'a String, quantity: &'a u32) -> Item<'a> {
+    fn new(name: &'a String, quantity: &'a u32) -> Self {
         Item { name, quantity }
     }
 }
@@ -67,14 +67,14 @@ impl Items {
         self.names.remove(&id);
         self.quantities.remove(&id);
     }
-    pub fn get(&self, id: &ItemID) -> Item<'_> {
+    pub fn get(&self, id: ItemID) -> Item<'_> {
         let name = self
             .names
-            .get(id)
+            .get(&id)
             .expect("Unused IDs should not remain in use");
         let quantity = self
             .quantities
-            .get(id)
+            .get(&id)
             .expect("Unused IDs should not remain in use");
 
         Item::new(name, quantity)

@@ -66,7 +66,7 @@ pub enum Message {
 
 impl Bartend {
     fn new() -> Self {
-        Bartend {
+        Self {
             screen: Screen::Inventory(State::new()),
             bar_collection: BarCollection::new(),
         }
@@ -103,10 +103,8 @@ impl Bartend {
                         self.bar_collection
                             .add_item(take(&mut state.input_name), quantity.unwrap());
                         state.input_quantity.clear();
-                        Task::none()
-                    } else {
-                        Task::none()
                     }
+                    Task::none()
                 }
             },
         }
@@ -136,7 +134,7 @@ impl Bartend {
                 let entry_row = row![name_input, quantity_input, confirm_button].spacing(5);
 
                 let mut error_row = row![];
-                for error in state.errors.iter() {
+                for error in &state.errors {
                     match error {
                         StateError::NameError => {
                             error_row = error_row.push(text!("Name Must Not Be Empty"));
