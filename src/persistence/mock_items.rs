@@ -94,12 +94,12 @@ mod test {
         use super::*;
         #[test]
         fn begins_at_0() {
-            let mut generator = IdGenerator::new();
+            let generator = IdGenerator::new();
             assert_eq!(generator.get_next_id(), 0)
         }
         #[test]
         fn increments_by_one() {
-            let mut generator = IdGenerator::new();
+            let generator = IdGenerator::new();
             assert_eq!(generator.get_next_id(), 0);
             assert_eq!(generator.get_next_id(), 1)
         }
