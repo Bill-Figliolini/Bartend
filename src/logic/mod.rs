@@ -25,7 +25,7 @@ impl BarCollection {
         }
         results
     }
-    pub fn add_item(&mut self, name: String, quantity: u32) {
+    pub fn add_item(&mut self, name: String, quantity: f32) {
         let id = self.inventory.insert(name, quantity);
         self.item_ids.push(id);
     }

@@ -94,7 +94,7 @@ impl Bartend {
                     if state.input_name.is_empty() {
                         state.errors.insert(StateError::NameError);
                     }
-                    let quantity = state.input_quantity.parse::<u32>();
+                    let quantity = state.input_quantity.parse::<f32>();
                     if quantity.is_err() {
                         state.errors.insert(StateError::QuantityError);
                     }

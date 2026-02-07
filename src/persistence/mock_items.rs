@@ -23,7 +23,7 @@ impl IdGenerator {
 #[derive(Debug)]
 pub struct Item<'a> {
     name: &'a str,
-    quantity: &'a u32,
+    quantity: &'a f32,
 }
 
 impl<'a> Item<'a> {
@@ -35,7 +35,7 @@ impl<'a> Item<'a> {
 }
 
 impl<'a> Item<'a> {
-    fn new(name: &'a String, quantity: &'a u32) -> Self {
+    fn new(name: &'a String, quantity: &'a f32) -> Self {
         Item { name, quantity }
     }
 }
@@ -43,7 +43,7 @@ impl<'a> Item<'a> {
 #[derive(Debug)]
 pub struct Items {
     names: HashMap<ItemID, String>,
-    quantities: HashMap<ItemID, u32>,
+    quantities: HashMap<ItemID, f32>,
     id_generator: IdGenerator,
 }
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -57,7 +57,7 @@ impl Items {
             id_generator: IdGenerator::new(),
         }
     }
-    pub fn insert(&mut self, name: String, quantity: u32) -> ItemID {
+    pub fn insert(&mut self, name: String, quantity: f32) -> ItemID {
         let id = self.id_generator.get_next_id();
         self.quantities.insert(ItemID(id), quantity);
         self.names.insert(ItemID(id), name);
@@ -79,7 +79,7 @@ impl Items {
 
         Item::new(name, quantity)
     }
-    fn update_quantities<const N: usize>(&mut self, ids: [&ItemID; N], quantities: [&u32; N]) {
+    fn update_quantities<const N: usize>(&mut self, ids: [&ItemID; N], quantities: [&f32; N]) {
         let values = self.quantities.get_disjoint_mut(ids);
         let values = values.map(|i| i.expect("Unused IDs should not remain in use"));
         for i in 0..N {
@@ -112,17 +112,17 @@ mod test {
             let mut items = Items::new();
             let mut ids = vec![];
             for char in "abc".chars() {
-                let index = items.insert(char.to_string(), 750);
+                let index = items.insert(char.to_string(), 750.0);
                 ids.push(index);
             }
             let changed_ids = [&ids[0], &ids[2]];
-            let changed_quantities = [&200, &100];
+            let changed_quantities = [&200.0, &100.0];
 
             items.update_quantities(changed_ids, changed_quantities);
 
-            assert_eq!(*items.get(ids[0]).quantity, 550);
-            assert_eq!(*items.get(ids[1]).quantity, 750);
-            assert_eq!(*items.get(ids[2]).quantity, 650);
+            assert_eq!(*items.get(ids[0]).quantity, 550.0);
+            assert_eq!(*items.get(ids[1]).quantity, 750.0);
+            assert_eq!(*items.get(ids[2]).quantity, 650.0);
         }
     }
     mod item {
@@ -131,7 +131,7 @@ mod test {
         fn can_can_be_unwrapped_into_displayables() {
             let mut items = Items::new();
             let name = "a".to_string();
-            let quantity = 750;
+            let quantity = 750.0;
             let index = items.insert(name.clone(), quantity);
             let item = items.get(index);
 
