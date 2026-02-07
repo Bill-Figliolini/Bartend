@@ -1,20 +1,21 @@
+use crate::persistence::{ItemID, Repository};
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicU32, Ordering::Relaxed},
+    sync::atomic::{AtomicUsize, Ordering::Relaxed},
 };
 
 #[derive(Debug)]
 struct IdGenerator {
-    counter: AtomicU32,
+    counter: AtomicUsize,
 }
 
 impl IdGenerator {
     const fn new() -> Self {
         Self {
-            counter: AtomicU32::new(0),
+            counter: AtomicUsize::new(0),
         }
     }
-    fn get_next_id(&self) -> u32 {
+    fn get_next_id(&self) -> usize {
         self.counter.fetch_add(1, Relaxed)
     }
 }
@@ -46,27 +47,8 @@ pub struct Items {
     quantities: HashMap<ItemID, f32>,
     id_generator: IdGenerator,
 }
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct ItemID(u32);
 
 impl Items {
-    pub fn new() -> Self {
-        Self {
-            names: HashMap::new(),
-            quantities: HashMap::new(),
-            id_generator: IdGenerator::new(),
-        }
-    }
-    pub fn insert(&mut self, name: String, quantity: f32) -> ItemID {
-        let id = self.id_generator.get_next_id();
-        self.quantities.insert(ItemID(id), quantity);
-        self.names.insert(ItemID(id), name);
-        ItemID(id)
-    }
-    pub fn delete(&mut self, id: ItemID) {
-        self.names.remove(&id);
-        self.quantities.remove(&id);
-    }
     pub fn get(&self, id: ItemID) -> Item<'_> {
         let name = self
             .names
@@ -87,6 +69,29 @@ impl Items {
         }
     }
 }
+impl Repository for Items {
+    fn new() -> Self {
+        Self {
+            names: HashMap::new(),
+            quantities: HashMap::new(),
+            id_generator: IdGenerator::new(),
+        }
+    }
+    fn add_item(&mut self, name: String, quantity: f32) -> ItemID {
+        let id = ItemID(self.id_generator.get_next_id());
+        self.quantities.insert(id, quantity);
+        self.names.insert(id, name);
+        id
+    }
+    fn get_all_items(&self) -> Vec<[String; 2]> {
+        let mut result = Vec::with_capacity(self.names.len());
+        for id in self.names.keys() {
+            result.push(self.get(*id).get_displayables());
+        }
+        result
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -112,7 +117,7 @@ mod test {
             let mut items = Items::new();
             let mut ids = vec![];
             for char in "abc".chars() {
-                let index = items.insert(char.to_string(), 750.0);
+                let index = items.add_item(char.to_string(), 750.0);
                 ids.push(index);
             }
             let changed_ids = [&ids[0], &ids[2]];
@@ -132,7 +137,7 @@ mod test {
             let mut items = Items::new();
             let name = "a".to_string();
             let quantity = 750.0;
-            let index = items.insert(name.clone(), quantity);
+            let index = items.add_item(name.clone(), quantity);
             let item = items.get(index);
 
             let internals = item.get_displayables();

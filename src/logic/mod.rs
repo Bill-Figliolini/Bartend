@@ -1,4 +1,4 @@
-use crate::persistence::mock_items::{ItemID, Items};
+use crate::persistence::{Repository, mock_items::Items};
 
 ///Boundary with presentation module.
 ///Must be able to:
@@ -7,27 +7,19 @@ use crate::persistence::mock_items::{ItemID, Items};
 #[derive(Debug)]
 pub struct BarCollection {
     inventory: Items,
-    item_ids: Vec<ItemID>,
 }
 
 impl BarCollection {
     pub fn new() -> Self {
         Self {
             inventory: Items::new(),
-            item_ids: Vec::new(),
         }
     }
     pub fn get_items(&self) -> Vec<[String; 2]> {
-        let mut results = Vec::with_capacity(self.item_ids.len());
-        for id in &self.item_ids {
-            let item = self.inventory.get(*id);
-            results.push(item.get_displayables());
-        }
-        results
+        self.inventory.get_all_items()
     }
     pub fn add_item(&mut self, name: String, quantity: f32) {
-        let id = self.inventory.insert(name, quantity);
-        self.item_ids.push(id);
+        self.inventory.add_item(name, quantity);
     }
 }
 #[cfg(test)]
