@@ -1,8 +1,11 @@
 mod schema;
 
-use std::{fmt::Display, path::Path};
+use std::{
+    fmt::{Display, format},
+    path::Path,
+};
 
-use crate::persistence::{ItemID, Repository, sqlite::schema::Schema};
+use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
 use rusqlite::{self, Connection};
 use sql_query_builder::{self, CreateTable, Insert};
 
@@ -10,7 +13,7 @@ struct DB {
     connection: Connection,
     items_schema: Schema,
 }
-impl DB {
+impl Repository for DB {
     fn new(path: impl AsRef<Path>) -> Self {
         let items_schema = Schema::new("items")
             .column("id")
@@ -28,21 +31,26 @@ impl DB {
             }
         }
     }
-    fn get(&self) {
-        todo!()
-    }
-}
 
-impl Repository for DB {
-    fn new() -> Self {
-        todo!()
+    fn add_item(&self, name: &str, quantity: f32) -> ItemID {
+        let table = self.items_schema.name();
+        let table_columns = self.items_schema.columns();
+        let query = Insert::new()
+            .insert_into(&format!(
+                "{} ({},{})",
+                name, table_columns[1], table_columns[2]
+            ))
+            .values("(?1, ?2)")
+            .debug()
+            .as_string();
+        let result = self.connection.execute(&query, (name, quantity));
+        if let Err(e) = result {
+            eprintln!("Item Insertion Error: {}", e);
+        }
+        ItemID(self.connection.last_insert_rowid())
     }
 
-    fn add_item(&mut self, name: String, quantity: f32) -> ItemID {
-        todo!()
-    }
-
-    fn get_all_items(&self) -> Vec<[String; 2]> {
+    fn get_all_items(&self) -> Vec<Item> {
         todo!()
     }
 }
@@ -69,12 +77,14 @@ fn create_tables(db: &DB) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use tempfile::TempDir;
     mod table_creation {
         use super::*;
         #[test]
         fn items() {
-            let dir = Path::new("/tmp/bartend.db");
-            let db = DB::new(dir);
+            let dir = TempDir::new().unwrap();
+            let file = dir.path().join("bartend.db");
+            let db = DB::new(file);
 
             create_tables(&db);
 
@@ -87,12 +97,20 @@ mod test {
                         .unwrap()
                 )
             }
-            let _ = std::fs::remove_file(dir);
         }
     }
     mod items {
         use super::*;
         #[test]
-        fn test() {}
+        fn insert() {
+            let dir = TempDir::new().unwrap();
+            let file = dir.path().join("bartend.db");
+            let db = DB::new(file);
+            create_tables(&db);
+
+            let id = db.add_item("test", 750.0);
+
+            assert_eq!(id.0, 1);
+        }
     }
 }

@@ -12,7 +12,7 @@ pub struct BarCollection {
 impl BarCollection {
     pub fn new() -> Self {
         Self {
-            inventory: Items::new(),
+            inventory: Items::new(""),
         }
     }
     pub fn get_items(&self) -> Vec<[String; 2]> {
