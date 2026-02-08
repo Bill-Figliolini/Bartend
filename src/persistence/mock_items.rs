@@ -1,21 +1,22 @@
 use crate::persistence::{ItemID, Repository};
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicUsize, Ordering::Relaxed},
+    path::Path,
+    sync::atomic::{AtomicI64, Ordering::Relaxed},
 };
 
 #[derive(Debug)]
 struct IdGenerator {
-    counter: AtomicUsize,
+    counter: AtomicI64,
 }
 
 impl IdGenerator {
     const fn new() -> Self {
         Self {
-            counter: AtomicUsize::new(0),
+            counter: AtomicI64::new(0),
         }
     }
-    fn get_next_id(&self) -> usize {
+    fn get_next_id(&self) -> i64 {
         self.counter.fetch_add(1, Relaxed)
     }
 }
@@ -49,6 +50,26 @@ pub struct Items {
 }
 
 impl Items {
+    pub fn new(_: impl AsRef<Path>) -> Self {
+        Self {
+            names: HashMap::new(),
+            quantities: HashMap::new(),
+            id_generator: IdGenerator::new(),
+        }
+    }
+    pub fn add_item(&mut self, name: String, quantity: f32) -> ItemID {
+        let id = ItemID(self.id_generator.get_next_id());
+        self.quantities.insert(id, quantity);
+        self.names.insert(id, name);
+        id
+    }
+    pub fn get_all_items(&self) -> Vec<[String; 2]> {
+        let mut result = Vec::with_capacity(self.names.len());
+        for id in self.names.keys() {
+            result.push(self.get(*id).get_displayables());
+        }
+        result
+    }
     pub fn get(&self, id: ItemID) -> Item<'_> {
         let name = self
             .names
@@ -67,28 +88,6 @@ impl Items {
         for i in 0..N {
             *values[i] -= quantities[i];
         }
-    }
-}
-impl Repository for Items {
-    fn new() -> Self {
-        Self {
-            names: HashMap::new(),
-            quantities: HashMap::new(),
-            id_generator: IdGenerator::new(),
-        }
-    }
-    fn add_item(&mut self, name: String, quantity: f32) -> ItemID {
-        let id = ItemID(self.id_generator.get_next_id());
-        self.quantities.insert(id, quantity);
-        self.names.insert(id, name);
-        id
-    }
-    fn get_all_items(&self) -> Vec<[String; 2]> {
-        let mut result = Vec::with_capacity(self.names.len());
-        for id in self.names.keys() {
-            result.push(self.get(*id).get_displayables());
-        }
-        result
     }
 }
 
@@ -114,7 +113,7 @@ mod test {
         use super::*;
         #[test]
         fn batch_updates_table() {
-            let mut items = Items::new();
+            let mut items = Items::new("");
             let mut ids = vec![];
             for char in "abc".chars() {
                 let index = items.add_item(char.to_string(), 750.0);
@@ -134,7 +133,7 @@ mod test {
         use super::*;
         #[test]
         fn can_can_be_unwrapped_into_displayables() {
-            let mut items = Items::new();
+            let mut items = Items::new("");
             let name = "a".to_string();
             let quantity = 750.0;
             let index = items.add_item(name.clone(), quantity);
