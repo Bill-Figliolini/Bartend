@@ -112,5 +112,12 @@ mod test {
 
             assert_eq!(id.0, 1);
         }
+        #[test]
+        fn get() {
+            let dir = TempDir::new().unwrap();
+            let file = dir.path().join("bartend.db");
+            let db = DB::new(file);
+            create_tables(&db);
+        }
     }
 }
