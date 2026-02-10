@@ -38,7 +38,7 @@ impl Repository for DB {
         let query = Insert::new()
             .insert_into(&format!(
                 "{} ({},{})",
-                name, table_columns[1], table_columns[2]
+                table, table_columns[1], table_columns[2]
             ))
             .values("(?1, ?2)")
             .debug()
