@@ -26,8 +26,16 @@ impl Schema {
     pub const fn columns(&self) -> &Vec<String> {
         &self.columns
     }
+    pub fn columns_string(&self) -> String {
+        assert!(!self.columns.is_empty());
+        let mut columns = self.columns[0].clone();
+        for column in self.columns.iter().skip(1) {
+            _ = write!(columns, ", {column}");
+        }
+        columns
+    }
 
-    pub fn get_insert_into(&self) -> String {
+    pub fn get_autoinsert_statement(&self) -> String {
         let mut clause = self.name.clone();
         clause.push_str(" (");
         for column in &self.columns {

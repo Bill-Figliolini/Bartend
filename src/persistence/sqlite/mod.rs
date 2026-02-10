@@ -7,7 +7,7 @@ use std::{
 
 use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
 use rusqlite::{self, Connection};
-use sql_query_builder::{self, CreateTable, Insert};
+use sql_query_builder as sql;
 
 struct DB {
     connection: Connection,
@@ -16,7 +16,7 @@ struct DB {
 
 impl DB {
     fn create_tables(connection: &Connection, items_schema: &Schema) {
-        let create_items = CreateTable::new()
+        let create_items = sql::CreateTable::new()
             .create_table_if_not_exists(items_schema.name())
             .column(&format!(
                 "{} INTEGER PRIMARY KEY",
@@ -55,8 +55,8 @@ impl Repository for DB {
     }
 
     fn add_item(&self, name: &str, quantity: f32) -> ItemID {
-        let query = Insert::new()
-            .insert_into(&self.items_schema.get_insert_into())
+        let query = sql::Insert::new()
+            .insert_into(&self.items_schema.get_autoinsert_statement())
             .values("(?1, ?2)")
             .debug()
             .as_string();
@@ -67,8 +67,39 @@ impl Repository for DB {
         ItemID(self.connection.last_insert_rowid())
     }
 
-    fn get_all_items(&self) -> Vec<Item> {
+    fn get_item(&self, id: ItemID) -> Option<Item> {
+        let id = id.0;
+        let query = sql::Select::new()
+            .select("*")
+            .from(self.items_schema.name())
+            .where_clause(&format!("id={id}"))
+            .as_string();
         todo!()
+    }
+
+    fn get_all_items(&self) -> Vec<Item> {
+        let query = sql::Select::new()
+            .select(&self.items_schema.columns_string())
+            .from(self.items_schema.name())
+            .as_string();
+        let mut stmt = self.connection.prepare(&query).unwrap();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(Item {
+                    id: ItemID(row.get(0).unwrap()),
+                    name: row.get(1).unwrap(),
+                    quantity: row.get(2).unwrap(),
+                })
+            })
+            .unwrap();
+        let mut items = Vec::new();
+        for row in rows {
+            match row {
+                Ok(item) => items.push(item),
+                Err(e) => eprint!("Error retrieving Items: {e}"),
+            }
+        }
+        items
     }
 }
 
@@ -108,10 +139,21 @@ mod test {
             assert_eq!(id.0, 1);
         }
         #[test]
-        fn get() {
+        fn get_all() {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
+            let names = vec!["test1", "test2"];
+            let quantities = vec![750.0, 650.0];
+            _ = db.add_item(names[0], quantities[0]);
+            _ = db.add_item(names[1], quantities[1]);
+
+            let items = db.get_all_items();
+
+            for item in items {
+                assert!(names.iter().any(|name| name == &item.name));
+                assert!(quantities.iter().any(|quantity| quantity == &item.quantity));
+            }
         }
     }
 }
