@@ -46,7 +46,7 @@ impl Repository for DB {
             }
         };
 
-        DB::create_tables(&connection, &items_schema);
+        Self::create_tables(&connection, &items_schema);
 
         Self {
             connection,
