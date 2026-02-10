@@ -13,6 +13,24 @@ struct DB {
     connection: Connection,
     items_schema: Schema,
 }
+
+impl DB {
+    fn create_tables(connection: &Connection, items_schema: &Schema) {
+        let create_items = CreateTable::new()
+            .create_table_if_not_exists(items_schema.name())
+            .column(&format!(
+                "{} INTEGER PRIMARY KEY",
+                items_schema.columns()[0]
+            ))
+            .column(&format!("{} TEXT NOT NULL", items_schema.columns()[1]))
+            .column(&format!("{} REAL NOT NULL", items_schema.columns()[2]))
+            .as_string();
+        let result = connection.execute(&create_items, ());
+        if let Err(e) = result {
+            panic!("DB Initialization error: {e}");
+        }
+    }
+}
 impl Repository for DB {
     fn new(path: impl AsRef<Path>) -> Self {
         let items_schema = Schema::new("items")
@@ -21,25 +39,24 @@ impl Repository for DB {
             .column("quantity");
 
         let connection = Connection::open(path);
-        match connection {
-            Ok(connection) => Self {
-                connection,
-                items_schema,
-            },
+        let connection = match connection {
+            Ok(connection) => connection,
             Err(e) => {
                 panic!("DB could not be opened! {e}")
             }
+        };
+
+        DB::create_tables(&connection, &items_schema);
+
+        Self {
+            connection,
+            items_schema,
         }
     }
 
     fn add_item(&self, name: &str, quantity: f32) -> ItemID {
-        let table = self.items_schema.name();
-        let table_columns = self.items_schema.columns();
         let query = Insert::new()
-            .insert_into(&format!(
-                "{} ({},{})",
-                table, table_columns[1], table_columns[2]
-            ))
+            .insert_into(&self.items_schema.get_insert_into())
             .values("(?1, ?2)")
             .debug()
             .as_string();
@@ -55,25 +72,6 @@ impl Repository for DB {
     }
 }
 
-//There's a design decision here that I had not considered.
-// I could formulate each table as a struct of its names and fields, and use that to handle creation and insertion,
-// instead of doing it manually.
-fn create_tables(db: &DB) {
-    let create_items = CreateTable::new()
-        .create_table_if_not_exists(db.items_schema.name())
-        .column(&format!(
-            "{} INTEGER PRIMARY KEY",
-            db.items_schema.columns()[0]
-        ))
-        .column(&format!("{} TEXT NOT NULL", db.items_schema.columns()[1]))
-        .column(&format!("{} REAL NOT NULL", db.items_schema.columns()[2]))
-        .as_string();
-    let result = db.connection.execute(&create_items, ());
-    if let Err(e) = result {
-        panic!("DB Initialization error: {e}");
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -85,8 +83,6 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
-
-            create_tables(&db);
 
             let items_name = db.items_schema.name();
             assert!(db.connection.table_exists(None, items_name).unwrap());
@@ -106,7 +102,6 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
-            create_tables(&db);
 
             let id = db.add_item("test", 750.0);
 
@@ -117,7 +112,6 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
-            create_tables(&db);
         }
     }
 }

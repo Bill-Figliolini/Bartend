@@ -14,15 +14,33 @@ impl Schema {
             columns: vec![],
         }
     }
-    pub fn name(&self) -> &str {
-        &self.name
-    }
     pub fn column(mut self, column: &str) -> Self {
         self.columns.push(column.to_string());
         self
     }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
     pub const fn columns(&self) -> &Vec<String> {
         &self.columns
+    }
+
+    pub fn get_insert_into(&self) -> String {
+        let mut clause = self.name.clone();
+        clause.push_str(" (");
+        for column in &self.columns {
+            if column == "id" {
+                continue;
+            }
+            if !clause.ends_with('(') {
+                clause.push_str(", ");
+            }
+
+            clause.push_str(&format!("{column}"));
+        }
+
+        clause.push(')');
+        clause
     }
 }
 
