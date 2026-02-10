@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 pub(super) struct Schema {
     name: String,
     columns: Vec<String>,
@@ -36,7 +38,7 @@ impl Schema {
                 clause.push_str(", ");
             }
 
-            clause.push_str(&format!("{column}"));
+            _ = write!(clause, "{column}");
         }
 
         clause.push(')');
