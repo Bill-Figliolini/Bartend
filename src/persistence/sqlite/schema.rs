@@ -19,12 +19,9 @@ impl Schema {
     }
     pub fn column(mut self, column: &str) -> Self {
         self.columns.push(column.to_string());
-        Self {
-            name: self.name,
-            columns: self.columns,
-        }
+        self
     }
-    pub fn columns(&self) -> &Vec<String> {
+    pub const fn columns(&self) -> &Vec<String> {
         &self.columns
     }
 }

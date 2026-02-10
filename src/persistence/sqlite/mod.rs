@@ -27,7 +27,7 @@ impl Repository for DB {
                 items_schema,
             },
             Err(e) => {
-                panic!("DB could not be opened! {}", e)
+                panic!("DB could not be opened! {e}")
             }
         }
     }
@@ -45,7 +45,7 @@ impl Repository for DB {
             .as_string();
         let result = self.connection.execute(&query, (name, quantity));
         if let Err(e) = result {
-            eprintln!("Item Insertion Error: {}", e);
+            eprintln!("Item Insertion Error: {e}");
         }
         ItemID(self.connection.last_insert_rowid())
     }
@@ -70,7 +70,7 @@ fn create_tables(db: &DB) {
         .as_string();
     let result = db.connection.execute(&create_items, ());
     if let Err(e) = result {
-        panic!("DB Initialization error: {}", e);
+        panic!("DB Initialization error: {e}");
     }
 }
 
