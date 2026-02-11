@@ -66,9 +66,10 @@ pub enum Message {
 
 impl Bartend {
     fn new() -> Self {
-        Bartend {
+        let path = "./bartend.db";
+        Self {
             screen: Screen::Inventory(State::new()),
-            bar_collection: BarCollection::new(),
+            bar_collection: BarCollection::new(path),
         }
     }
 
@@ -94,19 +95,17 @@ impl Bartend {
                     if state.input_name.is_empty() {
                         state.errors.insert(StateError::NameError);
                     }
-                    let quantity = state.input_quantity.parse::<u32>();
+                    let quantity = state.input_quantity.parse::<f32>();
                     if quantity.is_err() {
                         state.errors.insert(StateError::QuantityError);
                     }
 
                     if state.errors.is_empty() {
                         self.bar_collection
-                            .add_item(take(&mut state.input_name), quantity.unwrap());
+                            .add_item(&take(&mut state.input_name), quantity.unwrap());
                         state.input_quantity.clear();
-                        Task::none()
-                    } else {
-                        Task::none()
                     }
+                    Task::none()
                 }
             },
         }
@@ -136,7 +135,7 @@ impl Bartend {
                 let entry_row = row![name_input, quantity_input, confirm_button].spacing(5);
 
                 let mut error_row = row![];
-                for error in state.errors.iter() {
+                for error in &state.errors {
                     match error {
                         StateError::NameError => {
                             error_row = error_row.push(text!("Name Must Not Be Empty"));
@@ -151,7 +150,7 @@ impl Bartend {
                 let items = self.bar_collection.get_items();
                 let mut inventory = column![];
                 for item in items {
-                    let row = text!["{}: {} remain", item[0], item[1]];
+                    let row = text!["{}: {} remain", item.name, item.quantity];
                     inventory = inventory.push(row);
                 }
 

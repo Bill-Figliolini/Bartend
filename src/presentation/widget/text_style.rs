@@ -1,4 +1,4 @@
-/// mod text_style
+/// mod `text_style`
 /// Contains functions for standardizing the display of text throughout the program.
 use iced::{
     Element,

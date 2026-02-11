@@ -1,20 +1,6 @@
-use crate::logic::item::{ItemID, Items};
+use std::path::Path;
 
-mod common;
-mod item;
-
-/// Defines potential manners in which the quantity of an ingredient can be defined.
-/// Mass and Volume are handled by uom measures
-/// Count is an i32 that can be multiplied into a float and interpreted by the user
-pub enum Quantity {
-    Mass(u32),
-    Volume(u32),
-    Count(u32),
-}
-
-enum Error {
-    MismatchedUnits,
-}
+use crate::persistence::{Item, Repository, sqlite::DB};
 
 ///Boundary with presentation module.
 ///Must be able to:
@@ -22,31 +8,25 @@ enum Error {
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    inventory: Items,
-    item_ids: Vec<ItemID>,
+    inventory: DB,
 }
 
 impl BarCollection {
-    pub fn new() -> Self {
+    pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
-            inventory: Items::new(),
-            item_ids: Vec::new(),
+            inventory: DB::new(path),
         }
     }
-    pub fn get_items(&self) -> Vec<[String; 2]> {
-        let mut results = Vec::with_capacity(self.item_ids.len());
-        for id in self.item_ids.iter() {
-            let item = self.inventory.get(id);
-            results.push(item.get_displayables());
-        }
-        results
+    pub fn get_items(&self) -> Vec<Item> {
+        self.inventory.get_all_items()
     }
-    pub fn add_item(&mut self, name: String, quantity: u32) {
-        let id = self.inventory.insert(name, quantity);
-        self.item_ids.push(id);
+    pub fn add_item(&mut self, name: &str, quantity: f32) {
+        self.inventory.add_item(name, quantity);
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod on_start {}
+    mod in_operation {}
 }
