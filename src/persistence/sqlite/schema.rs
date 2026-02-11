@@ -44,7 +44,6 @@ impl Schema {
             _ = write!(clause, "{column}");
         }
         clause.push(')');
-        println!("{clause}");
         clause
     }
 }
