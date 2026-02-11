@@ -1,5 +1,9 @@
 use std::fmt::Write;
 
+/// Struct for holding the name of a DB table and its columns.
+/// 
+/// Precondition:
+/// At least one column must be inserted before any reading function is called.
 #[derive(Debug)]
 pub(super) struct Schema {
     name: String,
@@ -21,6 +25,7 @@ impl Schema {
         &self.name
     }
     pub const fn columns(&self) -> &Vec<String> {
+        assert!(!self.columns.is_empty());
         &self.columns
     }
     pub fn columns_string(&self) -> String {
@@ -33,12 +38,9 @@ impl Schema {
     }
 
     pub fn get_autoinsert_statement(&self) -> String {
-        let mut clause = self.name.clone();
-        clause.push_str(" (");
-        for column in &self.columns {
-            if column == "id" {
-                continue;
-            }
+        assert!(!self.columns.is_empty());
+        let mut clause = format!("{} (", self.name);
+        for column in self.columns.iter().skip(1) {
             if !clause.ends_with('(') {
                 clause.push_str(", ");
             }
@@ -52,4 +54,34 @@ impl Schema {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+    mod preconditions {
+        use super::*;
+
+        mod schema_must_have_one_column_to_be_read {
+            use super::*;
+            #[test]
+            #[should_panic]
+            fn columns() {
+                let schema = Schema::new("name");
+
+                _ = schema.columns()
+            }
+            #[test]
+            #[should_panic]
+            fn columns_string() {
+                let schema = Schema::new("name");
+
+                _ = schema.columns_string()
+            }
+            #[test]
+            #[should_panic]
+            fn get_auto_insert_statement() {
+                let schema = Schema::new("name");
+
+                _ = schema.get_autoinsert_statement()
+            }
+        }
+    }
+}
