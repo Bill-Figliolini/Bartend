@@ -1,0 +1,128 @@
+use std::{collections::HashSet, mem::take};
+
+use iced::{
+    Element, Task,
+    widget::{column, row, text, text_input},
+};
+
+use crate::{
+    persistence::Item,
+    presentation::{
+        application,
+        widget::{sidebar::button, text_style::title},
+    },
+};
+
+#[derive(Debug)]
+pub struct Inventory {
+    input_name: String,
+    input_quantity: String,
+    contents: Vec<Item>,
+    errors: HashSet<Error>,
+}
+#[derive(Debug, Hash, PartialEq, Eq)]
+enum Error {
+    NameError,
+    QuantityError,
+}
+#[derive(Debug, Clone)]
+pub enum Message {
+    SaveNewItem,
+    NameUpdate(String),
+    QuantityUpdate(String),
+}
+impl Inventory {
+    pub fn new(item_list: Vec<Item>) -> Self {
+        Self {
+            input_name: String::new(),
+            input_quantity: String::new(),
+            contents: item_list,
+            errors: HashSet::with_capacity(2),
+        }
+    }
+    pub(super) fn update(&mut self, message: Message) -> Option<application::Command> {
+        match message {
+            Message::NameUpdate(new) => {
+                self.input_name = new;
+                None
+            }
+            Message::QuantityUpdate(new) => {
+                self.input_quantity = new;
+                None
+            }
+            Message::SaveNewItem => {
+                self.errors.clear();
+
+                if self.input_name.is_empty() {
+                    self.errors.insert(Error::NameError);
+                }
+                let quantity = self.input_quantity.parse::<f32>();
+                let quantity = match quantity {
+                    Ok(quantity) => {
+                        if quantity <= 0.0 {
+                            self.errors.insert(Error::QuantityError);
+                        }
+                        quantity
+                    }
+                    Err(_) => {
+                        self.errors.insert(Error::QuantityError);
+                        0.0
+                    }
+                };
+
+                if self.errors.is_empty() {
+                    let name = take(&mut self.input_name);
+                    self.input_quantity.clear();
+                    Some(application::Command::AddItem(name, quantity))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+    pub(super) fn view(&self) -> Element<'_, application::Message> {
+        let title = title("Inventory");
+
+        let entry_header = text("New Item:");
+        let name_input = text_input("Name", &self.input_name)
+            .id("name-input")
+            .on_input(|str: String| application::Message::Inventory(Message::NameUpdate(str)));
+        let quantity_input = text_input("Quantity", &self.input_quantity)
+            .id("quantity-input")
+            .on_input(|str: String| application::Message::Inventory(Message::QuantityUpdate(str)));
+
+        let confirm_button = button("Save", || {
+            application::Message::Inventory(Message::SaveNewItem)
+        });
+        let entry_row = row![name_input, quantity_input, confirm_button].spacing(5);
+
+        let mut error_row = row![];
+        for error in &self.errors {
+            match error {
+                Error::NameError => {
+                    error_row = error_row.push(text!("Name Must Not Be Empty"));
+                }
+                Error::QuantityError => {
+                    error_row =
+                        error_row.push(text!("Quantity must be a positive, non-zero number"));
+                }
+            }
+        }
+
+        let inventory_header = text("Inventory");
+        let mut inventory = column![];
+        for item in &self.contents {
+            let row = text!["{}: {} remain", item.name, item.quantity];
+            inventory = inventory.push(row);
+        }
+
+        let body = column![
+            entry_header,
+            entry_row,
+            error_row,
+            inventory_header,
+            inventory
+        ];
+        column![title, body].into()
+    }
+}
