@@ -96,13 +96,22 @@ impl Bartend {
                         state.errors.insert(StateError::NameError);
                     }
                     let quantity = state.input_quantity.parse::<f32>();
-                    if quantity.is_err() {
-                        state.errors.insert(StateError::QuantityError);
-                    }
+                    let quantity = match quantity {
+                        Ok(quantity) => {
+                            if quantity <= 0.0 {
+                                state.errors.insert(StateError::QuantityError);
+                            }
+                            quantity
+                        }
+                        Err(_) => {
+                            state.errors.insert(StateError::QuantityError);
+                            0.0
+                        }
+                    };
 
                     if state.errors.is_empty() {
                         self.bar_collection
-                            .add_item(&take(&mut state.input_name), quantity.unwrap());
+                            .add_item(&take(&mut state.input_name), quantity);
                         state.input_quantity.clear();
                     }
                     Task::none()
