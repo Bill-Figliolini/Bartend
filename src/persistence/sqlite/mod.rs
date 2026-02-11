@@ -143,16 +143,28 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
-            let names = vec!["test1", "test2"];
-            let quantities = vec![750.0, 650.0];
-            _ = db.add_item(names[0], quantities[0]);
-            _ = db.add_item(names[1], quantities[1]);
+            let pre_items = vec![
+                Item {
+                    id: ItemID(1),
+                    name: "test1".to_string(),
+                    quantity: 750.0,
+                },
+                Item {
+                    id: ItemID(2),
+                    name: "test2".to_string(),
+                    quantity: 375.0,
+                },
+            ];
+            _ = db.add_item(&pre_items[0].name, pre_items[0].quantity);
+            _ = db.add_item(&pre_items[1].name, pre_items[1].quantity);
 
             let items = db.get_all_items();
 
             for item in items {
-                assert!(names.iter().any(|name| name == &item.name));
-                assert!(quantities.iter().any(|quantity| quantity == &item.quantity));
+                assert!(
+                    pre_items.iter().any(|pre_item| &pre_item.name == &item.name
+                        && &pre_item.quantity == &item.quantity)
+                );
             }
         }
     }
