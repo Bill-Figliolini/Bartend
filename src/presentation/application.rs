@@ -150,7 +150,8 @@ impl Bartend {
                             error_row = error_row.push(text!("Name Must Not Be Empty"));
                         }
                         StateError::QuantityError => {
-                            error_row = error_row.push(text!("Quantity must be a number"));
+                            error_row = error_row
+                                .push(text!("Quantity must be a positive, non-zero number"));
                         }
                     }
                 }
