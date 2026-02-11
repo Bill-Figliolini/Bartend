@@ -33,8 +33,7 @@ impl Repository for DB {
     fn new(path: impl AsRef<Path>) -> Self {
         let items_schema = Schema::new("items").column("name").column("quantity");
 
-        let connection = Connection::open(path);
-        let connection = match connection {
+        let connection = match Connection::open(path) {
             Ok(connection) => connection,
             Err(e) => {
                 panic!("DB could not be opened! {e}")
@@ -78,13 +77,16 @@ impl Repository for DB {
             .select(&self.items_schema.columns_string())
             .from(self.items_schema.name())
             .as_string();
-        let mut stmt = self.connection.prepare(&query).unwrap();
+        let mut stmt = self
+            .connection
+            .prepare(&query)
+            .expect("query must be valid sql");
         let rows = stmt
             .query_map([], |row| {
                 Ok(Item {
-                    id: ItemID(row.get(0).unwrap()),
-                    name: row.get(1).unwrap(),
-                    quantity: row.get(2).unwrap(),
+                    id: ItemID(row.get(0).expect("idx 0 corresponds to id")),
+                    name: row.get(1).expect("idx 1 corresponds to name"),
+                    quantity: row.get(2).expect("idx 2 corresponds to quantity"),
                 })
             })
             .unwrap();
