@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::persistence::{Item, Repository, sqlite::DB};
+use crate::persistence::{Item, ItemID, Repository, sqlite::DB};
 
 ///Boundary with presentation module.
 ///Must be able to:
@@ -20,8 +20,8 @@ impl BarCollection {
     pub fn get_items(&self) -> Vec<Item> {
         self.inventory.get_all_items()
     }
-    pub fn add_item(&self, name: &str, quantity: f32) {
-        self.inventory.add_item(name, quantity);
+    pub fn add_item(&self, name: &str, quantity: f32) -> ItemID {
+        self.inventory.add_item(name, quantity)
     }
 }
 #[cfg(test)]
