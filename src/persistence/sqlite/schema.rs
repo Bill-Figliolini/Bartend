@@ -33,7 +33,6 @@ impl Schema {
         }
         columns
     }
-
     pub fn autoinsert(&self) -> String {
         let mut clause = format!("{} ({}", self.name, self.columns[1]);
         for column in self.columns.iter().skip(2) {
@@ -49,10 +48,8 @@ mod test {
     use super::*;
     mod usage {
         use super::*;
-
         mod insert {
             use super::*;
-
             #[test]
             fn provides_valid_sql() {
                 let schema = Schema::new("items").column("name").column("quantity");
@@ -62,7 +59,6 @@ mod test {
         }
         mod columns {
             use super::*;
-
             #[test]
             fn provides_string_of_all_columns() {
                 let schema = Schema::new("items").column("name").column("quantity");
