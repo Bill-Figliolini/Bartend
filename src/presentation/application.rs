@@ -66,9 +66,10 @@ pub enum Message {
 
 impl Bartend {
     fn new() -> Self {
+        let path = "./bartend.db";
         Self {
             screen: Screen::Inventory(State::new()),
-            bar_collection: BarCollection::new(),
+            bar_collection: BarCollection::new(path),
         }
     }
 
@@ -101,7 +102,7 @@ impl Bartend {
 
                     if state.errors.is_empty() {
                         self.bar_collection
-                            .add_item(take(&mut state.input_name), quantity.unwrap());
+                            .add_item(&take(&mut state.input_name), quantity.unwrap());
                         state.input_quantity.clear();
                     }
                     Task::none()
@@ -149,7 +150,7 @@ impl Bartend {
                 let items = self.bar_collection.get_items();
                 let mut inventory = column![];
                 for item in items {
-                    let row = text!["{}: {} remain", item[0], item[1]];
+                    let row = text!["{}: {} remain", item.name, item.quantity];
                     inventory = inventory.push(row);
                 }
 

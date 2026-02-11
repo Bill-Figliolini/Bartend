@@ -9,7 +9,8 @@ use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
 use rusqlite::{self, Connection};
 use sql_query_builder as sql;
 
-struct DB {
+#[derive(Debug)]
+pub struct DB {
     connection: Connection,
     items_schema: Schema,
 }

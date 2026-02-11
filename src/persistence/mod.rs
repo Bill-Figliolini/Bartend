@@ -1,15 +1,14 @@
 use std::path::Path;
 
-pub(super) mod mock_items;
-mod sqlite;
+pub mod sqlite;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ItemID(i64);
 
 pub struct Item {
-    id: ItemID,
-    name: String,
-    quantity: f32,
+    pub id: ItemID,
+    pub name: String,
+    pub quantity: f32,
 }
 
 pub trait Repository {

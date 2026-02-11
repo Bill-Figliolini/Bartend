@@ -1,5 +1,6 @@
 use std::fmt::Write;
 
+#[derive(Debug)]
 pub(super) struct Schema {
     name: String,
     columns: Vec<String>,

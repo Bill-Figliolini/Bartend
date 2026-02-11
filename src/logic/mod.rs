@@ -1,4 +1,6 @@
-use crate::persistence::{Repository, mock_items::Items};
+use std::path::Path;
+
+use crate::persistence::{Item, Repository, sqlite::DB};
 
 ///Boundary with presentation module.
 ///Must be able to:
@@ -6,19 +8,19 @@ use crate::persistence::{Repository, mock_items::Items};
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    inventory: Items,
+    inventory: DB,
 }
 
 impl BarCollection {
-    pub fn new() -> Self {
+    pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
-            inventory: Items::new(""),
+            inventory: DB::new(path),
         }
     }
-    pub fn get_items(&self) -> Vec<[String; 2]> {
+    pub fn get_items(&self) -> Vec<Item> {
         self.inventory.get_all_items()
     }
-    pub fn add_item(&mut self, name: String, quantity: f32) {
+    pub fn add_item(&mut self, name: &str, quantity: f32) {
         self.inventory.add_item(name, quantity);
     }
 }
