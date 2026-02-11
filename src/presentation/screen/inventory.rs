@@ -1,7 +1,7 @@
 use std::{collections::HashSet, mem::take};
 
 use iced::{
-    Element, Task,
+    Element,
     widget::{column, row, text, text_input},
 };
 

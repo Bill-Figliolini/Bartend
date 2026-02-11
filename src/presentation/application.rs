@@ -2,17 +2,14 @@ use iced::{
     Element,
     Length::Fill,
     Task,
-    widget::{column, container, row, text, text_input},
+    widget::{column, container, row},
 };
 
 use crate::{
     logic::{self, BarCollection},
     presentation::{
         screen::{self, Screen, inventory},
-        widget::{
-            sidebar::{self, button},
-            text_style::title,
-        },
+        widget::sidebar,
     },
 };
 
