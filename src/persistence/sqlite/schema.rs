@@ -35,13 +35,9 @@ impl Schema {
     }
 
     pub fn autoinsert(&self) -> String {
-        let mut clause = format!("{} (", self.name);
-        for column in self.columns.iter().skip(1) {
-            if !clause.ends_with('(') {
-                clause.push_str(", ");
-            }
-
-            _ = write!(clause, "{column}");
+        let mut clause = format!("{} ({}", self.name, self.columns[1]);
+        for column in self.columns.iter().skip(2) {
+            _ = write!(clause, ", {column}");
         }
         clause.push(')');
         clause
