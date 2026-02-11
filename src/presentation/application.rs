@@ -25,6 +25,7 @@ pub fn run() -> iced::Result {
 #[derive(Debug)]
 enum Screen {
     Inventory(State),
+    Settings,
 }
 
 #[derive(Debug)]
@@ -59,6 +60,12 @@ struct Bartend {
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenInventory,
+    OpenSettings,
+    Inventory(InventoryMessage),
+}
+
+#[derive(Debug, Clone)]
+enum InventoryMessage {
     SaveNewItem,
     NameUpdate(String),
     QuantityUpdate(String),
@@ -79,43 +86,57 @@ impl Bartend {
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match &mut self.screen {
             Screen::Inventory(state) => match message {
+                Message::OpenSettings => {
+                    self.screen = Screen::Settings;
+                    Task::none()
+                }
                 Message::OpenInventory => Task::none(),
-                Message::NameUpdate(new) => {
-                    state.input_name = new;
-                    Task::none()
-                }
-                Message::QuantityUpdate(new) => {
-                    state.input_quantity = new;
-                    Task::none()
-                }
-
-                Message::SaveNewItem => {
-                    state.errors.clear();
-
-                    if state.input_name.is_empty() {
-                        state.errors.insert(StateError::NameError);
+                Message::Inventory(message) => match message {
+                    InventoryMessage::NameUpdate(new) => {
+                        state.input_name = new;
+                        Task::none()
                     }
-                    let quantity = state.input_quantity.parse::<f32>();
-                    let quantity = match quantity {
-                        Ok(quantity) => {
-                            if quantity <= 0.0 {
-                                state.errors.insert(StateError::QuantityError);
+                    InventoryMessage::QuantityUpdate(new) => {
+                        state.input_quantity = new;
+                        Task::none()
+                    }
+
+                    InventoryMessage::SaveNewItem => {
+                        state.errors.clear();
+
+                        if state.input_name.is_empty() {
+                            state.errors.insert(StateError::NameError);
+                        }
+                        let quantity = state.input_quantity.parse::<f32>();
+                        let quantity = match quantity {
+                            Ok(quantity) => {
+                                if quantity <= 0.0 {
+                                    state.errors.insert(StateError::QuantityError);
+                                }
+                                quantity
                             }
-                            quantity
-                        }
-                        Err(_) => {
-                            state.errors.insert(StateError::QuantityError);
-                            0.0
-                        }
-                    };
+                            Err(_) => {
+                                state.errors.insert(StateError::QuantityError);
+                                0.0
+                            }
+                        };
 
-                    if state.errors.is_empty() {
-                        self.bar_collection
-                            .add_item(&take(&mut state.input_name), quantity);
-                        state.input_quantity.clear();
+                        if state.errors.is_empty() {
+                            self.bar_collection
+                                .add_item(&take(&mut state.input_name), quantity);
+                            state.input_quantity.clear();
+                        }
+                        Task::none()
                     }
+                },
+            },
+            Screen::Settings => match message {
+                Message::OpenInventory => {
+                    self.screen = Screen::Inventory(State::new());
                     Task::none()
                 }
+                Message::OpenSettings => Task::none(),
+                Message::Inventory(_) => unreachable!(),
             },
         }
     }
@@ -124,6 +145,7 @@ impl Bartend {
         let sidebar = column![
             title("Sidebar"),
             sidebar::button("Inventory", || Message::OpenInventory),
+            sidebar::button("Settings", || Message::OpenSettings),
         ]
         .width(300)
         .padding(10);
@@ -135,12 +157,15 @@ impl Bartend {
                 let entry_header = text("New Item:");
                 let name_input = text_input("Name", &state.input_name)
                     .id("name-input")
-                    .on_input(Message::NameUpdate);
+                    .on_input(|str: String| Message::Inventory(InventoryMessage::NameUpdate(str)));
                 let quantity_input = text_input("Quantity", &state.input_quantity)
                     .id("quantity-input")
-                    .on_input(Message::QuantityUpdate);
+                    .on_input(|str: String| {
+                        Message::Inventory(InventoryMessage::QuantityUpdate(str))
+                    });
 
-                let confirm_button = button("Save", || Message::SaveNewItem);
+                let confirm_button =
+                    button("Save", || Message::Inventory(InventoryMessage::SaveNewItem));
                 let entry_row = row![name_input, quantity_input, confirm_button].spacing(5);
 
                 let mut error_row = row![];
@@ -172,6 +197,11 @@ impl Bartend {
                     inventory
                 ];
                 column![title, body]
+            }
+            Screen::Settings => {
+                let title = title("Settings");
+
+                column![title]
             }
             _ => todo!(),
         };
