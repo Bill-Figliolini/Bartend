@@ -74,6 +74,5 @@ mod test {
                 assert_eq!(schema.columns_string(), "id, name, quantity")
             }
         }
-        mod create_table {}
     }
 }
