@@ -20,7 +20,7 @@ impl BarCollection {
     pub fn get_items(&self) -> Vec<Item> {
         self.inventory.get_all_items()
     }
-    pub fn add_item(&mut self, name: &str, quantity: f32) {
+    pub fn add_item(&self, name: &str, quantity: f32) {
         self.inventory.add_item(name, quantity);
     }
 }

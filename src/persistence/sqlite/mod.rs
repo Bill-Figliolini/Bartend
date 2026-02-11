@@ -1,9 +1,6 @@
 mod schema;
 
-use std::{
-    fmt::{Display, format},
-    path::Path,
-};
+use std::path::Path;
 
 use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
 use rusqlite::{self, Connection};

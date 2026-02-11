@@ -6,10 +6,6 @@ pub(super) struct Schema {
     columns: Vec<String>,
 }
 
-pub(super) struct SchemaBuilder {
-    name: String,
-    columns: Vec<String>,
-}
 impl Schema {
     pub fn new(name: &str) -> Self {
         Self {
