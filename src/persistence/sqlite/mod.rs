@@ -62,10 +62,12 @@ impl Repository for DB {
             .debug()
             .as_string();
         let result = self.connection.execute(&query, (name, quantity));
-        if let Err(e) = result {
-            eprintln!("Item Insertion Error: {e}");
+        match result {
+            Ok(_) => ItemID(self.connection.last_insert_rowid()),
+            Err(e) => {
+                panic!("Item Insertion Error: {e}");
+            }
         }
-        ItemID(self.connection.last_insert_rowid())
     }
 
     fn get_item(&self, id: ItemID) -> Option<Item> {
