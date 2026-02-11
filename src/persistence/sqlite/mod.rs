@@ -31,10 +31,7 @@ impl DB {
 }
 impl Repository for DB {
     fn new(path: impl AsRef<Path>) -> Self {
-        let items_schema = Schema::new("items")
-            .column("id")
-            .column("name")
-            .column("quantity");
+        let items_schema = Schema::new("items").column("name").column("quantity");
 
         let connection = Connection::open(path);
         let connection = match connection {
@@ -54,9 +51,8 @@ impl Repository for DB {
 
     fn add_item(&self, name: &str, quantity: f32) -> ItemID {
         let query = sql::Insert::new()
-            .insert_into(&self.items_schema.get_autoinsert_statement())
+            .insert_into(&self.items_schema.autoinsert())
             .values("(?1, ?2)")
-            .debug()
             .as_string();
         let result = self.connection.execute(&query, (name, quantity));
         match result {
