@@ -9,7 +9,7 @@ use crate::{
     logic::{self, BarCollection},
     persistence::{Item, ItemID},
     presentation::{
-        screen::{self, Screen, inventory},
+        screen::{self, Screen},
         widget::sidebar,
     },
 };
@@ -36,7 +36,7 @@ pub enum Message {
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
 }
-
+//For instances where internals of a screen need to effect application state.
 pub enum Command {
     AddItem(String, f32),
 }
@@ -78,6 +78,9 @@ impl Bartend {
                 let items = self.bar_collection.get_items();
                 self.screen = Screen::inventory(items);
                 Task::none()
+            }
+            Message::UpdateItem(_item) => {
+                todo!()
             }
             _ => {
                 if let Some(command) = self.screen.update(message) {

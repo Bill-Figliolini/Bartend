@@ -1,6 +1,9 @@
 use iced::{Element, widget::column};
 
-use crate::presentation::{application, widget::text_style::title};
+use crate::presentation::{
+    application::{self, Command},
+    widget::text_style::title,
+};
 
 #[derive(Debug)]
 pub struct Settings {}
@@ -16,5 +19,8 @@ impl Settings {
         let title = title("Settings");
 
         column![title].into()
+    }
+    pub(super) fn update(&mut self, _message: Message) -> Option<Command> {
+        None
     }
 }

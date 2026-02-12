@@ -27,6 +27,7 @@ impl Screen {
     pub fn update(&mut self, message: Message) -> Option<application::Command> {
         match (self, message) {
             (Self::Inventory(inventory), Message::Inventory(message)) => inventory.update(message),
+            (Self::Settings(settings), Message::Settings(message)) => settings.update(message),
             _ => unreachable!(),
         }
     }

@@ -27,9 +27,3 @@ impl BarCollection {
         self.inventory.delete_item(item);
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    mod on_start {}
-    mod in_operation {}
-}
