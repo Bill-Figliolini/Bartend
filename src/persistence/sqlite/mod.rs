@@ -86,7 +86,7 @@ impl Repository for DB {
         let columns = self.items_schema.columns();
         let query = sql::Update::new()
             .update(self.items_schema.name())
-            .set(&format!("{} = '{}'", columns[1], item.name))
+            .set(&format!("{} = \"{}\"", columns[1], item.name))
             .set(&format!("{} = {}", columns[2], item.quantity))
             .where_clause(&format!("{} = {}", columns[0], id))
             .to_string();
