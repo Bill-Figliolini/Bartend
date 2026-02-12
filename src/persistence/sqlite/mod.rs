@@ -80,6 +80,22 @@ impl Repository for DB {
             .optional()
             .unwrap()
     }
+
+    fn update_item(&self, item: Item) {
+        let id = item.id.0;
+        let columns = self.items_schema.columns();
+        let query = sql::Update::new()
+            .update(self.items_schema.name())
+            .set(&format!("{} = '{}'", columns[1], item.name))
+            .set(&format!("{} = {}", columns[2], item.quantity))
+            .where_clause(&format!("{} = {}", columns[0], id))
+            .to_string();
+
+        if let Err(e) = self.connection.execute(&query, ()) {
+            panic!("Update item failed with error: {e}");
+        }
+    }
+
     fn delete_item(&self, id: ItemID) {
         let id = id.0;
         let query = sql::Delete::new()
@@ -162,6 +178,26 @@ mod test {
             assert_eq!(item.id, id);
             assert_eq!(&item.name, name);
             assert_eq!(item.quantity, quantity);
+        }
+        #[test]
+        fn update() {
+            let dir = TempDir::new().unwrap();
+            let file = dir.path().join("bartend.db");
+            let db = DB::new(file);
+            let id = db.add_item("test", 750.0);
+            let mut item = db.get_item(id).unwrap();
+            let new_name = "word".to_string();
+            let new_quantity = 600.0;
+            item.name = new_name.clone();
+            item.quantity = new_quantity;
+
+            db.update_item(item);
+            let item = db.get_item(id);
+
+            assert!(item.is_some());
+            let item = item.unwrap();
+            assert_eq!(item.name, new_name);
+            assert_eq!(item.quantity, new_quantity);
         }
         #[test]
         fn delete() {

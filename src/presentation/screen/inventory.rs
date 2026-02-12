@@ -110,10 +110,13 @@ impl Inventory {
 
         let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| text(&item.quantity));
-        let delete_column = table::column(text("Quantity"), |item: &Item| {
+        let edit_column = table::column(text("Edit"), |item: &Item| {
+            button("Edit", || application::Message::UpdateItem(item.clone()))
+        });
+        let delete_column = table::column(text("Delete"), |item: &Item| {
             button("X", || application::Message::DeleteItem(item.id.clone()))
         });
-        let columns = vec![name_column, quantity_column, delete_column];
+        let columns = vec![name_column, quantity_column, edit_column, delete_column];
         let inventory = table(columns, &self.contents);
 
         let body = column![entry_header, entry_row, error_row, inventory];

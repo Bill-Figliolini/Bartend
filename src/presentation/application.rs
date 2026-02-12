@@ -79,8 +79,11 @@ impl Bartend {
                 self.screen = Screen::inventory(items);
                 Task::none()
             }
-            Message::UpdateItem(_item) => {
-                todo!()
+            Message::UpdateItem(item) => {
+                self.bar_collection.update_item(item);
+                let items = self.bar_collection.get_items();
+                self.screen = Screen::inventory(items);
+                Task::none()
             }
             _ => {
                 if let Some(command) = self.screen.update(message) {
