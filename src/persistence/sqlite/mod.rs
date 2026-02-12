@@ -3,7 +3,7 @@ mod schema;
 use std::path::Path;
 
 use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
-use rusqlite::{self, Connection};
+use rusqlite::{self, Connection, OptionalExtension};
 use sql_query_builder as sql;
 
 #[derive(Debug)]
@@ -69,7 +69,16 @@ impl Repository for DB {
             .from(self.items_schema.name())
             .where_clause(&format!("id={id}"))
             .as_string();
-        todo!()
+        self.connection
+            .query_row(&query, [], |row| {
+                Ok(Item {
+                    id: ItemID(row.get(0).unwrap()),
+                    name: row.get(1).unwrap(),
+                    quantity: row.get(2).unwrap(),
+                })
+            })
+            .optional()
+            .unwrap()
     }
     fn delete_item(&self, id: ItemID) {
         let id = id.0;
@@ -142,10 +151,29 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
+            let name = "test";
+            let quantity = 750.0;
+
+            let id = db.add_item(name, quantity);
+            let item = db.get_item(id);
+
+            assert!(item.is_some());
+            let item = item.unwrap();
+            assert_eq!(item.id, id);
+            assert_eq!(&item.name, name);
+            assert_eq!(item.quantity, quantity);
+        }
+        #[test]
+        fn delete() {
+            let dir = TempDir::new().unwrap();
+            let file = dir.path().join("bartend.db");
+            let db = DB::new(file);
 
             let id = db.add_item("test", 750.0);
+            db.delete_item(id);
+            let item = db.get_item(id);
 
-            assert_eq!(id.0, 1);
+            assert!(item.is_none())
         }
         #[test]
         fn get_all() {
