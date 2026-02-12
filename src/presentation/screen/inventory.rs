@@ -56,7 +56,7 @@ impl Inventory {
                 if self.input_name.is_empty() {
                     self.errors.insert(Error::NameError);
                 }
-                let quantity = self.input_quantity.parse::<f32>();
+                let quantity = self.input_quantity.trim().parse::<f32>();
                 let quantity = match quantity {
                     Ok(quantity) => {
                         if quantity <= 0.0 {
@@ -72,7 +72,6 @@ impl Inventory {
 
                 if self.errors.is_empty() {
                     let name = take(&mut self.input_name);
-                    self.input_quantity.clear();
                     Some(application::Command::AddItem(name, quantity))
                 } else {
                     None

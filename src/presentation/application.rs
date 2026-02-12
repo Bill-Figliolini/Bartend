@@ -75,6 +75,9 @@ impl Bartend {
                     match command {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
+                            //TODO: Can this be improved, and should it?
+                            let items = self.bar_collection.get_items();
+                            self.screen = Screen::inventory(items);
                             Task::none()
                         }
                     }
