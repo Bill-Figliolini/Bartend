@@ -71,6 +71,17 @@ impl Repository for DB {
             .as_string();
         todo!()
     }
+    fn delete_item(&self, id: ItemID) {
+        let id = id.0;
+        let query = sql::Delete::new()
+            .delete_from(self.items_schema.name())
+            .where_clause(&format!("id={id}"))
+            .to_string();
+
+        if let Err(e) = self.connection.execute(&query, ()) {
+            panic!("Delete_item failed with error: {e}");
+        }
+    }
 
     fn get_all_items(&self) -> Vec<Item> {
         let query = sql::Select::new()

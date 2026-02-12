@@ -23,6 +23,9 @@ impl BarCollection {
     pub fn add_item(&self, name: &str, quantity: f32) -> ItemID {
         self.inventory.add_item(name, quantity)
     }
+    pub fn delete_item(&self, item: ItemID) {
+        self.inventory.delete_item(item);
+    }
 }
 #[cfg(test)]
 mod tests {

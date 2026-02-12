@@ -2,7 +2,7 @@ use std::{collections::HashSet, mem::take};
 
 use iced::{
     Element,
-    widget::{column, row, text, text_input},
+    widget::{column, row, table, text, text_input},
 };
 
 use crate::{
@@ -108,20 +108,15 @@ impl Inventory {
             }
         }
 
-        let inventory_header = text("Inventory");
-        let mut inventory = column![];
-        for item in &self.contents {
-            let row = text!["{}: {} remain", item.name, item.quantity];
-            inventory = inventory.push(row);
-        }
+        let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
+        let quantity_column = table::column(text("Quantity"), |item: &Item| text(&item.quantity));
+        let delete_column = table::column(text("Quantity"), |item: &Item| {
+            button("X", || application::Message::DeleteItem(item.id.clone()))
+        });
+        let columns = vec![name_column, quantity_column, delete_column];
+        let inventory = table(columns, &self.contents);
 
-        let body = column![
-            entry_header,
-            entry_row,
-            error_row,
-            inventory_header,
-            inventory
-        ];
+        let body = column![entry_header, entry_row, error_row, inventory];
         column![title, body].into()
     }
 }

@@ -7,7 +7,7 @@ use iced::{
 
 use crate::{
     logic::{self, BarCollection},
-    persistence::Item,
+    persistence::{Item, ItemID},
     presentation::{
         screen::{self, Screen, inventory},
         widget::sidebar,
@@ -31,14 +31,14 @@ struct Bartend {
 pub enum Message {
     OpenInventory,
     OpenSettings,
+    UpdateItem(Item),
+    DeleteItem(ItemID),
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
 }
 
 pub enum Command {
     AddItem(String, f32),
-    UpdateItem(Item),
-    DeleteItem(Item),
 }
 
 impl Bartend {
@@ -73,6 +73,12 @@ impl Bartend {
                 }
                 Task::none()
             }
+            Message::DeleteItem(item) => {
+                self.bar_collection.delete_item(item);
+                let items = self.bar_collection.get_items();
+                self.screen = Screen::inventory(items);
+                Task::none()
+            }
             _ => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
@@ -83,8 +89,6 @@ impl Bartend {
                             self.screen = Screen::inventory(items);
                             Task::none()
                         }
-                        Command::UpdateItem(item) => todo!(),
-                        Command::DeleteItem(item) => todo!(),
                     }
                 } else {
                     Task::none()
