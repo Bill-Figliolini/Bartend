@@ -4,7 +4,6 @@ use std::path::Path;
 
 use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
 use rusqlite::{self, Connection, OptionalExtension};
-use sql_query_builder as sql;
 
 #[derive(Debug)]
 pub struct DB {
@@ -14,15 +13,18 @@ pub struct DB {
 
 impl DB {
     fn create_tables(connection: &Connection, items_schema: &Schema) {
-        let create_items = sql::CreateTable::new()
-            .create_table_if_not_exists(items_schema.name())
-            .column(&format!(
-                "{} INTEGER PRIMARY KEY",
-                items_schema.columns()[0]
-            ))
-            .column(&format!("{} TEXT NOT NULL", items_schema.columns()[1]))
-            .column(&format!("{} REAL NOT NULL", items_schema.columns()[2]))
-            .as_string();
+        let item_columns = items_schema.columns();
+        let create_items = format!(
+            "CREATE TABLE IF NOT EXISTS {}(
+            {} INTEGER PRIMARY KEY,
+            {} TEXT NOT NULL,
+            {} REAL NOT NULL
+            );",
+            items_schema.name(),
+            item_columns[0],
+            item_columns[1],
+            item_columns[2]
+        );
         let result = connection.execute(&create_items, ());
         if let Err(e) = result {
             panic!("DB Initialization error: {e}");
@@ -49,10 +51,10 @@ impl Repository for DB {
     }
 
     fn add_item(&self, name: &str, quantity: f32) -> ItemID {
-        let query = sql::Insert::new()
-            .insert_into(&self.items_schema.autoinsert())
-            .values("(?1, ?2)")
-            .as_string();
+        let query = format!(
+            "INSERT INTO {} VALUES (?1, ?2)",
+            self.items_schema.autoinsert()
+        );
         let result = self.connection.execute(&query, (name, quantity));
         match result {
             Ok(_) => ItemID(self.connection.last_insert_rowid()),
@@ -64,13 +66,9 @@ impl Repository for DB {
 
     fn get_item(&self, id: ItemID) -> Option<Item> {
         let id = id.0;
-        let query = sql::Select::new()
-            .select("*")
-            .from(self.items_schema.name())
-            .where_clause(&format!("id={id}"))
-            .as_string();
+        let query = format!("SELECT * FROM {} WHERE id = ?1", self.items_schema.name());
         self.connection
-            .query_row(&query, [], |row| {
+            .query_row(&query, [(id)], |row| {
                 Ok(Item {
                     id: ItemID(row.get(0).unwrap()),
                     name: row.get(1).unwrap(),
@@ -84,35 +82,35 @@ impl Repository for DB {
     fn update_item(&self, item: Item) {
         let id = item.id.0;
         let columns = self.items_schema.columns();
-        let query = sql::Update::new()
-            .update(self.items_schema.name())
-            .set(&format!("{} = \"{}\"", columns[1], item.name))
-            .set(&format!("{} = {}", columns[2], item.quantity))
-            .where_clause(&format!("{} = {}", columns[0], id))
-            .to_string();
+        let query = format!(
+            "UPDATE {} SET
+            {} = ?2,
+            {} = ?3
+            WHERE id = ?1",
+            self.items_schema.name(),
+            columns[1],
+            columns[2]
+        );
 
-        if let Err(e) = self.connection.execute(&query, ()) {
+        if let Err(e) = self
+            .connection
+            .execute(&query, (id, item.name, item.quantity))
+        {
             panic!("Update item failed with error: {e}");
         }
     }
 
     fn delete_item(&self, id: ItemID) {
         let id = id.0;
-        let query = sql::Delete::new()
-            .delete_from(self.items_schema.name())
-            .where_clause(&format!("id={id}"))
-            .to_string();
+        let query = format!("DELETE FROM {} WHERE id = ?1", self.items_schema.name());
 
-        if let Err(e) = self.connection.execute(&query, ()) {
+        if let Err(e) = self.connection.execute(&query, (id,)) {
             panic!("Delete_item failed with error: {e}");
         }
     }
 
     fn get_all_items(&self) -> Vec<Item> {
-        let query = sql::Select::new()
-            .select(&self.items_schema.columns_string())
-            .from(self.items_schema.name())
-            .as_string();
+        let query = format!("SELECT * FROM {}", self.items_schema.name());
         let mut stmt = self
             .connection
             .prepare(&query)
