@@ -1,12 +1,12 @@
 use std::{collections::HashSet, mem::take};
 
 use iced::{
-    Element,
+    Element, Theme,
     widget::{column, row, table, text, text_input},
 };
 
 use crate::{
-    persistence::Item,
+    persistence::{Item, ItemID},
     presentation::{
         application,
         widget::{sidebar::button, text_style::title},
@@ -18,7 +18,13 @@ pub struct Inventory {
     input_name: String,
     input_quantity: String,
     contents: Vec<Item>,
+    edit_state: EditState,
     errors: HashSet<Error>,
+}
+#[derive(Debug)]
+enum EditState {
+    None,
+    Editing(ItemID),
 }
 #[derive(Debug, Hash, PartialEq, Eq)]
 enum Error {
@@ -28,6 +34,7 @@ enum Error {
 #[derive(Debug, Clone)]
 pub enum Message {
     SaveNewItem,
+    BeginEdit(String, String),
     NameUpdate(String),
     QuantityUpdate(String),
 }
@@ -37,6 +44,7 @@ impl Inventory {
             input_name: String::new(),
             input_quantity: String::new(),
             contents: item_list,
+            edit_state: EditState::None,
             errors: HashSet::with_capacity(2),
         }
     }
@@ -48,6 +56,11 @@ impl Inventory {
             }
             Message::QuantityUpdate(new) => {
                 self.input_quantity = new;
+                None
+            }
+            Message::BeginEdit(name, quantity) => {
+                self.input_name = name;
+                self.input_quantity = quantity;
                 None
             }
             Message::SaveNewItem => {
@@ -72,7 +85,16 @@ impl Inventory {
 
                 if self.errors.is_empty() {
                     let name = take(&mut self.input_name);
-                    Some(application::Command::AddItem(name, quantity))
+                    match self.edit_state {
+                        EditState::None => Some(application::Command::AddItem(name, quantity)),
+                        EditState::Editing(item_id) => {
+                            Some(application::Command::UpdateItem(Item {
+                                id: item_id,
+                                name,
+                                quantity,
+                            }))
+                        }
+                    }
                 } else {
                     None
                 }
@@ -110,10 +132,22 @@ impl Inventory {
 
         let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| text(&item.quantity));
-        let edit_column = table::column(text("Edit"), |item: &Item| {
-            button("Edit", || application::Message::UpdateItem(item.clone()))
+        //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
+        let edit_column = table::column(text("Edit").width(50), |item: &Item| {
+            match self.edit_state {
+                EditState::None => button("Edit", || {
+                    application::Message::Inventory(Message::BeginEdit(
+                        item.name.clone(),
+                        item.quantity.to_string(),
+                    ))
+                }),
+                EditState::Editing(item_id) if item.id == item_id => {
+                    button("Cancel", || application::Message::RefreshItems)
+                }
+                EditState::Editing(_) => button("Edit", || application::Message::NoOp),
+            }
         });
-        let delete_column = table::column(text("Delete"), |item: &Item| {
+        let delete_column = table::column(text("Delete").width(50), |item: &Item| {
             button("X", || application::Message::DeleteItem(item.id.clone()))
         });
         let columns = vec![name_column, quantity_column, edit_column, delete_column];

@@ -31,14 +31,15 @@ struct Bartend {
 pub enum Message {
     OpenInventory,
     OpenSettings,
-    UpdateItem(Item),
     DeleteItem(ItemID),
+    RefreshItems,
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
     AddItem(String, f32),
+    UpdateItem(Item),
 }
 
 impl Bartend {
@@ -79,8 +80,7 @@ impl Bartend {
                 self.screen = Screen::inventory(items);
                 Task::none()
             }
-            Message::UpdateItem(item) => {
-                self.bar_collection.update_item(item);
+            Message::RefreshItems => {
                 let items = self.bar_collection.get_items();
                 self.screen = Screen::inventory(items);
                 Task::none()
@@ -91,6 +91,12 @@ impl Bartend {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
                             //TODO: Can this be improved, and should it?
+                            let items = self.bar_collection.get_items();
+                            self.screen = Screen::inventory(items);
+                            Task::none()
+                        }
+                        Command::UpdateItem(item) => {
+                            self.bar_collection.update_item(item);
                             let items = self.bar_collection.get_items();
                             self.screen = Screen::inventory(items);
                             Task::none()
