@@ -34,7 +34,7 @@ enum Error {
 #[derive(Debug, Clone)]
 pub enum Message {
     SaveNewItem,
-    BeginEdit(String, String),
+    BeginEdit(Item),
     NameUpdate(String),
     QuantityUpdate(String),
 }
@@ -58,9 +58,10 @@ impl Inventory {
                 self.input_quantity = new;
                 None
             }
-            Message::BeginEdit(name, quantity) => {
-                self.input_name = name;
-                self.input_quantity = quantity;
+            Message::BeginEdit(item) => {
+                self.edit_state = EditState::Editing(item.id);
+                self.input_name = item.name;
+                self.input_quantity = item.quantity.to_string();
                 None
             }
             Message::SaveNewItem => {
@@ -136,15 +137,12 @@ impl Inventory {
         let edit_column = table::column(text("Edit").width(50), |item: &Item| {
             match self.edit_state {
                 EditState::None => button("Edit", || {
-                    application::Message::Inventory(Message::BeginEdit(
-                        item.name.clone(),
-                        item.quantity.to_string(),
-                    ))
+                    application::Message::Inventory(Message::BeginEdit(item.clone()))
                 }),
                 EditState::Editing(item_id) if item.id == item_id => {
                     button("Cancel", || application::Message::RefreshItems)
                 }
-                EditState::Editing(_) => button("Edit", || application::Message::NoOp),
+                EditState::Editing(_) => text("Edit").into(),
             }
         });
         let delete_column = table::column(text("Delete").width(50), |item: &Item| {
