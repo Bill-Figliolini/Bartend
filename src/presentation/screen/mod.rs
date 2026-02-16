@@ -15,8 +15,8 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub fn start(item_list: Vec<Item>) -> Self {
-        Self::Inventory(inventory::Inventory::new(item_list))
+    pub fn start(items: Vec<Item>) -> Self {
+        Self::Inventory(inventory::Inventory::new(items))
     }
     pub fn view(&self) -> Element<'_, Message> {
         match self {
@@ -27,11 +27,12 @@ impl Screen {
     pub fn update(&mut self, message: Message) -> Option<application::Command> {
         match (self, message) {
             (Self::Inventory(inventory), Message::Inventory(message)) => inventory.update(message),
+            (Self::Settings(settings), Message::Settings(message)) => settings.update(message),
             _ => unreachable!(),
         }
     }
-    pub fn inventory(item_list: Vec<Item>) -> Self {
-        Self::Inventory(inventory::Inventory::new(item_list))
+    pub fn inventory(items: Vec<Item>) -> Self {
+        Self::Inventory(inventory::Inventory::new(items))
     }
     pub fn settings() -> Self {
         Self::Settings(settings::Settings::new())

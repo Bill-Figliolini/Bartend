@@ -23,10 +23,10 @@ impl BarCollection {
     pub fn add_item(&self, name: &str, quantity: f32) -> ItemID {
         self.inventory.add_item(name, quantity)
     }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    mod on_start {}
-    mod in_operation {}
+    pub fn update_item(&self, item: Item) {
+        self.inventory.update_item(item);
+    }
+    pub fn delete_item(&self, item_id: ItemID) {
+        self.inventory.delete_item(item_id);
+    }
 }

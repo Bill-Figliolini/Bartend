@@ -7,8 +7,9 @@ use iced::{
 
 use crate::{
     logic::{self, BarCollection},
+    persistence::{Item, ItemID},
     presentation::{
-        screen::{self, Screen, inventory},
+        screen::{self, Screen},
         widget::sidebar,
     },
 };
@@ -30,12 +31,15 @@ struct Bartend {
 pub enum Message {
     OpenInventory,
     OpenSettings,
+    DeleteItem(ItemID),
+    RefreshItems,
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
 }
-
+//For instances where internals of a screen need to effect application state.
 pub enum Command {
     AddItem(String, f32),
+    UpdateItem(Item),
 }
 
 impl Bartend {
@@ -70,12 +74,29 @@ impl Bartend {
                 }
                 Task::none()
             }
+            Message::DeleteItem(item) => {
+                self.bar_collection.delete_item(item);
+                let items = self.bar_collection.get_items();
+                self.screen = Screen::inventory(items);
+                Task::none()
+            }
+            Message::RefreshItems => {
+                let items = self.bar_collection.get_items();
+                self.screen = Screen::inventory(items);
+                Task::none()
+            }
             _ => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
                             //TODO: Can this be improved, and should it?
+                            let items = self.bar_collection.get_items();
+                            self.screen = Screen::inventory(items);
+                            Task::none()
+                        }
+                        Command::UpdateItem(item) => {
+                            self.bar_collection.update_item(item);
                             let items = self.bar_collection.get_items();
                             self.screen = Screen::inventory(items);
                             Task::none()
