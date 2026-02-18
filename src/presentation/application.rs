@@ -27,6 +27,9 @@ struct Bartend {
     bar_collection: logic::BarCollection,
 }
 
+#[derive(Debug)]
+struct Config {}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenInventory,
