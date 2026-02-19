@@ -27,10 +27,29 @@ pub enum Quantity {
 }
 impl Quantity {
     fn metric_value(&self) -> f32 {
-        todo!()
+        match self {
+            Quantity::Volume { quantity } => *quantity,
+            Quantity::Mass { quantity } => *quantity,
+            Quantity::Count { quantity, name: _ } => *quantity,
+        }
     }
     fn imperial_value(&self) -> f32 {
-        todo!()
+        match self {
+            Quantity::Volume { quantity } => {
+                if *quantity < 15.0 {
+                    //ml to tsp
+                    *quantity / 4.929
+                } else {
+                    //ml to oz
+                    *quantity / 29.57
+                }
+            }
+            Quantity::Mass { quantity } => {
+                //grams to oz
+                *quantity / 28.35
+            }
+            Quantity::Count { quantity, name: _ } => *quantity,
+        }
     }
     fn metric_name(&self) -> String {
         match self {
@@ -42,7 +61,7 @@ impl Quantity {
     fn imperial_name(&self) -> String {
         match self {
             Quantity::Volume { quantity } => {
-                if *quantity % 5.0 == 0.0 && *quantity < 15.0 {
+                if *quantity < 15.0 {
                     "tsp".to_string()
                 } else {
                     "oz".to_string()
