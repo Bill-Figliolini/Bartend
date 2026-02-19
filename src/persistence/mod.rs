@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use iced::Length::Fill;
+
 pub mod sqlite;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -12,50 +14,42 @@ pub struct Item {
     pub quantity: f32,
 }
 
-//Measure use metric as a basis,
+//Quantity use metric as a basis,
 // as it is higher resolution than imperial.
 // Volume is always in ml
 // Mass is always in grams
 // Count are unitless.
 #[derive(Debug, Clone, Copy)]
-pub struct Measure {
-    quantity: f32,
-    unit: Unit,
+pub enum Quantity {
+    Volume { quantity: f32 },
+    Mass { quantity: f32 },
+    Count { quantity: f32, name: CountName },
 }
-impl Measure {
-    pub fn metric_value(&self) -> f32 {
-        self.quantity
+impl Quantity {
+    fn metric_value(&self) -> f32 {
+        todo!()
     }
-    pub fn imperial_value(&self) -> f32 {
-        self.quantity
+    fn imperial_value(&self) -> f32 {
+        todo!()
     }
-    pub fn metric_name(&self) -> String {
-        self.unit.metric_name()
-    }
-    pub fn imperial_name(&self) -> String {
-        self.unit.imperial_name(self.quantity)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Unit {
-    Volume,
-    Mass,
-    Count(CountName),
-}
-impl Unit {
     fn metric_name(&self) -> String {
         match self {
-            Unit::Volume => todo!(),
-            Unit::Mass => todo!(),
-            Unit::Count(count_name) => count_name.name(),
+            Quantity::Volume { quantity: _ } => "ml".to_string(),
+            Quantity::Mass { quantity: _ } => "grams".to_string(),
+            Quantity::Count { quantity: _, name } => name.name(),
         }
     }
-    fn imperial_name(&self, quantity: f32) -> String {
+    fn imperial_name(&self) -> String {
         match self {
-            Unit::Volume => todo!(),
-            Unit::Mass => todo!(),
-            Unit::Count(count_name) => count_name.name(),
+            Quantity::Volume { quantity } => {
+                if *quantity % 5.0 == 0.0 && *quantity < 15.0 {
+                    "tsp".to_string()
+                } else {
+                    "oz".to_string()
+                }
+            }
+            Quantity::Mass { quantity: _ } => "oz".to_string(),
+            Quantity::Count { quantity: _, name } => name.name(),
         }
     }
 }
@@ -91,9 +85,9 @@ mod test {
             #[test]
             fn metric_quantity_does_not_alter_counts() {
                 let quantity = 2.0;
-                let count = Measure {
+                let count = Quantity::Count {
                     quantity,
-                    unit: Unit::Count(CountName::Dash),
+                    name: CountName::Dash,
                 };
 
                 let count_as_metric = count.metric_value();
@@ -103,9 +97,9 @@ mod test {
             #[test]
             fn imperial_quantity_does_not_alter_counts() {
                 let quantity = 2.0;
-                let count = Measure {
+                let count = Quantity::Count {
                     quantity,
-                    unit: Unit::Count(CountName::Dash),
+                    name: CountName::Dash,
                 };
 
                 let count_as_imperial = count.imperial_value();
