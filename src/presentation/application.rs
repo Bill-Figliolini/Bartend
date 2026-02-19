@@ -88,7 +88,7 @@ impl Bartend {
                 self.screen = Screen::inventory(items);
                 Task::none()
             }
-            _ => {
+            Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(name, quantity) => {
