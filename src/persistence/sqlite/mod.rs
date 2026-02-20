@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::{
     common::item::{Item, ItemID},
-    persistence::{Repository, sqlite::schema::Schema},
+    persistence::Repository,
 };
 use rusqlite::{self, Connection, OptionalExtension};
 
@@ -24,7 +24,7 @@ impl DB {
         if let Err(e) = result {
             panic!("DB Initialization error: {e}");
         }
-        /*let unit_insert = "INSERT INTO units VALUES (?1);";
+        let unit_insert = "INSERT INTO units(name) VALUES (?1)";
         let units = [
             "Volume".to_string(),
             "Mass".to_string(),
@@ -35,13 +35,11 @@ impl DB {
             if let Err(e) = result {
                 panic!("DB Initialization error: {e}");
             }
-        }*/
+        }
         let create_items = "CREATE TABLE IF NOT EXISTS items(
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            quantity REAL NOT NULL,
-            unit INTEGER,
-            FOREIGN KEY(unit) REFERENCES units(id)
+            quantity REAL NOT NULL
             );"
         .to_string();
         let result = connection.execute(&create_items, ());
@@ -52,8 +50,6 @@ impl DB {
 }
 impl Repository for DB {
     fn new(path: impl AsRef<Path>) -> Self {
-        let items_schema = Schema::new("items").column("name").column("quantity");
-
         let connection = match Connection::open(path) {
             Ok(connection) => connection,
             Err(e) => {
