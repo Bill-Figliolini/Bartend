@@ -1,3 +1,5 @@
+use crate::common::quantity::Quantity;
+
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ItemID(pub i64);
 
@@ -5,5 +7,5 @@ pub struct ItemID(pub i64);
 pub struct Item {
     pub id: ItemID,
     pub name: String,
-    pub quantity: f32,
+    pub quantity: Quantity,
 }

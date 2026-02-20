@@ -6,7 +6,10 @@ use iced::{
 };
 
 use crate::{
-    common::item::{Item, ItemID},
+    common::{
+        item::{Item, ItemID},
+        quantity::Quantity,
+    },
     logic::{self, BarCollection},
     presentation::{
         screen::{self, Screen},
@@ -41,7 +44,7 @@ pub enum Message {
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
-    AddItem(String, f32),
+    AddItem(String, Quantity),
     UpdateItem(Item),
 }
 

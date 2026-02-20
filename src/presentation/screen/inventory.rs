@@ -6,17 +6,29 @@ use iced::{
 };
 
 use crate::{
-    common::item::{Item, ItemID},
+    common::{
+        item::{Item, ItemID},
+        quantity::{CountName, Quantity},
+    },
     presentation::{
         application,
         widget::{sidebar::button, text_style::title},
     },
 };
 
+#[derive(Debug, Clone, Copy)]
+enum InputUnit {
+    Milliliter,
+    FluidOunce,
+    Gram,
+    MassOunce,
+    Dash,
+}
 #[derive(Debug)]
 pub struct Inventory {
     input_name: String,
     input_quantity: String,
+    input_unit: InputUnit,
     contents: Vec<Item>,
     edit_state: EditState,
     errors: HashSet<Error>,
@@ -37,12 +49,14 @@ pub enum Message {
     BeginEdit(Item),
     NameUpdate(String),
     QuantityUpdate(String),
+    UnitUpdate(InputUnit),
 }
 impl Inventory {
     pub fn new(item_list: Vec<Item>) -> Self {
         Self {
             input_name: String::new(),
             input_quantity: String::new(),
+            input_unit: InputUnit::Milliliter,
             contents: item_list,
             edit_state: EditState::None,
             errors: HashSet::with_capacity(2),
@@ -58,10 +72,21 @@ impl Inventory {
                 self.input_quantity = new;
                 None
             }
+            Message::UnitUpdate(new) => {
+                self.input_unit = new;
+                None
+            }
             Message::BeginEdit(item) => {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
-                self.input_quantity = item.quantity.to_string();
+                self.input_quantity = item.quantity.metric_value().to_string();
+                self.input_unit = match item.quantity {
+                    Quantity::Volume { quantity: _ } => InputUnit::Milliliter,
+                    Quantity::Mass { quantity: _ } => InputUnit::Gram,
+                    Quantity::Count { quantity: _, name } => match name {
+                        CountName::Dash => InputUnit::Dash,
+                    },
+                };
                 None
             }
             Message::SaveNewItem => {
@@ -83,7 +108,7 @@ impl Inventory {
                         0.0
                     }
                 };
-
+                let quantity = Quantity::Volume { quantity };
                 if self.errors.is_empty() {
                     let name = take(&mut self.input_name);
                     match self.edit_state {
@@ -132,7 +157,13 @@ impl Inventory {
         }
 
         let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
-        let quantity_column = table::column(text("Quantity"), |item: &Item| text(&item.quantity));
+        let quantity_column = table::column(text("Quantity"), |item: &Item| {
+            text!(
+                "{} {}",
+                item.quantity.metric_value(),
+                item.quantity.metric_name()
+            )
+        });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
         let edit_column = table::column(text("Edit").width(50), |item: &Item| {
             match self.edit_state {
@@ -146,7 +177,7 @@ impl Inventory {
             }
         });
         let delete_column = table::column(text("Delete").width(50), |item: &Item| {
-            button("X", || application::Message::DeleteItem(item.id.clone()))
+            button("X", || application::Message::DeleteItem(item.id))
         });
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
         let inventory = table(columns, &self.contents);

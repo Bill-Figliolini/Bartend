@@ -10,16 +10,18 @@ pub enum Quantity {
     Count { quantity: f32, name: CountName },
 }
 impl Quantity {
-    fn metric_value(&self) -> f32 {
+    #[must_use]
+    pub const fn metric_value(&self) -> f32 {
         match self {
-            Quantity::Volume { quantity } => *quantity,
-            Quantity::Mass { quantity } => *quantity,
-            Quantity::Count { quantity, name: _ } => *quantity,
+            Self::Volume { quantity }
+            | Self::Mass { quantity }
+            | Self::Count { quantity, name: _ } => *quantity,
         }
     }
-    fn imperial_value(&self) -> f32 {
+    #[must_use]
+    pub const fn imperial_value(&self) -> f32 {
         match self {
-            Quantity::Volume { quantity } => {
+            Self::Volume { quantity } => {
                 if *quantity < 15.0 {
                     //ml to tsp
                     *quantity / 4.929
@@ -28,43 +30,90 @@ impl Quantity {
                     *quantity / 29.57
                 }
             }
-            Quantity::Mass { quantity } => {
+            Self::Mass { quantity } => {
                 //grams to oz
                 *quantity / 28.35
             }
-            Quantity::Count { quantity, name: _ } => *quantity,
+            Self::Count { quantity, name: _ } => *quantity,
         }
     }
-    fn metric_name(&self) -> String {
+    #[must_use]
+    pub fn metric_name(&self) -> String {
         match self {
-            Quantity::Volume { quantity: _ } => "ml".to_string(),
-            Quantity::Mass { quantity: _ } => "grams".to_string(),
-            Quantity::Count { quantity: _, name } => name.name(),
+            Self::Volume { quantity: _ } => "ml".to_string(),
+            Self::Mass { quantity: _ } => "grams".to_string(),
+            Self::Count { quantity: _, name } => name.name(),
         }
     }
-    fn imperial_name(&self) -> String {
+    #[must_use]
+    pub fn imperial_name(&self) -> String {
         match self {
-            Quantity::Volume { quantity } => {
+            Self::Volume { quantity } => {
                 if *quantity < 15.0 {
                     "tsp".to_string()
                 } else {
                     "oz".to_string()
                 }
             }
-            Quantity::Mass { quantity: _ } => "oz".to_string(),
-            Quantity::Count { quantity: _, name } => name.name(),
+            Self::Mass { quantity: _ } => "oz".to_string(),
+            Self::Count { quantity: _, name } => name.name(),
+        }
+    }
+    #[must_use]
+    pub const fn breakdown(&self) -> (f32, i32) {
+        match self {
+            Self::Volume { quantity } => (*quantity, 0),
+            Self::Mass { quantity } => (*quantity, 1),
+            Self::Count { quantity, name } => match name {
+                crate::common::quantity::CountName::Dash => (*quantity, 2),
+            },
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+impl PartialEq for Quantity {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Volume {
+                    quantity: l_quantity,
+                },
+                Self::Volume {
+                    quantity: r_quantity,
+                },
+            )
+            | (
+                Self::Mass {
+                    quantity: l_quantity,
+                },
+                Self::Mass {
+                    quantity: r_quantity,
+                },
+            ) => l_quantity == r_quantity,
+            (
+                Self::Count {
+                    quantity: l_quantity,
+                    name: l_name,
+                },
+                Self::Count {
+                    quantity: r_quantity,
+                    name: r_name,
+                },
+            ) => l_quantity == r_quantity && l_name == r_name,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CountName {
     Dash,
 }
+
 impl CountName {
-    fn name(&self) -> String {
+    fn name(self) -> String {
         match self {
-            CountName::Dash => "Dash".to_string(),
+            Self::Dash => "Dash".to_string(),
         }
     }
 }
