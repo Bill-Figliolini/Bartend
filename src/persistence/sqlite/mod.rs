@@ -11,23 +11,39 @@ use rusqlite::{self, Connection, OptionalExtension};
 #[derive(Debug)]
 pub struct DB {
     connection: Connection,
-    items_schema: Schema,
 }
 
 impl DB {
-    fn create_tables(connection: &Connection, items_schema: &Schema) {
-        let item_columns = items_schema.columns();
-        let create_items = format!(
-            "CREATE TABLE IF NOT EXISTS {}(
-            {} INTEGER PRIMARY KEY,
-            {} TEXT NOT NULL,
-            {} REAL NOT NULL
-            );",
-            items_schema.name(),
-            item_columns[0],
-            item_columns[1],
-            item_columns[2]
-        );
+    fn create_tables(connection: &Connection) {
+        let create_units = "CREATE TABLE IF NOT EXISTS units(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL
+            )"
+        .to_string();
+        let result = connection.execute(&create_units, ());
+        if let Err(e) = result {
+            panic!("DB Initialization error: {e}");
+        }
+        /*let unit_insert = "INSERT INTO units VALUES (?1);";
+        let units = [
+            "Volume".to_string(),
+            "Mass".to_string(),
+            "Dashes".to_string(),
+        ];
+        for unit in units {
+            let result = connection.execute(&unit_insert, (unit,));
+            if let Err(e) = result {
+                panic!("DB Initialization error: {e}");
+            }
+        }*/
+        let create_items = "CREATE TABLE IF NOT EXISTS items(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit INTEGER,
+            FOREIGN KEY(unit) REFERENCES units(id)
+            );"
+        .to_string();
         let result = connection.execute(&create_items, ());
         if let Err(e) = result {
             panic!("DB Initialization error: {e}");
@@ -45,19 +61,13 @@ impl Repository for DB {
             }
         };
 
-        Self::create_tables(&connection, &items_schema);
+        Self::create_tables(&connection);
 
-        Self {
-            connection,
-            items_schema,
-        }
+        Self { connection }
     }
 
     fn add_item(&self, name: &str, quantity: f32) -> ItemID {
-        let query = format!(
-            "INSERT INTO {} VALUES (?1, ?2)",
-            self.items_schema.autoinsert()
-        );
+        let query = format!("INSERT INTO items(name, quantity) VALUES (?1, ?2)",);
         let result = self.connection.execute(&query, (name, quantity));
         match result {
             Ok(_) => ItemID(self.connection.last_insert_rowid()),
@@ -69,7 +79,7 @@ impl Repository for DB {
 
     fn get_item(&self, id: ItemID) -> Option<Item> {
         let id = id.0;
-        let query = format!("SELECT * FROM {} WHERE id = ?1", self.items_schema.name());
+        let query = format!("SELECT * FROM items WHERE id = ?1");
         self.connection
             .query_row(&query, [(id)], |row| {
                 Ok(Item {
@@ -84,15 +94,11 @@ impl Repository for DB {
 
     fn update_item(&self, item: Item) {
         let id = item.id.0;
-        let columns = self.items_schema.columns();
         let query = format!(
-            "UPDATE {} SET
-            {} = ?2,
-            {} = ?3
-            WHERE id = ?1",
-            self.items_schema.name(),
-            columns[1],
-            columns[2]
+            "UPDATE items SET
+            name = ?2,
+            quantity = ?3
+            WHERE id = ?1"
         );
 
         if let Err(e) = self
@@ -105,7 +111,7 @@ impl Repository for DB {
 
     fn delete_item(&self, id: ItemID) {
         let id = id.0;
-        let query = format!("DELETE FROM {} WHERE id = ?1", self.items_schema.name());
+        let query = "DELETE FROM items WHERE id = ?1".to_string();
 
         if let Err(e) = self.connection.execute(&query, (id,)) {
             panic!("Delete_item failed with error: {e}");
@@ -113,7 +119,7 @@ impl Repository for DB {
     }
 
     fn get_all_items(&self) -> Vec<Item> {
-        let query = format!("SELECT * FROM {}", self.items_schema.name());
+        let query = "SELECT * FROM items".to_string();
         let mut stmt = self
             .connection
             .prepare(&query)
@@ -149,13 +155,14 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
+            let items_name = "items";
+            let columns = vec!["id", "name", "quantity"];
 
-            let items_name = db.items_schema.name();
             assert!(db.connection.table_exists(None, items_name).unwrap());
-            for column in db.items_schema.columns() {
+            for column in columns {
                 assert!(
                     db.connection
-                        .column_exists(None, items_name, column)
+                        .column_exists(None, items_name, &column)
                         .unwrap()
                 )
             }
