@@ -70,6 +70,7 @@ impl CountName {
 }
 #[cfg(test)]
 mod test {
+    use super::*;
     mod measure {
         use super::*;
         mod count {

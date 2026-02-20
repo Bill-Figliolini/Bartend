@@ -4,7 +4,7 @@ pub mod settings;
 use iced::Element;
 
 use crate::{
-    persistence::Item,
+    common::item::Item,
     presentation::application::{self, Message},
 };
 

@@ -1,12 +1,12 @@
 use std::{collections::HashSet, mem::take};
 
 use iced::{
-    Element, Theme,
+    Element,
     widget::{column, row, table, text, text_input},
 };
 
 use crate::{
-    persistence::{Item, ItemID},
+    common::item::{Item, ItemID},
     presentation::{
         application,
         widget::{sidebar::button, text_style::title},

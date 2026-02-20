@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use crate::persistence::{Item, ItemID, Repository, sqlite::DB};
+use crate::{
+    common::item::{Item, ItemID},
+    persistence::{Repository, sqlite::DB},
+};
 
 ///Boundary with presentation module.
 ///Must be able to:

@@ -6,8 +6,8 @@ use iced::{
 };
 
 use crate::{
+    common::item::{Item, ItemID},
     logic::{self, BarCollection},
-    persistence::{Item, ItemID},
     presentation::{
         screen::{self, Screen},
         widget::sidebar,

@@ -1,3 +1,4 @@
+pub mod common;
 mod logic;
 mod persistence;
 mod presentation;

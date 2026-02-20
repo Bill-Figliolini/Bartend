@@ -2,7 +2,10 @@ mod schema;
 
 use std::path::Path;
 
-use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
+use crate::{
+    common::item::{Item, ItemID},
+    persistence::{Repository, sqlite::schema::Schema},
+};
 use rusqlite::{self, Connection, OptionalExtension};
 
 #[derive(Debug)]
