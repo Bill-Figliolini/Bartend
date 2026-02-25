@@ -1,8 +1,8 @@
-use std::{collections::HashSet, mem::take};
+use std::{collections::HashSet, fmt::Display, mem::take};
 
 use iced::{
     Element,
-    widget::{column, row, table, text, text_input},
+    widget::{column, pick_list, row, rule, table, text, text_input},
 };
 
 use crate::{
@@ -16,14 +16,26 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
-enum InputUnit {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InputUnit {
     Milliliter,
     FluidOunce,
     Gram,
     MassOunce,
     Dash,
 }
+impl Display for InputUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InputUnit::Milliliter => write!(f, "ml"),
+            InputUnit::FluidOunce => write!(f, "fl oz"),
+            InputUnit::Gram => write!(f, "g"),
+            InputUnit::MassOunce => write!(f, "oz"),
+            InputUnit::Dash => write!(f, "dash"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Inventory {
     input_name: String,
@@ -108,7 +120,20 @@ impl Inventory {
                         0.0
                     }
                 };
-                let quantity = Quantity::Volume { quantity };
+                let quantity = match self.input_unit {
+                    InputUnit::Milliliter => Quantity::Volume { quantity },
+                    InputUnit::FluidOunce => Quantity::Volume {
+                        quantity: quantity * 29.57,
+                    },
+                    InputUnit::Gram => Quantity::Mass { quantity },
+                    InputUnit::MassOunce => Quantity::Mass {
+                        quantity: quantity * 28.35,
+                    },
+                    InputUnit::Dash => Quantity::Count {
+                        quantity,
+                        name: CountName::Dash,
+                    },
+                };
                 if self.errors.is_empty() {
                     let name = take(&mut self.input_name);
                     match self.edit_state {
@@ -137,11 +162,21 @@ impl Inventory {
         let quantity_input = text_input("Quantity", &self.input_quantity)
             .id("quantity-input")
             .on_input(|str: String| application::Message::Inventory(Message::QuantityUpdate(str)));
+        let units = vec![
+            InputUnit::Milliliter,
+            InputUnit::FluidOunce,
+            InputUnit::Gram,
+            InputUnit::MassOunce,
+            InputUnit::Dash,
+        ];
+        let unit_select = pick_list(units, Some(self.input_unit), |unit: InputUnit| {
+            application::Message::Inventory(Message::UnitUpdate(unit))
+        });
 
         let confirm_button = button("Save", || {
             application::Message::Inventory(Message::SaveNewItem)
         });
-        let entry_row = row![name_input, quantity_input, confirm_button].spacing(5);
+        let entry_row = row![name_input, quantity_input, unit_select, confirm_button].spacing(5);
 
         let mut error_row = row![];
         for error in &self.errors {
@@ -155,7 +190,7 @@ impl Inventory {
                 }
             }
         }
-
+        let input_table_divider = rule::horizontal(2);
         let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
@@ -182,7 +217,13 @@ impl Inventory {
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
         let inventory = table(columns, &self.contents);
 
-        let body = column![entry_header, entry_row, error_row, inventory];
+        let body = column![
+            entry_header,
+            entry_row,
+            error_row,
+            input_table_divider,
+            inventory
+        ];
         column![title, body].into()
     }
 }
