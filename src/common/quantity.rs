@@ -9,7 +9,19 @@ pub enum Quantity {
     Mass { quantity: f32 },
     Count { quantity: f32, name: CountName },
 }
+
+const IMPERIAL_CONVERSION_VOLUME: f32 = 29.57;
+const IMPERIAL_CONVERSION_MASS: f32 = 28.35;
+
 impl Quantity {
+    pub fn volume_from_metric(quantity: f32) -> Quantity {
+        Self::Volume { quantity }
+    }
+    pub fn volume_from_imperial(quantity: f32) -> Quantity {
+        Self::Volume {
+            quantity: quantity * IMPERIAL_CONVERSION_VOLUME,
+        }
+    }
     #[must_use]
     pub const fn metric_value(&self) -> f32 {
         match self {
@@ -27,12 +39,12 @@ impl Quantity {
                     *quantity / 4.929
                 } else {
                     //ml to oz
-                    *quantity / 29.57
+                    *quantity / IMPERIAL_CONVERSION_VOLUME
                 }
             }
             Self::Mass { quantity } => {
                 //grams to oz
-                *quantity / 28.35
+                *quantity / IMPERIAL_CONVERSION_MASS
             }
             Self::Count { quantity, name: _ } => *quantity,
         }
@@ -60,7 +72,7 @@ impl Quantity {
         }
     }
     #[must_use]
-    pub const fn breakdown(&self) -> (f32, i32) {
+    pub const fn db_compatible(&self) -> (f32, i32) {
         match self {
             Self::Volume { quantity } => (*quantity, 0),
             Self::Mass { quantity } => (*quantity, 1),

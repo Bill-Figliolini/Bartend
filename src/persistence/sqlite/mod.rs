@@ -47,7 +47,7 @@ impl Repository for DB {
 
     fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
         let query = "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)".to_string();
-        let (quantity, unit) = quantity.breakdown();
+        let (quantity, unit) = quantity.db_compatible();
         let result = self.connection.execute(&query, (name, quantity, unit));
         match result {
             Ok(_) => ItemID(self.connection.last_insert_rowid()),
@@ -91,7 +91,7 @@ impl Repository for DB {
             unit = ?4
             WHERE id = ?1"
             .to_string();
-        let (quantity, unit) = item.quantity.breakdown();
+        let (quantity, unit) = item.quantity.db_compatible();
 
         if let Err(e) = self
             .connection
