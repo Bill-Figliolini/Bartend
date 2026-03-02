@@ -1,8 +1,10 @@
-//Quantity use metric as a basis,
-// as it is higher resolution than imperial.
-// Volume is always in ml
-// Mass is always in grams
-// Count are unitless.
+//! # Quantity
+//! ## Description
+//! ### Invariants
+//! Internally, all quantities are represented in Metric units, for consistency and ease of conversion.
+//! ### Behavior
+//! Quantities allow of ease of conversion between Imperial and Metric, both at creation and later access.
+//! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur. 
 #[derive(Debug, Clone, Copy)]
 pub enum Quantity {
     Volume { quantity: f32 },
