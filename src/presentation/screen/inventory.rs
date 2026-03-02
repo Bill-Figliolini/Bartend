@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display, mem::take};
+use std::{collections::HashSet, mem::take};
 
 use iced::{
     Element,
