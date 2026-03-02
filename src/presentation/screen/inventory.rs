@@ -44,6 +44,7 @@ pub enum Message {
     UnitUpdate(Unit),
 }
 impl Inventory {
+    //Should reimplement as a builder. Will make succeeding states simpler.
     pub fn new(item_list: Vec<Item>) -> Self {
         Self {
             input_name: String::new(),
