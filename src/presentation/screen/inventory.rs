@@ -8,7 +8,7 @@ use iced::{
 use crate::{
     common::{
         item::{Item, ItemID},
-        quantity::{CountName, Quantity},
+        quantity::{CountName, Quantity, Unit},
     },
     presentation::{
         application,
@@ -16,31 +16,11 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum InputUnit {
-    Milliliter,
-    FluidOunce,
-    Gram,
-    MassOunce,
-    Dash,
-}
-impl Display for InputUnit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            InputUnit::Milliliter => write!(f, "ml"),
-            InputUnit::FluidOunce => write!(f, "fl oz"),
-            InputUnit::Gram => write!(f, "g"),
-            InputUnit::MassOunce => write!(f, "oz"),
-            InputUnit::Dash => write!(f, "dash"),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct Inventory {
     input_name: String,
     input_quantity: String,
-    input_unit: InputUnit,
+    input_unit: Unit,
     contents: Vec<Item>,
     edit_state: EditState,
     errors: HashSet<Error>,
@@ -61,14 +41,14 @@ pub enum Message {
     BeginEdit(Item),
     NameUpdate(String),
     QuantityUpdate(String),
-    UnitUpdate(InputUnit),
+    UnitUpdate(Unit),
 }
 impl Inventory {
     pub fn new(item_list: Vec<Item>) -> Self {
         Self {
             input_name: String::new(),
             input_quantity: String::new(),
-            input_unit: InputUnit::Milliliter,
+            input_unit: Unit::Milliliter,
             contents: item_list,
             edit_state: EditState::None,
             errors: HashSet::with_capacity(2),
@@ -92,13 +72,7 @@ impl Inventory {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
                 self.input_quantity = item.quantity.metric_value().to_string();
-                self.input_unit = match item.quantity {
-                    Quantity::Volume { quantity: _ } => InputUnit::Milliliter,
-                    Quantity::Mass { quantity: _ } => InputUnit::Gram,
-                    Quantity::Count { quantity: _, name } => match name {
-                        CountName::Dash => InputUnit::Dash,
-                    },
-                };
+                self.input_unit = item.quantity.to_unit();
                 None
             }
             Message::SaveNewItem => {
@@ -121,15 +95,15 @@ impl Inventory {
                     }
                 };
                 let quantity = match self.input_unit {
-                    InputUnit::Milliliter => Quantity::Volume { quantity },
-                    InputUnit::FluidOunce => Quantity::Volume {
+                    Unit::Milliliter => Quantity::Volume { quantity },
+                    Unit::FluidOunce => Quantity::Volume {
                         quantity: quantity * 29.57,
                     },
-                    InputUnit::Gram => Quantity::Mass { quantity },
-                    InputUnit::MassOunce => Quantity::Mass {
+                    Unit::Gram => Quantity::Mass { quantity },
+                    Unit::MassOunce => Quantity::Mass {
                         quantity: quantity * 28.35,
                     },
-                    InputUnit::Dash => Quantity::Count {
+                    Unit::Dash => Quantity::Count {
                         quantity,
                         name: CountName::Dash,
                     },
@@ -163,13 +137,13 @@ impl Inventory {
             .id("quantity-input")
             .on_input(|str: String| application::Message::Inventory(Message::QuantityUpdate(str)));
         let units = vec![
-            InputUnit::Milliliter,
-            InputUnit::FluidOunce,
-            InputUnit::Gram,
-            InputUnit::MassOunce,
-            InputUnit::Dash,
+            Unit::Milliliter,
+            Unit::FluidOunce,
+            Unit::Gram,
+            Unit::MassOunce,
+            Unit::Dash,
         ];
-        let unit_select = pick_list(units, Some(self.input_unit), |unit: InputUnit| {
+        let unit_select = pick_list(units, Some(self.input_unit), |unit: Unit| {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 

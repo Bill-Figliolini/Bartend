@@ -4,7 +4,9 @@
 //! Internally, all quantities are represented in Metric units, for consistency and ease of conversion.
 //! ### Behavior
 //! Quantities allow of ease of conversion between Imperial and Metric, both at creation and later access.
-//! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur. 
+//! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur.
+
+use std::fmt::Display;
 #[derive(Debug, Clone, Copy)]
 pub enum Quantity {
     Volume { quantity: f32 },
@@ -24,6 +26,16 @@ impl Quantity {
     pub fn volume_from_imperial(quantity: f32) -> Quantity {
         Self::Volume {
             quantity: quantity * IMPERIAL_CONVERSION_VOLUME,
+        }
+    }
+    #[must_use]
+    pub const fn to_unit(&self) -> Unit {
+        match self {
+            Quantity::Volume { quantity: _ } => Unit::Milliliter,
+            Quantity::Mass { quantity: _ } => Unit::Gram,
+            Quantity::Count { quantity: _, name } => match name {
+                CountName::Dash => Unit::Dash,
+            },
         }
     }
     #[must_use]
@@ -133,6 +145,28 @@ impl CountName {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Unit {
+    Milliliter,
+    FluidOunce,
+    Gram,
+    MassOunce,
+    Dash,
+}
+
+impl Display for Unit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Unit::Milliliter => write!(f, "ml"),
+            Unit::FluidOunce => write!(f, "fl oz"),
+            Unit::Gram => write!(f, "g"),
+            Unit::MassOunce => write!(f, "oz"),
+            Unit::Dash => write!(f, "dash"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
