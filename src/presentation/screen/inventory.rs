@@ -1,12 +1,15 @@
 use std::{collections::HashSet, mem::take};
 
 use iced::{
-    Element, Theme,
-    widget::{column, row, table, text, text_input},
+    Element,
+    widget::{column, pick_list, row, rule, table, text, text_input},
 };
 
 use crate::{
-    persistence::{Item, ItemID},
+    common::{
+        item::{Item, ItemID},
+        quantity::{CountName, Quantity, Unit},
+    },
     presentation::{
         application,
         widget::{sidebar::button, text_style::title},
@@ -17,6 +20,7 @@ use crate::{
 pub struct Inventory {
     input_name: String,
     input_quantity: String,
+    input_unit: Unit,
     contents: Vec<Item>,
     edit_state: EditState,
     errors: HashSet<Error>,
@@ -37,12 +41,15 @@ pub enum Message {
     BeginEdit(Item),
     NameUpdate(String),
     QuantityUpdate(String),
+    UnitUpdate(Unit),
 }
 impl Inventory {
+    //Should reimplement as a builder. Will make succeeding states simpler.
     pub fn new(item_list: Vec<Item>) -> Self {
         Self {
             input_name: String::new(),
             input_quantity: String::new(),
+            input_unit: Unit::Milliliter,
             contents: item_list,
             edit_state: EditState::None,
             errors: HashSet::with_capacity(2),
@@ -58,10 +65,15 @@ impl Inventory {
                 self.input_quantity = new;
                 None
             }
+            Message::UnitUpdate(new) => {
+                self.input_unit = new;
+                None
+            }
             Message::BeginEdit(item) => {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
-                self.input_quantity = item.quantity.to_string();
+                self.input_quantity = item.quantity.metric_value().to_string();
+                self.input_unit = item.quantity.to_unit();
                 None
             }
             Message::SaveNewItem => {
@@ -83,7 +95,20 @@ impl Inventory {
                         0.0
                     }
                 };
-
+                let quantity = match self.input_unit {
+                    Unit::Milliliter => Quantity::Volume { quantity },
+                    Unit::FluidOunce => Quantity::Volume {
+                        quantity: quantity * 29.57,
+                    },
+                    Unit::Gram => Quantity::Mass { quantity },
+                    Unit::MassOunce => Quantity::Mass {
+                        quantity: quantity * 28.35,
+                    },
+                    Unit::Dash => Quantity::Count {
+                        quantity,
+                        name: CountName::Dash,
+                    },
+                };
                 if self.errors.is_empty() {
                     let name = take(&mut self.input_name);
                     match self.edit_state {
@@ -112,11 +137,21 @@ impl Inventory {
         let quantity_input = text_input("Quantity", &self.input_quantity)
             .id("quantity-input")
             .on_input(|str: String| application::Message::Inventory(Message::QuantityUpdate(str)));
+        let units = vec![
+            Unit::Milliliter,
+            Unit::FluidOunce,
+            Unit::Gram,
+            Unit::MassOunce,
+            Unit::Dash,
+        ];
+        let unit_select = pick_list(units, Some(self.input_unit), |unit: Unit| {
+            application::Message::Inventory(Message::UnitUpdate(unit))
+        });
 
         let confirm_button = button("Save", || {
             application::Message::Inventory(Message::SaveNewItem)
         });
-        let entry_row = row![name_input, quantity_input, confirm_button].spacing(5);
+        let entry_row = row![name_input, quantity_input, unit_select, confirm_button].spacing(5);
 
         let mut error_row = row![];
         for error in &self.errors {
@@ -130,9 +165,15 @@ impl Inventory {
                 }
             }
         }
-
+        let input_table_divider = rule::horizontal(2);
         let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
-        let quantity_column = table::column(text("Quantity"), |item: &Item| text(&item.quantity));
+        let quantity_column = table::column(text("Quantity"), |item: &Item| {
+            text!(
+                "{} {}",
+                item.quantity.metric_value(),
+                item.quantity.metric_name()
+            )
+        });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
         let edit_column = table::column(text("Edit").width(50), |item: &Item| {
             match self.edit_state {
@@ -146,12 +187,18 @@ impl Inventory {
             }
         });
         let delete_column = table::column(text("Delete").width(50), |item: &Item| {
-            button("X", || application::Message::DeleteItem(item.id.clone()))
+            button("X", || application::Message::DeleteItem(item.id))
         });
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
         let inventory = table(columns, &self.contents);
 
-        let body = column![entry_header, entry_row, error_row, inventory];
+        let body = column![
+            entry_header,
+            entry_row,
+            error_row,
+            input_table_divider,
+            inventory
+        ];
         column![title, body].into()
     }
 }

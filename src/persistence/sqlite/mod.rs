@@ -2,29 +2,29 @@ mod schema;
 
 use std::path::Path;
 
-use crate::persistence::{Item, ItemID, Repository, sqlite::schema::Schema};
+use crate::{
+    common::{
+        item::{Item, ItemID},
+        quantity::Quantity,
+    },
+    persistence::Repository,
+};
 use rusqlite::{self, Connection, OptionalExtension};
 
 #[derive(Debug)]
 pub struct DB {
     connection: Connection,
-    items_schema: Schema,
 }
 
 impl DB {
-    fn create_tables(connection: &Connection, items_schema: &Schema) {
-        let item_columns = items_schema.columns();
-        let create_items = format!(
-            "CREATE TABLE IF NOT EXISTS {}(
-            {} INTEGER PRIMARY KEY,
-            {} TEXT NOT NULL,
-            {} REAL NOT NULL
-            );",
-            items_schema.name(),
-            item_columns[0],
-            item_columns[1],
-            item_columns[2]
-        );
+    fn create_tables(connection: &Connection) {
+        let create_items = "CREATE TABLE IF NOT EXISTS items(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit INTEGER NOT NULL
+            );"
+        .to_string();
         let result = connection.execute(&create_items, ());
         if let Err(e) = result {
             panic!("DB Initialization error: {e}");
@@ -33,8 +33,6 @@ impl DB {
 }
 impl Repository for DB {
     fn new(path: impl AsRef<Path>) -> Self {
-        let items_schema = Schema::new("items").column("name").column("quantity");
-
         let connection = match Connection::open(path) {
             Ok(connection) => connection,
             Err(e) => {
@@ -42,20 +40,15 @@ impl Repository for DB {
             }
         };
 
-        Self::create_tables(&connection, &items_schema);
+        Self::create_tables(&connection);
 
-        Self {
-            connection,
-            items_schema,
-        }
+        Self { connection }
     }
 
-    fn add_item(&self, name: &str, quantity: f32) -> ItemID {
-        let query = format!(
-            "INSERT INTO {} VALUES (?1, ?2)",
-            self.items_schema.autoinsert()
-        );
-        let result = self.connection.execute(&query, (name, quantity));
+    fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
+        let query = "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)".to_string();
+        let (quantity, unit) = quantity.db_compatible();
+        let result = self.connection.execute(&query, (name, quantity, unit));
         match result {
             Ok(_) => ItemID(self.connection.last_insert_rowid()),
             Err(e) => {
@@ -66,14 +59,25 @@ impl Repository for DB {
 
     fn get_item(&self, id: ItemID) -> Option<Item> {
         let id = id.0;
-        let query = format!("SELECT * FROM {} WHERE id = ?1", self.items_schema.name());
+        let query = "SELECT * FROM items WHERE id = ?1".to_string();
         self.connection
             .query_row(&query, [(id)], |row| {
-                Ok(Item {
-                    id: ItemID(row.get(0).unwrap()),
-                    name: row.get(1).unwrap(),
-                    quantity: row.get(2).unwrap(),
-                })
+                let id = ItemID(row.get(0).expect("idx 0 corresponds to id"));
+                let name = row.get(1).expect("idx 1 corresponds to name");
+                let quantity = match row.get(3).unwrap() {
+                    0 => Quantity::Volume {
+                        quantity: row.get(2).unwrap(),
+                    },
+                    1 => Quantity::Mass {
+                        quantity: row.get(2).unwrap(),
+                    },
+                    2 => Quantity::Count {
+                        quantity: row.get(2).unwrap(),
+                        name: crate::common::quantity::CountName::Dash,
+                    },
+                    _ => panic!("Item inserted with invalid unit!"),
+                };
+                Ok(Item { id, name, quantity })
             })
             .optional()
             .unwrap()
@@ -81,20 +85,17 @@ impl Repository for DB {
 
     fn update_item(&self, item: Item) {
         let id = item.id.0;
-        let columns = self.items_schema.columns();
-        let query = format!(
-            "UPDATE {} SET
-            {} = ?2,
-            {} = ?3
-            WHERE id = ?1",
-            self.items_schema.name(),
-            columns[1],
-            columns[2]
-        );
+        let query = "UPDATE items SET
+            name = ?2,
+            quantity = ?3,
+            unit = ?4
+            WHERE id = ?1"
+            .to_string();
+        let (quantity, unit) = item.quantity.db_compatible();
 
         if let Err(e) = self
             .connection
-            .execute(&query, (id, item.name, item.quantity))
+            .execute(&query, (id, item.name, quantity, unit))
         {
             panic!("Update item failed with error: {e}");
         }
@@ -102,7 +103,7 @@ impl Repository for DB {
 
     fn delete_item(&self, id: ItemID) {
         let id = id.0;
-        let query = format!("DELETE FROM {} WHERE id = ?1", self.items_schema.name());
+        let query = "DELETE FROM items WHERE id = ?1".to_string();
 
         if let Err(e) = self.connection.execute(&query, (id,)) {
             panic!("Delete_item failed with error: {e}");
@@ -110,18 +111,29 @@ impl Repository for DB {
     }
 
     fn get_all_items(&self) -> Vec<Item> {
-        let query = format!("SELECT * FROM {}", self.items_schema.name());
+        let query = "SELECT * FROM items".to_string();
         let mut stmt = self
             .connection
             .prepare(&query)
             .expect("query must be valid sql");
         let rows = stmt
             .query_map([], |row| {
-                Ok(Item {
-                    id: ItemID(row.get(0).expect("idx 0 corresponds to id")),
-                    name: row.get(1).expect("idx 1 corresponds to name"),
-                    quantity: row.get(2).expect("idx 2 corresponds to quantity"),
-                })
+                let id = ItemID(row.get(0).expect("idx 0 corresponds to id"));
+                let name = row.get(1).expect("idx 1 corresponds to name");
+                let quantity = match row.get(3).unwrap() {
+                    0 => Quantity::Volume {
+                        quantity: row.get(2).unwrap(),
+                    },
+                    1 => Quantity::Mass {
+                        quantity: row.get(2).unwrap(),
+                    },
+                    2 => Quantity::Count {
+                        quantity: row.get(2).unwrap(),
+                        name: crate::common::quantity::CountName::Dash,
+                    },
+                    _ => panic!("Item inserted with invalid unit!"),
+                };
+                Ok(Item { id, name, quantity })
             })
             .unwrap();
         let mut items = Vec::new();
@@ -146,13 +158,14 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
+            let items_name = "items";
+            let columns = vec!["id", "name", "quantity"];
 
-            let items_name = db.items_schema.name();
             assert!(db.connection.table_exists(None, items_name).unwrap());
-            for column in db.items_schema.columns() {
+            for column in columns {
                 assert!(
                     db.connection
-                        .column_exists(None, items_name, column)
+                        .column_exists(None, items_name, &column)
                         .unwrap()
                 )
             }
@@ -166,7 +179,7 @@ mod test {
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
             let name = "test";
-            let quantity = 750.0;
+            let quantity = Quantity::Volume { quantity: 750.0 };
 
             let id = db.add_item(name, quantity);
             let item = db.get_item(id);
@@ -182,10 +195,11 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
-            let id = db.add_item("test", 750.0);
+            let quantity = Quantity::Volume { quantity: 750.0 };
+            let id = db.add_item("test", quantity);
             let mut item = db.get_item(id).unwrap();
             let new_name = "word".to_string();
-            let new_quantity = 600.0;
+            let new_quantity = Quantity::Mass { quantity: 600.0 };
             item.name = new_name.clone();
             item.quantity = new_quantity;
 
@@ -202,8 +216,12 @@ mod test {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
             let db = DB::new(file);
+            let quantity = Quantity::Count {
+                quantity: 2.0,
+                name: crate::common::quantity::CountName::Dash,
+            };
 
-            let id = db.add_item("test", 750.0);
+            let id = db.add_item("test", quantity);
             db.delete_item(id);
             let item = db.get_item(id);
 
@@ -218,12 +236,12 @@ mod test {
                 Item {
                     id: ItemID(1),
                     name: "test1".to_string(),
-                    quantity: 750.0,
+                    quantity: Quantity::Volume { quantity: 750.0 },
                 },
                 Item {
                     id: ItemID(2),
                     name: "test2".to_string(),
-                    quantity: 375.0,
+                    quantity: Quantity::Volume { quantity: 375.0 },
                 },
             ];
             _ = db.add_item(&pre_items[0].name, pre_items[0].quantity);

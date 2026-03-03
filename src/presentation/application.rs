@@ -6,8 +6,11 @@ use iced::{
 };
 
 use crate::{
+    common::{
+        item::{Item, ItemID},
+        quantity::Quantity,
+    },
     logic::{self, BarCollection},
-    persistence::{Item, ItemID},
     presentation::{
         screen::{self, Screen},
         widget::sidebar,
@@ -27,6 +30,9 @@ struct Bartend {
     bar_collection: logic::BarCollection,
 }
 
+#[derive(Debug)]
+struct Config {}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenInventory,
@@ -38,7 +44,7 @@ pub enum Message {
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
-    AddItem(String, f32),
+    AddItem(String, Quantity),
     UpdateItem(Item),
 }
 
@@ -85,7 +91,7 @@ impl Bartend {
                 self.screen = Screen::inventory(items);
                 Task::none()
             }
-            _ => {
+            Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(name, quantity) => {
