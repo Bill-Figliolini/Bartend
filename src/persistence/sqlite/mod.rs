@@ -15,6 +15,18 @@ pub struct DB {
 }
 
 impl DB {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        let connection = match Connection::open(path) {
+            Ok(connection) => connection,
+            Err(e) => {
+                panic!("DB could not be opened! {e}")
+            }
+        };
+
+        Self::create_tables(&connection);
+
+        Self { connection }
+    }
     fn create_tables(connection: &Connection) {
         let create_items = "CREATE TABLE IF NOT EXISTS items(
             id INTEGER PRIMARY KEY,
@@ -30,19 +42,6 @@ impl DB {
     }
 }
 impl Repository for DB {
-    fn new(path: impl AsRef<Path>) -> Self {
-        let connection = match Connection::open(path) {
-            Ok(connection) => connection,
-            Err(e) => {
-                panic!("DB could not be opened! {e}")
-            }
-        };
-
-        Self::create_tables(&connection);
-
-        Self { connection }
-    }
-
     fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
         let query = "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)".to_string();
         let (quantity, unit) = quantity.db_compatible();
