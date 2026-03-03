@@ -16,8 +16,6 @@ pub enum Quantity {
 
 const IMPERIAL_CONVERSION_VOLUME: f32 = 29.57;
 const IMPERIAL_CONVERSION_MASS: f32 = 28.35;
-const TSP_THRESHOLD: f32 = 15.0;
-const TSP_CONVERSION: f32 = 4.929;
 
 impl Quantity {
     pub fn volume_from_metric(quantity: f32) -> Quantity {
@@ -49,15 +47,7 @@ impl Quantity {
     #[must_use]
     pub const fn imperial_value(&self) -> f32 {
         match self {
-            Self::Volume { quantity } => {
-                if *quantity < TSP_THRESHOLD {
-                    //ml to tsp
-                    *quantity / TSP_CONVERSION
-                } else {
-                    //ml to oz
-                    *quantity / IMPERIAL_CONVERSION_VOLUME
-                }
-            }
+            Self::Volume { quantity } => *quantity / IMPERIAL_CONVERSION_VOLUME,
             Self::Mass { quantity } => {
                 //grams to oz
                 *quantity / IMPERIAL_CONVERSION_MASS
@@ -76,13 +66,7 @@ impl Quantity {
     #[must_use]
     pub fn imperial_name(&self) -> String {
         match self {
-            Self::Volume { quantity } => {
-                if *quantity < TSP_THRESHOLD {
-                    "tsp".to_string()
-                } else {
-                    "oz".to_string()
-                }
-            }
+            Self::Volume { quantity: _ } => "oz".to_string(),
             Self::Mass { quantity: _ } => "oz".to_string(),
             Self::Count { quantity: _, name } => name.name(),
         }
