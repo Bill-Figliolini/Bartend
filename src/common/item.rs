@@ -1,5 +1,4 @@
 //! # Item
-//! ## Description
 //! The base element of this program, which all others work over.
 //! Currently has no responsibilities, due to Bartend currently being structured in a data-oriented manner.
 //! Instead, they are free floating structs to be operated on by free functions in the Presentation, Logic, and Persistance modules

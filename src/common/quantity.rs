@@ -1,5 +1,5 @@
 //! # Quantity
-//! ## Description
+//! Handles preservation of quantities from the Presentation layer down to the DB
 //! ### Invariants
 //! Internally, all quantities are represented in Metric units, for consistency and ease of conversion.
 //! ### Behavior
