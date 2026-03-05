@@ -72,7 +72,7 @@ impl Quantity {
         }
     }
     #[must_use]
-    pub const fn db_compatible(&self) -> (f32, i32) {
+    pub const fn db_format(&self) -> (f32, i32) {
         match self {
             Self::Volume { quantity } => (*quantity, 0),
             Self::Mass { quantity } => (*quantity, 1),
