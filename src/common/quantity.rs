@@ -132,9 +132,8 @@ impl CountName {
 }
 //CONSIDERATION:
 // Are these really needed? I could roll them into the Quantity class. But then I would need to come up with another way to represent
-#[derive(Default, Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Unit {
-    #[default]
     Milliliter,
     FluidOunce,
     Gram,
