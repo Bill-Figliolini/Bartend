@@ -6,7 +6,7 @@
 //! Quantities allow of ease of conversion between Imperial and Metric, both at creation and later access.
 //! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur.
 
-use std::{default, fmt::Display};
+use std::fmt::Display;
 
 use crate::common::config::UnitSystem;
 #[derive(Debug, Clone, Copy)]
