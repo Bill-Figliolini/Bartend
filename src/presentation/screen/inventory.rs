@@ -96,21 +96,8 @@ impl Inventory {
                         0.0
                     }
                 };
-                let quantity = match self.input_unit {
-                    Unit::Milliliter => Quantity::Volume { quantity },
-                    Unit::FluidOunce => Quantity::Volume {
-                        quantity: quantity * 29.57,
-                    },
-                    Unit::Gram => Quantity::Mass { quantity },
-                    Unit::MassOunce => Quantity::Mass {
-                        quantity: quantity * 28.35,
-                    },
-                    Unit::Dash => Quantity::Count {
-                        quantity,
-                        name: CountName::Dash,
-                    },
-                };
                 if self.errors.is_empty() {
+                    let quantity = Quantity::new(quantity, take(&mut self.input_unit));
                     let name = take(&mut self.input_name);
                     match self.edit_state {
                         EditState::None => Some(application::Command::AddItem(name, quantity)),

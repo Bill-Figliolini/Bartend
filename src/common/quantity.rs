@@ -6,7 +6,7 @@
 //! Quantities allow of ease of conversion between Imperial and Metric, both at creation and later access.
 //! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur.
 
-use std::fmt::Display;
+use std::{default, fmt::Display};
 
 use crate::common::config::UnitSystem;
 #[derive(Debug, Clone, Copy)]
@@ -20,6 +20,22 @@ const IMPERIAL_CONVERSION_VOLUME: f32 = 29.57;
 const IMPERIAL_CONVERSION_MASS: f32 = 28.35;
 
 impl Quantity {
+    pub fn new(quantity: f32, unit: Unit) -> Quantity {
+        match unit {
+            Unit::Milliliter => Quantity::Volume { quantity },
+            Unit::FluidOunce => Quantity::Volume {
+                quantity: quantity * 29.57,
+            },
+            Unit::Gram => Quantity::Mass { quantity },
+            Unit::MassOunce => Quantity::Mass {
+                quantity: quantity * 28.35,
+            },
+            Unit::Dash => Quantity::Count {
+                quantity,
+                name: CountName::Dash,
+            },
+        }
+    }
     pub fn volume_from_metric(quantity: f32) -> Quantity {
         Self::Volume { quantity }
     }
@@ -116,8 +132,9 @@ impl CountName {
 }
 //CONSIDERATION:
 // Are these really needed? I could roll them into the Quantity class. But then I would need to come up with another way to represent
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub enum Unit {
+    #[default]
     Milliliter,
     FluidOunce,
     Gram,
