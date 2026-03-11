@@ -4,20 +4,20 @@
 use std::fmt::Display;
 #[derive(Debug)]
 pub struct Config {
-    display_unit: DisplayUnit,
+    display_unit: UnitSystem,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DisplayUnit {
+pub enum UnitSystem {
     Metric,
     Imperial,
 }
 
-impl Display for DisplayUnit {
+impl Display for UnitSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
-            DisplayUnit::Metric => "Metric (ml)",
-            DisplayUnit::Imperial => "Imperial (Oz)",
+            UnitSystem::Metric => "Metric (ml)",
+            UnitSystem::Imperial => "Imperial (Oz)",
         };
         write!(f, "{text}")
     }

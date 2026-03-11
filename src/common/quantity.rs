@@ -7,6 +7,8 @@
 //! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur.
 
 use std::fmt::Display;
+
+use crate::common::config::UnitSystem;
 #[derive(Debug, Clone, Copy)]
 pub enum Quantity {
     Volume { quantity: f32 },
@@ -27,7 +29,7 @@ impl Quantity {
         }
     }
     #[must_use]
-    pub const fn to_unit(&self) -> Unit {
+    pub const fn unit(&self) -> Unit {
         match self {
             Quantity::Volume { quantity: _ } => Unit::Milliliter,
             Quantity::Mass { quantity: _ } => Unit::Gram,
@@ -37,38 +39,21 @@ impl Quantity {
         }
     }
     #[must_use]
-    pub const fn metric_value(&self) -> f32 {
-        match self {
-            Self::Volume { quantity }
-            | Self::Mass { quantity }
-            | Self::Count { quantity, name: _ } => *quantity,
-        }
-    }
-    #[must_use]
-    pub const fn imperial_value(&self) -> f32 {
-        match self {
-            Self::Volume { quantity } => *quantity / IMPERIAL_CONVERSION_VOLUME,
-            Self::Mass { quantity } => {
-                //grams to oz
-                *quantity / IMPERIAL_CONVERSION_MASS
-            }
-            Self::Count { quantity, name: _ } => *quantity,
-        }
-    }
-    #[must_use]
-    pub fn metric_name(&self) -> String {
-        match self {
-            Self::Volume { quantity: _ } => "ml".to_string(),
-            Self::Mass { quantity: _ } => "grams".to_string(),
-            Self::Count { quantity: _, name } => name.name(),
-        }
-    }
-    #[must_use]
-    pub fn imperial_name(&self) -> String {
-        match self {
-            Self::Volume { quantity: _ } => "oz".to_string(),
-            Self::Mass { quantity: _ } => "oz".to_string(),
-            Self::Count { quantity: _, name } => name.name(),
+    pub const fn value(&self, unit_system: UnitSystem) -> f32 {
+        match unit_system {
+            UnitSystem::Metric => match self {
+                Self::Volume { quantity }
+                | Self::Mass { quantity }
+                | Self::Count { quantity, name: _ } => *quantity,
+            },
+            UnitSystem::Imperial => match self {
+                Self::Volume { quantity } => *quantity / IMPERIAL_CONVERSION_VOLUME,
+                Self::Mass { quantity } => {
+                    //grams to oz
+                    *quantity / IMPERIAL_CONVERSION_MASS
+                }
+                Self::Count { quantity, name: _ } => *quantity,
+            },
         }
     }
     #[must_use]
@@ -129,7 +114,8 @@ impl CountName {
         }
     }
 }
-
+//CONSIDERATION:
+// Are these really needed? I could roll them into the Quantity class. But then I would need to come up with another way to represent
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Unit {
     Milliliter,
@@ -166,7 +152,7 @@ mod test {
                     name: CountName::Dash,
                 };
 
-                let count_as_metric = count.metric_value();
+                let count_as_metric = count.value(UnitSystem::Metric);
 
                 assert_eq!(quantity, count_as_metric);
             }
@@ -178,7 +164,7 @@ mod test {
                     name: CountName::Dash,
                 };
 
-                let count_as_imperial = count.imperial_value();
+                let count_as_imperial = count.value(UnitSystem::Imperial);
 
                 assert_eq!(quantity, count_as_imperial);
             }

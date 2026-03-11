@@ -7,6 +7,7 @@ use iced::{
 
 use crate::{
     common::{
+        config::UnitSystem,
         item::{Item, ItemID},
         quantity::{CountName, Quantity, Unit},
     },
@@ -72,8 +73,8 @@ impl Inventory {
             Message::BeginEdit(item) => {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
-                self.input_quantity = item.quantity.metric_value().to_string();
-                self.input_unit = item.quantity.to_unit();
+                self.input_quantity = item.quantity.value(UnitSystem::Metric).to_string();
+                self.input_unit = item.quantity.unit();
                 None
             }
             Message::SaveNewItem => {
@@ -170,8 +171,8 @@ impl Inventory {
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
                 "{} {}",
-                item.quantity.metric_value(),
-                item.quantity.metric_name()
+                item.quantity.value(UnitSystem::Metric),
+                item.quantity.unit().to_string()
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
