@@ -36,14 +36,6 @@ impl Quantity {
             },
         }
     }
-    pub fn volume_from_metric(quantity: f32) -> Quantity {
-        Self::Volume { quantity }
-    }
-    pub fn volume_from_imperial(quantity: f32) -> Quantity {
-        Self::Volume {
-            quantity: quantity * IMPERIAL_CONVERSION_VOLUME,
-        }
-    }
     #[must_use]
     pub const fn unit(&self) -> Unit {
         match self {
