@@ -7,6 +7,7 @@ use iced::{
 
 use crate::{
     common::{
+        config::Config,
         item::{Item, ItemID},
         quantity::Quantity,
     },
@@ -27,6 +28,7 @@ pub fn run() -> iced::Result {
 #[derive(Debug)]
 struct Bartend {
     screen: Screen,
+    config: Config,
     bar_collection: logic::BarCollection,
 }
 
@@ -47,12 +49,13 @@ pub enum Command {
 
 impl Bartend {
     fn new() -> Self {
-        let path = "./bartend.db";
-        let bar_collection = BarCollection::new(path);
+        let config = Config::new();
+        let bar_collection = BarCollection::new(config.path());
         let items = bar_collection.get_items();
         let screen = Screen::start(items);
         Self {
             screen,
+            config,
             bar_collection,
         }
     }
