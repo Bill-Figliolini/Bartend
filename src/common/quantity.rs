@@ -123,13 +123,6 @@ pub enum CountName {
     Dash,
 }
 
-impl CountName {
-    fn name(self) -> String {
-        match self {
-            Self::Dash => "Dash".to_string(),
-        }
-    }
-}
 //CONSIDERATION:
 // Are these really needed? I could roll them into the Quantity class. But then I would need to come up with another way to represent them inside Quantities
 // But that would create its own issues with regards to checking if a quantity is the same type. Perhaps the same pattern as counts could be used?
