@@ -7,19 +7,19 @@ use std::{
 };
 #[derive(Debug)]
 pub struct Config {
-    path: PathBuf,
-    display_unit: UnitSystem,
+    db_path: PathBuf,
+    default_unit_system: UnitSystem,
 }
 impl Config {
     pub fn new() -> Self {
         let path = PathBuf::from("./bartend.db");
         Self {
-            path,
-            display_unit: UnitSystem::Metric,
+            db_path: path,
+            default_unit_system: UnitSystem::Metric,
         }
     }
-    pub fn path(&self) -> &Path {
-        self.path.as_path()
+    pub fn db_path(&self) -> &Path {
+        self.db_path.as_path()
     }
 }
 

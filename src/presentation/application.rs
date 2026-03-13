@@ -50,7 +50,7 @@ pub enum Command {
 impl Bartend {
     fn new() -> Self {
         let config = Config::new();
-        let bar_collection = BarCollection::new(config.path());
+        let bar_collection = BarCollection::new(config.db_path());
         let items = bar_collection.get_items();
         let screen = Screen::start(items);
         Self {
