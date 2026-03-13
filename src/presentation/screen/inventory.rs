@@ -9,7 +9,7 @@ use crate::{
     common::{
         config::UnitSystem,
         item::{Item, ItemID},
-        quantity::{CountName, Quantity, Unit},
+        quantity::{Quantity, Unit},
     },
     presentation::{
         application,
