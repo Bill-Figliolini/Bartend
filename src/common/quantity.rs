@@ -8,7 +8,6 @@
 
 use std::fmt::Display;
 
-use crate::common::config::UnitSystem;
 #[derive(Debug, Clone, Copy)]
 pub enum Quantity {
     Volume { quantity: f32 },
@@ -139,6 +138,21 @@ impl Display for Unit {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum UnitSystem {
+    Metric,
+    Imperial,
+}
+
+impl Display for UnitSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            UnitSystem::Metric => "Metric (ml)",
+            UnitSystem::Imperial => "Imperial (Oz)",
+        };
+        write!(f, "{text}")
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;

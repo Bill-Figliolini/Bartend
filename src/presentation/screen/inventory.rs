@@ -7,9 +7,8 @@ use iced::{
 
 use crate::{
     common::{
-        config::UnitSystem,
         item::{Item, ItemID},
-        quantity::{Quantity, Unit},
+        quantity::{Quantity, Unit, UnitSystem},
     },
     presentation::{
         application,

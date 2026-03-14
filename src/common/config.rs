@@ -6,6 +6,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::common::quantity::UnitSystem;
+
 //TODO:
 // Going to try a restructuring of this to see how well it works.
 // Unit System will be moved into Quantity, as that is where it belongs.
@@ -29,21 +31,5 @@ impl Config {
     }
     pub fn db_path(&self) -> &Path {
         self.db_path.as_path()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum UnitSystem {
-    Metric,
-    Imperial,
-}
-
-impl Display for UnitSystem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let text = match self {
-            UnitSystem::Metric => "Metric (ml)",
-            UnitSystem::Imperial => "Imperial (Oz)",
-        };
-        write!(f, "{text}")
     }
 }
