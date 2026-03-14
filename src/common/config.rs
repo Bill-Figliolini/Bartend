@@ -10,7 +10,7 @@ use crate::common::quantity::UnitSystem;
 
 //TODO:
 // Going to try a restructuring of this to see how well it works.
-// Unit System will be moved into Quantity, as that is where it belongs.
+// Unit System will be moved into Quantity, as that is where it belongs. X
 // Config will contain wrapper types around the relevant configurations.
 // Each wrapper will allow for implementations in other modules as relevant.
 // The primary example I thinking of at present is implementing a viewable trait in
