@@ -5,6 +5,15 @@ use std::{
     fmt::Display,
     path::{Path, PathBuf},
 };
+
+//TODO:
+// Going to try a restructuring of this to see how well it works.
+// Unit System will be moved into Quantity, as that is where it belongs.
+// Config will contain wrapper types around the relevant configurations.
+// Each wrapper will allow for implementations in other modules as relevant.
+// The primary example I thinking of at present is implementing a viewable trait in
+// Presentation, to allow for separating out which data elements are responsible for which displays.
+
 #[derive(Debug)]
 pub struct Config {
     db_path: PathBuf,
