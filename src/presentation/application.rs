@@ -76,7 +76,7 @@ impl Bartend {
             Message::OpenSettings => {
                 if let Screen::Settings(_) = self.screen {
                 } else {
-                    self.screen = Screen::settings();
+                    self.screen = Screen::settings(self.config.clone());
                 }
                 Task::none()
             }

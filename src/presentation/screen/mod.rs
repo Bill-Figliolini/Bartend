@@ -4,7 +4,7 @@ pub mod settings;
 use iced::Element;
 
 use crate::{
-    common::item::Item,
+    common::{config::Config, item::Item},
     presentation::application::{self, Message},
 };
 
@@ -34,7 +34,7 @@ impl Screen {
     pub fn inventory(items: Vec<Item>) -> Self {
         Self::Inventory(inventory::Inventory::new(items))
     }
-    pub fn settings() -> Self {
-        Self::Settings(settings::Settings::new())
+    pub fn settings(current_config: Config) -> Self {
+        Self::Settings(settings::Settings::new(current_config))
     }
 }

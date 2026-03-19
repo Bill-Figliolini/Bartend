@@ -1,10 +1,7 @@
 //! # Config
 //! Provides program defaults. If a page or operation overrides them, they should not be modified.
 
-use std::{
-    fmt::Display,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use crate::common::quantity::UnitSystem;
 
@@ -22,7 +19,7 @@ pub struct DefaultUnitSystem(UnitSystem);
 #[derive(Debug, Clone)]
 pub struct DefaultDBPath(PathBuf);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     db_path: DefaultDBPath,
     default_unit_system: DefaultUnitSystem,
