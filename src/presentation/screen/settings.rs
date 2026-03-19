@@ -15,7 +15,10 @@ pub struct Settings {
 }
 
 #[derive(Debug, Clone)]
-pub enum Message {}
+pub enum Message {
+    UpdateDBPath(String),
+    UpdateUnitSystem(UnitSystem),
+}
 
 impl Settings {
     pub(super) fn new(current_config: Config) -> Self {
