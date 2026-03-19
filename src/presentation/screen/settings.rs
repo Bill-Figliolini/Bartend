@@ -34,7 +34,11 @@ impl Settings {
 
         column![title].into()
     }
-    pub(super) fn update(&mut self, _message: Message) -> Option<Command> {
+    pub(super) fn update(&mut self, message: Message) -> Option<Command> {
+        match message {
+            Message::UpdateDBPath(db_path) => self.input_db_path = db_path,
+            Message::UpdateUnitSystem(unit_system) => self.default_unit_system = unit_system,
+        }
         None
     }
 }

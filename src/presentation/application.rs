@@ -112,6 +112,10 @@ impl Bartend {
                     Task::none()
                 }
             }
+            Message::Settings(_) => {
+                self.screen.update(message);
+                Task::none()
+            }
         }
     }
 
