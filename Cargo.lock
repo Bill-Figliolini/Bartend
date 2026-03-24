@@ -10,6 +10,7 @@ dependencies = [
  "iced",
  "rfd",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
 ]

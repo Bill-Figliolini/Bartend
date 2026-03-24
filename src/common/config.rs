@@ -1,6 +1,7 @@
 //! # Config
 //! Provides program defaults. If a page or operation overrides them, they should not be modified.
 
+use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -16,13 +17,11 @@ use crate::common::quantity::UnitSystem;
 // The primary example I thinking of at present is implementing a viewable trait in
 // Presentation, to allow for separating out which data elements are responsible for which displays.
 
-#[derive(Debug, Clone, Copy)]
-pub struct DefaultUnitSystem(UnitSystem);
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     config_dir: PathBuf,
-    default_unit_system: DefaultUnitSystem,
+    db_path: PathBuf,
+    default_unit_system: UnitSystem,
 }
 pub enum ConfigError {
     UnableToAccessDir,
@@ -30,7 +29,8 @@ pub enum ConfigError {
 }
 
 const CONFIG_DIR_NAME: &str = "Bartend";
-const DB_NAME: &str = "Bartend.db";
+const DEFAULT_CONFIG_FILE_NAME: &str = "Bartend.json";
+const DEFAULT_DB_NAME: &str = "Bartend.db";
 
 impl Config {
     pub fn load() -> Result<Config, ConfigError> {
@@ -43,22 +43,37 @@ impl Config {
             },
         }
         .join(Path::new(CONFIG_DIR_NAME));
-
-        if !config_dir.exists() {
-            if let Err(_) = fs::create_dir(&config_dir) {
-                return Err(ConfigError::UnableToCreateDir);
-            }
+        if config_dir.exists() {
+            //Load in config
+            let db_path = config_dir.join(DEFAULT_DB_NAME);
+            Ok(Self {
+                config_dir,
+                db_path,
+                default_unit_system: UnitSystem::Metric,
+            })
+        } else {
+            //Need to configure default settings
+            Config::initialize(config_dir)
         }
+    }
+
+    fn initialize(config_dir: PathBuf) -> Result<Config, ConfigError> {
+        if let Err(_) = fs::create_dir(&config_dir) {
+            return Err(ConfigError::UnableToCreateDir);
+        }
+        let db_path = config_dir.join(DEFAULT_DB_NAME);
 
         Ok(Self {
             config_dir,
-            default_unit_system: DefaultUnitSystem(UnitSystem::Metric),
+            db_path,
+            default_unit_system: UnitSystem::Metric,
         })
     }
-    pub fn db_path(&self) -> PathBuf {
-        self.config_dir.join(Path::new(DB_NAME))
+
+    pub fn db_path(&self) -> &PathBuf {
+        &self.db_path
     }
     pub fn default_units(&self) -> UnitSystem {
-        self.default_unit_system.0
+        self.default_unit_system
     }
 }

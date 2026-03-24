@@ -8,6 +8,8 @@
 
 use std::fmt::Display;
 
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Copy)]
 pub enum Quantity {
     Volume { quantity: f32 },
@@ -138,7 +140,7 @@ impl Display for Unit {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum UnitSystem {
     Metric,
     Imperial,
