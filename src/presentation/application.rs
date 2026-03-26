@@ -49,9 +49,12 @@ pub enum Command {
 
 impl Bartend {
     fn start() -> Self {
-        let config = match Config::load() {
+        let config = match Config::load(None, None) {
             Ok(config) => config,
-            Err(_) => panic!("Unable to load Config"),
+            Err(e) => {
+                print!("{:?}", e);
+                panic!("Unable to load Config")
+            }
         };
 
         let bar_collection = BarCollection::new(config.db_path());
