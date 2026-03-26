@@ -59,7 +59,10 @@ impl Config {
             let reader = BufReader::new(file);
             match serde_json::from_reader(reader) {
                 Ok(config) => config,
-                Err(_) => return Err(ConfigError::ReadError),
+                Err(e) => {
+                    eprint!("{:?}", e);
+                    return Err(ConfigError::ReadError);
+                }
             }
         } else {
             let db_path = match db_path {
@@ -102,12 +105,23 @@ impl Config {
         }
     }
     #[must_use]
+    pub const fn path(&self) -> &PathBuf {
+        &self.path
+    }
+    #[must_use]
     pub const fn db_path(&self) -> &PathBuf {
         &self.db_path
     }
     #[must_use]
     pub const fn default_units(&self) -> UnitSystem {
         self.default_unit_system
+    }
+
+    pub fn update_db_path(&mut self, db_path: PathBuf) {
+        self.db_path = db_path;
+    }
+    pub fn update_default_units(&mut self, unit_system: UnitSystem) {
+        self.default_unit_system = unit_system;
     }
 }
 

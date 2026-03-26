@@ -1,9 +1,12 @@
+use std::path::PathBuf;
+
 use iced::{
     Element,
     Length::Fill,
     Task,
     widget::{column, container, row},
 };
+use rfd::AsyncFileDialog;
 
 use crate::{
     common::{
@@ -34,8 +37,10 @@ struct Bartend {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    NoOp,
     OpenInventory,
     OpenSettings,
+    OpenDBPicker(PathBuf),
     DeleteItem(ItemID),
     RefreshItems,
     Inventory(screen::inventory::Message),
@@ -45,6 +50,7 @@ pub enum Message {
 pub enum Command {
     AddItem(String, Quantity),
     UpdateItem(Item),
+    UpdateConfig(Config),
 }
 
 impl Bartend {
@@ -72,6 +78,7 @@ impl Bartend {
     }
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
+            Message::NoOp => Task::none(),
             Message::OpenInventory => {
                 if let Screen::Inventory(_) = self.screen {
                 } else {
@@ -83,10 +90,23 @@ impl Bartend {
             Message::OpenSettings => {
                 if let Screen::Settings(_) = self.screen {
                 } else {
-                    self.screen = Screen::settings(self.config.clone());
+                    self.screen = Screen::settings(&self.config);
                 }
                 Task::none()
             }
+            Message::OpenDBPicker(path) => Task::future(async {
+                let file = AsyncFileDialog::new()
+                    .add_filter("Database", &["db"])
+                    .set_directory(path)
+                    .save_file()
+                    .await;
+                if let Some(file) = file {
+                    let file_buf = file.path().to_path_buf();
+                    Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
+                } else {
+                    Message::NoOp
+                }
+            }),
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
                 let items = self.bar_collection.get_items();
@@ -114,14 +134,30 @@ impl Bartend {
                             self.screen = Screen::inventory(items);
                             Task::none()
                         }
+                        _ => unreachable!(),
                     }
                 } else {
                     Task::none()
                 }
             }
             Message::Settings(_) => {
-                self.screen.update(message);
-                Task::none()
+                if let Some(command) = self.screen.update(message) {
+                    match command {
+                        Command::UpdateConfig(config) => {
+                            self.config = config;
+                            match self.config.save() {
+                                Ok(_) => {}
+                                Err(e) => panic!("{:?}", e),
+                            }
+                            self.bar_collection = BarCollection::new(self.config.path());
+                            self.screen = Screen::settings(&self.config);
+                            Task::none()
+                        }
+                        _ => unreachable!(),
+                    }
+                } else {
+                    Task::none()
+                }
             }
         }
     }

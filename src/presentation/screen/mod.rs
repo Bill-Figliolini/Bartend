@@ -34,7 +34,7 @@ impl Screen {
     pub fn inventory(items: Vec<Item>) -> Self {
         Self::Inventory(inventory::Inventory::new(items))
     }
-    pub fn settings(current_config: Config) -> Self {
+    pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
 }

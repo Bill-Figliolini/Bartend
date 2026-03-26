@@ -1,4 +1,9 @@
-use iced::{Element, widget::column};
+use std::path::PathBuf;
+
+use iced::{
+    Element,
+    widget::{column, row},
+};
 
 use crate::{
     common::{config::Config, quantity::UnitSystem},
@@ -10,35 +15,68 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Settings {
-    input_db_path: String,
-    default_unit_system: UnitSystem,
+    config: Config,
+    input_db_path: PathBuf,
+    input_unit_system: UnitSystem,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    UpdateDBPath(String),
+    Save,
+    UpdateDBPath(PathBuf),
     UpdateUnitSystem(UnitSystem),
 }
 
 impl Settings {
-    pub(super) fn new(current_config: Config) -> Self {
-        let input_db_path = current_config.db_path().to_str().unwrap().to_string();
+    pub(super) fn new(current_config: &Config) -> Self {
+        let config = current_config.clone();
+        let input_db_path = current_config.db_path().clone();
         let default_unit_system = current_config.default_units();
         Self {
+            config,
             input_db_path,
-            default_unit_system,
+            input_unit_system: default_unit_system,
         }
     }
     pub(super) fn view(&self) -> Element<'_, application::Message> {
         let title = title("Settings");
+        let save_button =
+            iced::widget::button("Save").on_press(application::Message::Settings(Message::Save));
+        let title_section = column![title, save_button].padding(20);
 
-        column![title].into()
+        let db_button = iced::widget::Button::new("Choose DB File").on_press(
+            application::Message::OpenDBPicker(self.input_db_path.clone()),
+        );
+        let db_row = row![db_button];
+
+        let unit_systems = vec![UnitSystem::Metric, UnitSystem::Imperial];
+        let unit_picker = iced::widget::pick_list(
+            unit_systems,
+            Some(self.input_unit_system),
+            |unit_system: UnitSystem| {
+                application::Message::Settings(Message::UpdateUnitSystem(unit_system))
+            },
+        );
+        let unit_system_row = row![unit_picker];
+
+        let body = column![db_row, unit_system_row].padding(10);
+        column![title_section, body].into()
     }
     pub(super) fn update(&mut self, message: Message) -> Option<Command> {
         match message {
-            Message::UpdateDBPath(db_path) => self.input_db_path = db_path,
-            Message::UpdateUnitSystem(unit_system) => self.default_unit_system = unit_system,
+            Message::Save => {
+                self.config.update_db_path(self.input_db_path.clone());
+                self.config.update_default_units(self.input_unit_system);
+                Some(Command::UpdateConfig(self.config.clone()))
+            }
+            Message::UpdateDBPath(db_path) => {
+                self.input_db_path = db_path;
+                None
+            }
+            Message::UpdateUnitSystem(unit_system) => {
+                self.input_unit_system = unit_system;
+                None
+            }
         }
-        None
     }
 }
