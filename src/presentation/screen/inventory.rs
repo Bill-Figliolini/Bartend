@@ -8,7 +8,7 @@ use iced::{
 use crate::{
     common::{
         item::{Item, ItemID},
-        quantity::{CountName, Quantity, Unit},
+        quantity::{Quantity, Unit, UnitSystem},
     },
     presentation::{
         application,
@@ -72,8 +72,8 @@ impl Inventory {
             Message::BeginEdit(item) => {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
-                self.input_quantity = item.quantity.metric_value().to_string();
-                self.input_unit = item.quantity.to_unit();
+                self.input_quantity = item.quantity.value(UnitSystem::Metric).to_string();
+                self.input_unit = item.quantity.unit();
                 None
             }
             Message::SaveNewItem => {
@@ -95,21 +95,8 @@ impl Inventory {
                         0.0
                     }
                 };
-                let quantity = match self.input_unit {
-                    Unit::Milliliter => Quantity::Volume { quantity },
-                    Unit::FluidOunce => Quantity::Volume {
-                        quantity: quantity * 29.57,
-                    },
-                    Unit::Gram => Quantity::Mass { quantity },
-                    Unit::MassOunce => Quantity::Mass {
-                        quantity: quantity * 28.35,
-                    },
-                    Unit::Dash => Quantity::Count {
-                        quantity,
-                        name: CountName::Dash,
-                    },
-                };
                 if self.errors.is_empty() {
+                    let quantity = Quantity::new(quantity, self.input_unit);
                     let name = take(&mut self.input_name);
                     match self.edit_state {
                         EditState::None => Some(application::Command::AddItem(name, quantity)),
@@ -170,8 +157,8 @@ impl Inventory {
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
                 "{} {}",
-                item.quantity.metric_value(),
-                item.quantity.metric_name()
+                item.quantity.value(UnitSystem::Metric),
+                item.quantity.unit().to_string()
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state

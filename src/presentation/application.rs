@@ -1,12 +1,16 @@
+use std::path::PathBuf;
+
 use iced::{
     Element,
     Length::Fill,
     Task,
     widget::{column, container, row},
 };
+use rfd::AsyncFileDialog;
 
 use crate::{
     common::{
+        config::Config,
         item::{Item, ItemID},
         quantity::Quantity,
     },
@@ -18,7 +22,7 @@ use crate::{
 };
 
 pub fn run() -> iced::Result {
-    iced::application(Bartend::new, Bartend::update, Bartend::view)
+    iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title(Bartend::title)
         .window_size((500.0, 600.0))
         .run()
@@ -27,16 +31,16 @@ pub fn run() -> iced::Result {
 #[derive(Debug)]
 struct Bartend {
     screen: Screen,
+    config: Config,
     bar_collection: logic::BarCollection,
 }
 
-#[derive(Debug)]
-struct Config {}
-
 #[derive(Debug, Clone)]
 pub enum Message {
+    NoOp,
     OpenInventory,
     OpenSettings,
+    OpenDBPicker(PathBuf),
     DeleteItem(ItemID),
     RefreshItems,
     Inventory(screen::inventory::Message),
@@ -46,16 +50,25 @@ pub enum Message {
 pub enum Command {
     AddItem(String, Quantity),
     UpdateItem(Item),
+    UpdateConfig(Config),
 }
 
 impl Bartend {
-    fn new() -> Self {
-        let path = "./bartend.db";
-        let bar_collection = BarCollection::new(path);
+    fn start() -> Self {
+        let config = match Config::load(None, None) {
+            Ok(config) => config,
+            Err(e) => {
+                print!("{:?}", e);
+                panic!("Unable to load Config")
+            }
+        };
+
+        let bar_collection = BarCollection::new(config.db_path());
         let items = bar_collection.get_items();
         let screen = Screen::start(items);
         Self {
             screen,
+            config,
             bar_collection,
         }
     }
@@ -65,6 +78,7 @@ impl Bartend {
     }
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
+            Message::NoOp => Task::none(),
             Message::OpenInventory => {
                 if let Screen::Inventory(_) = self.screen {
                 } else {
@@ -76,10 +90,21 @@ impl Bartend {
             Message::OpenSettings => {
                 if let Screen::Settings(_) = self.screen {
                 } else {
-                    self.screen = Screen::settings();
+                    self.screen = Screen::settings(&self.config);
                 }
                 Task::none()
             }
+            Message::OpenDBPicker(path) => Task::future(async {
+                let file = AsyncFileDialog::new()
+                    .add_filter("Database", &["db"])
+                    .set_directory(path)
+                    .save_file()
+                    .await;
+                file.map_or(Message::NoOp, |inner_file| {
+                    let file_buf = inner_file.path().to_path_buf();
+                    Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
+                })
+            }),
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
                 let items = self.bar_collection.get_items();
@@ -107,6 +132,26 @@ impl Bartend {
                             self.screen = Screen::inventory(items);
                             Task::none()
                         }
+                        _ => unreachable!(),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
+            Message::Settings(_) => {
+                if let Some(command) = self.screen.update(message) {
+                    match command {
+                        Command::UpdateConfig(config) => {
+                            self.config = config;
+                            match self.config.save() {
+                                Ok(_) => {}
+                                Err(e) => panic!("{e:?}"),
+                            }
+                            self.bar_collection = BarCollection::new(self.config.path());
+                            self.screen = Screen::settings(&self.config);
+                            Task::none()
+                        }
+                        _ => unreachable!(),
                     }
                 } else {
                     Task::none()

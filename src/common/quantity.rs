@@ -1,5 +1,5 @@
 //! # Quantity
-//! ## Description
+//! Handles preservation of quantities from the Presentation layer down to the DB
 //! ### Invariants
 //! Internally, all quantities are represented in Metric units, for consistency and ease of conversion.
 //! ### Behavior
@@ -7,6 +7,9 @@
 //! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur.
 
 use std::fmt::Display;
+
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Copy)]
 pub enum Quantity {
     Volume { quantity: f32 },
@@ -18,16 +21,24 @@ const IMPERIAL_CONVERSION_VOLUME: f32 = 29.57;
 const IMPERIAL_CONVERSION_MASS: f32 = 28.35;
 
 impl Quantity {
-    pub fn volume_from_metric(quantity: f32) -> Quantity {
-        Self::Volume { quantity }
-    }
-    pub fn volume_from_imperial(quantity: f32) -> Quantity {
-        Self::Volume {
-            quantity: quantity * IMPERIAL_CONVERSION_VOLUME,
+    pub fn new(quantity: f32, unit: Unit) -> Quantity {
+        match unit {
+            Unit::Milliliter => Quantity::Volume { quantity },
+            Unit::FluidOunce => Quantity::Volume {
+                quantity: quantity * 29.57,
+            },
+            Unit::Gram => Quantity::Mass { quantity },
+            Unit::MassOunce => Quantity::Mass {
+                quantity: quantity * 28.35,
+            },
+            Unit::Dash => Quantity::Count {
+                quantity,
+                name: CountName::Dash,
+            },
         }
     }
     #[must_use]
-    pub const fn to_unit(&self) -> Unit {
+    pub const fn unit(&self) -> Unit {
         match self {
             Quantity::Volume { quantity: _ } => Unit::Milliliter,
             Quantity::Mass { quantity: _ } => Unit::Gram,
@@ -37,42 +48,25 @@ impl Quantity {
         }
     }
     #[must_use]
-    pub const fn metric_value(&self) -> f32 {
-        match self {
-            Self::Volume { quantity }
-            | Self::Mass { quantity }
-            | Self::Count { quantity, name: _ } => *quantity,
+    pub const fn value(&self, unit_system: UnitSystem) -> f32 {
+        match unit_system {
+            UnitSystem::Metric => match self {
+                Self::Volume { quantity }
+                | Self::Mass { quantity }
+                | Self::Count { quantity, name: _ } => *quantity,
+            },
+            UnitSystem::Imperial => match self {
+                Self::Volume { quantity } => *quantity / IMPERIAL_CONVERSION_VOLUME,
+                Self::Mass { quantity } => {
+                    //grams to oz
+                    *quantity / IMPERIAL_CONVERSION_MASS
+                }
+                Self::Count { quantity, name: _ } => *quantity,
+            },
         }
     }
     #[must_use]
-    pub const fn imperial_value(&self) -> f32 {
-        match self {
-            Self::Volume { quantity } => *quantity / IMPERIAL_CONVERSION_VOLUME,
-            Self::Mass { quantity } => {
-                //grams to oz
-                *quantity / IMPERIAL_CONVERSION_MASS
-            }
-            Self::Count { quantity, name: _ } => *quantity,
-        }
-    }
-    #[must_use]
-    pub fn metric_name(&self) -> String {
-        match self {
-            Self::Volume { quantity: _ } => "ml".to_string(),
-            Self::Mass { quantity: _ } => "grams".to_string(),
-            Self::Count { quantity: _, name } => name.name(),
-        }
-    }
-    #[must_use]
-    pub fn imperial_name(&self) -> String {
-        match self {
-            Self::Volume { quantity: _ } => "oz".to_string(),
-            Self::Mass { quantity: _ } => "oz".to_string(),
-            Self::Count { quantity: _, name } => name.name(),
-        }
-    }
-    #[must_use]
-    pub const fn db_compatible(&self) -> (f32, i32) {
+    pub const fn db_format(&self) -> (f32, i32) {
         match self {
             Self::Volume { quantity } => (*quantity, 0),
             Self::Mass { quantity } => (*quantity, 1),
@@ -122,14 +116,9 @@ pub enum CountName {
     Dash,
 }
 
-impl CountName {
-    fn name(self) -> String {
-        match self {
-            Self::Dash => "Dash".to_string(),
-        }
-    }
-}
-
+//CONSIDERATION:
+// Are these really needed? I could roll them into the Quantity class. But then I would need to come up with another way to represent them inside Quantities
+// But that would create its own issues with regards to checking if a quantity is the same type. Perhaps the same pattern as counts could be used?
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Unit {
     Milliliter,
@@ -151,6 +140,21 @@ impl Display for Unit {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum UnitSystem {
+    Metric,
+    Imperial,
+}
+
+impl Display for UnitSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            UnitSystem::Metric => "Metric (ml)",
+            UnitSystem::Imperial => "Imperial (Oz)",
+        };
+        write!(f, "{text}")
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;
@@ -166,7 +170,7 @@ mod test {
                     name: CountName::Dash,
                 };
 
-                let count_as_metric = count.metric_value();
+                let count_as_metric = count.value(UnitSystem::Metric);
 
                 assert_eq!(quantity, count_as_metric);
             }
@@ -178,7 +182,7 @@ mod test {
                     name: CountName::Dash,
                 };
 
-                let count_as_imperial = count.imperial_value();
+                let count_as_imperial = count.value(UnitSystem::Imperial);
 
                 assert_eq!(quantity, count_as_imperial);
             }
