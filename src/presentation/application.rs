@@ -19,7 +19,7 @@ use crate::{
 };
 
 pub fn run() -> iced::Result {
-    iced::application(Bartend::new, Bartend::update, Bartend::view)
+    iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title(Bartend::title)
         .window_size((500.0, 600.0))
         .run()
@@ -48,7 +48,7 @@ pub enum Command {
 }
 
 impl Bartend {
-    fn new() -> Self {
+    fn start() -> Self {
         let config = match Config::load() {
             Ok(config) => config,
             Err(_) => panic!("Unable to load Config"),
