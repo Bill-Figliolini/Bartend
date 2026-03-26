@@ -60,7 +60,7 @@ impl Config {
             match serde_json::from_reader(reader) {
                 Ok(config) => config,
                 Err(e) => {
-                    eprint!("{:?}", e);
+                    eprint!("{e:?}");
                     return Err(ConfigError::ReadError);
                 }
             }

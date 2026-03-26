@@ -100,12 +100,10 @@ impl Bartend {
                     .set_directory(path)
                     .save_file()
                     .await;
-                if let Some(file) = file {
-                    let file_buf = file.path().to_path_buf();
+                file.map_or(Message::NoOp, |inner_file| {
+                    let file_buf = inner_file.path().to_path_buf();
                     Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
-                } else {
-                    Message::NoOp
-                }
+                })
             }),
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
@@ -147,7 +145,7 @@ impl Bartend {
                             self.config = config;
                             match self.config.save() {
                                 Ok(_) => {}
-                                Err(e) => panic!("{:?}", e),
+                                Err(e) => panic!("{e:?}"),
                             }
                             self.bar_collection = BarCollection::new(self.config.path());
                             self.screen = Screen::settings(&self.config);
