@@ -7,6 +7,7 @@ use iced::{
 
 use crate::{
     common::{
+        config::Config,
         item::{Item, ItemID},
         quantity::{Quantity, Unit, UnitSystem},
     },
@@ -21,7 +22,10 @@ pub struct Inventory {
     input_name: String,
     input_quantity: String,
     input_unit: Unit,
+
     contents: Vec<Item>,
+    unit_system: UnitSystem,
+
     edit_state: EditState,
     errors: HashSet<Error>,
 }
@@ -45,12 +49,15 @@ pub enum Message {
 }
 impl Inventory {
     //Should reimplement as a builder. Will make succeeding states simpler.
-    pub fn new(item_list: Vec<Item>) -> Self {
+    pub fn new(config: &Config, item_list: Vec<Item>) -> Self {
         Self {
             input_name: String::new(),
             input_quantity: String::new(),
             input_unit: Unit::Milliliter,
+
             contents: item_list,
+            unit_system: config.default_units(),
+
             edit_state: EditState::None,
             errors: HashSet::with_capacity(2),
         }
@@ -72,8 +79,8 @@ impl Inventory {
             Message::BeginEdit(item) => {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
-                self.input_quantity = item.quantity.value(UnitSystem::Metric).to_string();
-                self.input_unit = item.quantity.unit();
+                self.input_quantity = item.quantity.value(self.unit_system).to_string();
+                self.input_unit = item.quantity.unit(self.unit_system);
                 None
             }
             Message::SaveNewItem => {
@@ -157,8 +164,8 @@ impl Inventory {
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
                 "{} {}",
-                item.quantity.value(UnitSystem::Metric),
-                item.quantity.unit().to_string()
+                item.quantity.value(self.unit_system),
+                item.quantity.unit(self.unit_system).to_string()
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
