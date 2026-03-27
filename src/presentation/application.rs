@@ -14,7 +14,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    logic::{self, BarCollection},
+    logic::BarCollection,
     presentation::{
         screen::{self, Screen},
         widget::sidebar,
@@ -32,7 +32,7 @@ pub fn run() -> iced::Result {
 struct Bartend {
     screen: Screen,
     config: Config,
-    bar_collection: logic::BarCollection,
+    bar_collection: BarCollection,
 }
 
 #[derive(Debug, Clone)]
