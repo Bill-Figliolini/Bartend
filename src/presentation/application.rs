@@ -65,7 +65,7 @@ impl Bartend {
 
         let bar_collection = BarCollection::new(config.db_path());
         let items = bar_collection.get_items();
-        let screen = Screen::start(items);
+        let screen = Screen::start(&config, items);
         Self {
             screen,
             config,
@@ -83,7 +83,7 @@ impl Bartend {
                 if let Screen::Inventory(_) = self.screen {
                 } else {
                     let items = self.bar_collection.get_items();
-                    self.screen = Screen::inventory(items);
+                    self.screen = Screen::inventory(&self.config, items);
                 }
                 Task::none()
             }
@@ -108,12 +108,12 @@ impl Bartend {
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
                 let items = self.bar_collection.get_items();
-                self.screen = Screen::inventory(items);
+                self.screen = Screen::inventory(&self.config, items);
                 Task::none()
             }
             Message::RefreshItems => {
                 let items = self.bar_collection.get_items();
-                self.screen = Screen::inventory(items);
+                self.screen = Screen::inventory(&self.config, items);
                 Task::none()
             }
             Message::Inventory(_) => {
@@ -123,13 +123,13 @@ impl Bartend {
                             self.bar_collection.add_item(&name, quantity);
                             //TODO: Can this be improved, and should it?
                             let items = self.bar_collection.get_items();
-                            self.screen = Screen::inventory(items);
+                            self.screen = Screen::inventory(&self.config, items);
                             Task::none()
                         }
                         Command::UpdateItem(item) => {
                             self.bar_collection.update_item(item);
                             let items = self.bar_collection.get_items();
-                            self.screen = Screen::inventory(items);
+                            self.screen = Screen::inventory(&self.config, items);
                             Task::none()
                         }
                         _ => unreachable!(),
@@ -142,12 +142,15 @@ impl Bartend {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::UpdateConfig(config) => {
+                            let db_changed = self.config.db_path() != config.db_path();
                             self.config = config;
                             match self.config.save() {
                                 Ok(_) => {}
                                 Err(e) => panic!("{e:?}"),
                             }
-                            self.bar_collection = BarCollection::new(self.config.path());
+                            if db_changed {
+                                self.bar_collection = BarCollection::new(self.config.db_path());
+                            }
                             self.screen = Screen::settings(&self.config);
                             Task::none()
                         }

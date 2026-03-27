@@ -80,7 +80,7 @@ impl Inventory {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
                 self.input_quantity = item.quantity.value(self.unit_system).to_string();
-                self.input_unit = item.quantity.unit();
+                self.input_unit = item.quantity.unit(self.unit_system);
                 None
             }
             Message::SaveNewItem => {
@@ -165,7 +165,7 @@ impl Inventory {
             text!(
                 "{} {}",
                 item.quantity.value(self.unit_system),
-                item.quantity.unit().to_string()
+                item.quantity.unit(self.unit_system).to_string()
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state

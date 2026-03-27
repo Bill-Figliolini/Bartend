@@ -15,8 +15,8 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub fn start(items: Vec<Item>) -> Self {
-        Self::Inventory(inventory::Inventory::new(items))
+    pub fn start(config: &Config, items: Vec<Item>) -> Self {
+        Self::Inventory(inventory::Inventory::new(config, items))
     }
     pub fn view(&self) -> Element<'_, Message> {
         match self {
@@ -31,8 +31,8 @@ impl Screen {
             _ => unreachable!(),
         }
     }
-    pub fn inventory(items: Vec<Item>) -> Self {
-        Self::Inventory(inventory::Inventory::new(items))
+    pub fn inventory(config: &Config, items: Vec<Item>) -> Self {
+        Self::Inventory(inventory::Inventory::new(config, items))
     }
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))

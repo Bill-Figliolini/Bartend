@@ -39,12 +39,21 @@ impl Quantity {
         }
     }
     #[must_use]
-    pub const fn unit(&self) -> Unit {
-        match self {
-            Self::Volume { quantity: _ } => Unit::Milliliter,
-            Self::Mass { quantity: _ } => Unit::Gram,
-            Self::Count { quantity: _, name } => match name {
-                CountName::Dash => Unit::Dash,
+    pub const fn unit(&self, unit_system: UnitSystem) -> Unit {
+        match unit_system {
+            UnitSystem::Metric => match self {
+                Self::Volume { quantity: _ } => Unit::Milliliter,
+                Self::Mass { quantity: _ } => Unit::Gram,
+                Self::Count { quantity: _, name } => match name {
+                    CountName::Dash => Unit::Dash,
+                },
+            },
+            UnitSystem::Imperial => match self {
+                Self::Volume { quantity: _ } => Unit::FluidOunce,
+                Self::Mass { quantity: _ } => Unit::MassOunce,
+                Self::Count { quantity: _, name } => match name {
+                    CountName::Dash => Unit::Dash,
+                },
             },
         }
     }
