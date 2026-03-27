@@ -21,17 +21,18 @@ const IMPERIAL_CONVERSION_VOLUME: f32 = 29.57;
 const IMPERIAL_CONVERSION_MASS: f32 = 28.35;
 
 impl Quantity {
-    pub fn new(quantity: f32, unit: Unit) -> Quantity {
+    #[must_use]
+    pub fn new(quantity: f32, unit: Unit) -> Self {
         match unit {
-            Unit::Milliliter => Quantity::Volume { quantity },
-            Unit::FluidOunce => Quantity::Volume {
+            Unit::Milliliter => Self::Volume { quantity },
+            Unit::FluidOunce => Self::Volume {
                 quantity: quantity * 29.57,
             },
-            Unit::Gram => Quantity::Mass { quantity },
-            Unit::MassOunce => Quantity::Mass {
+            Unit::Gram => Self::Mass { quantity },
+            Unit::MassOunce => Self::Mass {
                 quantity: quantity * 28.35,
             },
-            Unit::Dash => Quantity::Count {
+            Unit::Dash => Self::Count {
                 quantity,
                 name: CountName::Dash,
             },
@@ -40,9 +41,9 @@ impl Quantity {
     #[must_use]
     pub const fn unit(&self) -> Unit {
         match self {
-            Quantity::Volume { quantity: _ } => Unit::Milliliter,
-            Quantity::Mass { quantity: _ } => Unit::Gram,
-            Quantity::Count { quantity: _, name } => match name {
+            Self::Volume { quantity: _ } => Unit::Milliliter,
+            Self::Mass { quantity: _ } => Unit::Gram,
+            Self::Count { quantity: _, name } => match name {
                 CountName::Dash => Unit::Dash,
             },
         }
@@ -119,7 +120,7 @@ pub enum CountName {
 //CONSIDERATION:
 // Are these really needed? I could roll them into the Quantity class. But then I would need to come up with another way to represent them inside Quantities
 // But that would create its own issues with regards to checking if a quantity is the same type. Perhaps the same pattern as counts could be used?
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
     Milliliter,
     FluidOunce,
@@ -131,16 +132,16 @@ pub enum Unit {
 impl Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Unit::Milliliter => write!(f, "ml"),
-            Unit::FluidOunce => write!(f, "fl oz"),
-            Unit::Gram => write!(f, "g"),
-            Unit::MassOunce => write!(f, "oz"),
-            Unit::Dash => write!(f, "dash"),
+            Self::Milliliter => write!(f, "ml"),
+            Self::FluidOunce => write!(f, "fl oz"),
+            Self::Gram => write!(f, "g"),
+            Self::MassOunce => write!(f, "oz"),
+            Self::Dash => write!(f, "dash"),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitSystem {
     Metric,
     Imperial,
@@ -149,8 +150,8 @@ pub enum UnitSystem {
 impl Display for UnitSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
-            UnitSystem::Metric => "Metric (ml)",
-            UnitSystem::Imperial => "Imperial (Oz)",
+            Self::Metric => "Metric (ml)",
+            Self::Imperial => "Imperial (Oz)",
         };
         write!(f, "{text}")
     }
