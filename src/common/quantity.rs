@@ -106,7 +106,7 @@ impl PartialEq for Quantity {
                     quantity: r_quantity,
                     name: r_name,
                 },
-            ) => l_quantity == r_quantity && l_name == r_name,
+            ) => l_name == r_name && l_quantity == r_quantity,
             _ => false,
         }
     }
