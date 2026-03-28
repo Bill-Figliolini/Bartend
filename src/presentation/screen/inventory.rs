@@ -183,25 +183,33 @@ impl Inventory {
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
-        let edit_column_width = 75;
-        let edit_column =
-            table::column(
-                text("Edit").width(edit_column_width),
-                |item: &Item| match self.edit_state {
-                    EditState::None => button("Edit", || {
-                        application::Message::Inventory(Message::BeginEdit(item.clone()))
-                    }),
-                    EditState::Editing(item_id) if item.id == item_id => {
-                        button("Cancel", || application::Message::RefreshItems)
-                    }
-                    EditState::Editing(_) => iced::widget::Button::new("Edit")
+        let edit_column_width = 70;
+        let edit_column = table::column(
+            text("Edit").width(edit_column_width).center(),
+            |item: &Item| match self.edit_state {
+                EditState::None => iced::widget::Button::new(text("Edit").center())
+                    .on_press(application::Message::Inventory(Message::BeginEdit(
+                        item.clone(),
+                    )))
+                    .width(edit_column_width),
+                EditState::Editing(item_id) if item.id == item_id => {
+                    iced::widget::Button::new(text("Cancel").center())
+                        .on_press(application::Message::RefreshItems)
                         .width(edit_column_width)
-                        .into(),
-                },
-            );
-        let delete_column = table::column(text("Delete").width(50), |item: &Item| {
-            button("X", || application::Message::DeleteItem(item.id))
-        });
+                }
+                EditState::Editing(_) => {
+                    iced::widget::Button::new(text("Edit").center()).width(edit_column_width)
+                }
+            },
+        );
+        let delete_column_width = 50;
+        let delete_column = table::column(
+            text("Delete").width(delete_column_width).center(),
+            |item: &Item| {
+                iced::widget::Button::new(text("X").width(delete_column_width).center())
+                    .on_press(application::Message::DeleteItem(item.id))
+            },
+        );
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
         let inventory = table(columns, &self.contents);
 
