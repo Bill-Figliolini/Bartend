@@ -39,16 +39,26 @@ impl Settings {
         }
     }
     pub(super) fn view(&self) -> Element<'_, application::Message> {
+        let text_boundary = 500;
+
         let title = title("Settings");
         let save_button =
             iced::widget::button("Save").on_press(application::Message::Settings(Message::Save));
         let title_section = column![title, save_button].padding(20);
 
+        let current_db_path = iced::widget::text!(
+            "Current DB Path: {}",
+            self.input_db_path.display().to_string()
+        )
+        .width(text_boundary);
         let db_button = iced::widget::Button::new("Choose DB File").on_press(
             application::Message::OpenDBPicker(self.input_db_path.clone()),
         );
-        let db_row = row![db_button];
+        let db_row = row![current_db_path, db_button];
 
+        let divider = iced::widget::rule::horizontal(3);
+
+        let unit_text = iced::widget::text("Default units:").width(text_boundary);
         let unit_systems = vec![UnitSystem::Metric, UnitSystem::Imperial];
         let unit_picker = iced::widget::pick_list(
             unit_systems,
@@ -57,9 +67,9 @@ impl Settings {
                 application::Message::Settings(Message::UpdateUnitSystem(unit_system))
             },
         );
-        let unit_system_row = row![unit_picker];
+        let unit_system_row = row![unit_text, unit_picker];
 
-        let body = column![db_row, unit_system_row].padding(10);
+        let body = column![db_row, divider, unit_system_row].padding(10);
         column![title_section, body].into()
     }
     pub(super) fn update(&mut self, message: Message) -> Option<Command> {
