@@ -135,7 +135,10 @@ impl Inventory {
         let title_divider = iced::widget::rule::horizontal(constants::DIV_SIZE);
         let title = column![title_text, title_divider];
 
-        let entry_header = text("New Item:");
+        let entry_header = match self.edit_state {
+            EditState::None => text("New Item:"),
+            EditState::Editing(_) => text("Edit Item:"),
+        };
         let name_input = text_input("Name", &self.input_name)
             .id("name-input")
             .on_input(|str: String| application::Message::Inventory(Message::NameUpdate(str)));
@@ -171,7 +174,7 @@ impl Inventory {
             }
         }
         let input_table_divider = rule::horizontal(constants::DIV_SIZE);
-        let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
+        let name_column = table::column(text("Name").width(200), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
                 "{} {}",
@@ -180,7 +183,7 @@ impl Inventory {
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
-        let edit_column = table::column(text("Edit").width(50), |item: &Item| {
+        let edit_column = table::column(text("Edit").width(75), |item: &Item| {
             match self.edit_state {
                 EditState::None => button("Edit", || {
                     application::Message::Inventory(Message::BeginEdit(item.clone()))
@@ -188,7 +191,7 @@ impl Inventory {
                 EditState::Editing(item_id) if item.id == item_id => {
                     button("Cancel", || application::Message::RefreshItems)
                 }
-                EditState::Editing(_) => text("Edit").into(),
+                EditState::Editing(_) => iced::widget::Button::new("Edit").into(),
             }
         });
         let delete_column = table::column(text("Delete").width(50), |item: &Item| {
