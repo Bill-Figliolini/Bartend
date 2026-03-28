@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use iced::{
     Element,
     Length::Fill,
-    widget::{column, container, row},
+    widget::{column, row},
 };
 
 use crate::{
