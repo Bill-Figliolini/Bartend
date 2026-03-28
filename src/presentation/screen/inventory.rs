@@ -131,7 +131,9 @@ impl Inventory {
         }
     }
     pub(super) fn view(&self) -> Element<'_, application::Message> {
-        let title = title("Inventory");
+        let title_text = title("Inventory");
+        let title_divider = iced::widget::rule::horizontal(constants::DIV_SIZE);
+        let title = column![title_text, title_divider];
 
         let entry_header = text("New Item:");
         let name_input = text_input("Name", &self.input_name)
@@ -203,10 +205,12 @@ impl Inventory {
             inventory
         ];
         let body = container(body_contents).align_top(Fill);
+
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Inventory(Message::SwapUnits));
         let bottom_row_contents = row![unit_swap_button];
         let bottom_row = container(bottom_row_contents).align_left(Fill).height(40);
+
         column![title, body, bottom_row].into()
     }
 }
