@@ -12,10 +12,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::{Quantity, Unit, UnitSystem},
     },
-    presentation::{
-        application, constants,
-        widget::{sidebar::button, text_style::title},
-    },
+    presentation::{application, constants, widget::text_style::title},
 };
 
 #[derive(Debug)]
