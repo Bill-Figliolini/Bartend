@@ -156,6 +156,15 @@ pub enum UnitSystem {
     Imperial,
 }
 
+impl UnitSystem {
+    pub fn swap(&mut self) {
+        *self = match self {
+            UnitSystem::Metric => UnitSystem::Imperial,
+            UnitSystem::Imperial => UnitSystem::Metric,
+        };
+    }
+}
+
 impl Display for UnitSystem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {

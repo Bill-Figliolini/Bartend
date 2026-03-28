@@ -2,7 +2,7 @@ use std::{collections::HashSet, mem::take};
 
 use iced::{
     Element,
-    widget::{column, pick_list, row, rule, table, text, text_input},
+    widget::{column, container, pick_list, row, rule, table, text, text_input},
 };
 
 use crate::{
@@ -42,6 +42,7 @@ enum Error {
 #[derive(Debug, Clone)]
 pub enum Message {
     SaveNewItem,
+    SwapUnits,
     BeginEdit(Item),
     NameUpdate(String),
     QuantityUpdate(String),
@@ -51,19 +52,26 @@ impl Inventory {
     //Should reimplement as a builder. Will make succeeding states simpler.
     pub fn new(config: &Config, item_list: Vec<Item>) -> Self {
         Self {
+            // Input Handlers
             input_name: String::new(),
             input_quantity: String::new(),
             input_unit: Unit::Milliliter,
 
+            // Display Managers
             contents: item_list,
             unit_system: config.default_units(),
 
+            // Input State
             edit_state: EditState::None,
             errors: HashSet::with_capacity(2),
         }
     }
     pub(super) fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
+            Message::SwapUnits => {
+                self.unit_system.swap();
+                None
+            }
             Message::NameUpdate(new) => {
                 self.input_name = new;
                 None
@@ -186,13 +194,18 @@ impl Inventory {
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
         let inventory = table(columns, &self.contents);
 
-        let body = column![
+        let body_contents = column![
             entry_header,
             entry_row,
             error_row,
             input_table_divider,
             inventory
         ];
-        column![title, body].into()
+        let body = container(body_contents).align_top(400);
+        let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
+            .on_press(application::Message::Inventory(Message::SwapUnits));
+        let bottom_row_contents = row![unit_swap_button];
+        let bottom_row = container(bottom_row_contents).align_left(300);
+        column![title, body, bottom_row].into()
     }
 }
