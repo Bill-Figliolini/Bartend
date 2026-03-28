@@ -9,6 +9,7 @@ use crate::{
     common::{config::Config, quantity::UnitSystem},
     presentation::{
         application::{self, Command},
+        constants,
         widget::text_style::title,
     },
 };
@@ -56,7 +57,7 @@ impl Settings {
         );
         let db_row = row![current_db_path, db_button];
 
-        let divider = iced::widget::rule::horizontal(3);
+        let divider = iced::widget::rule::horizontal(constants::DIV_SIZE);
 
         let unit_text = iced::widget::text("Default units:").width(text_boundary);
         let unit_systems = vec![UnitSystem::Metric, UnitSystem::Imperial];

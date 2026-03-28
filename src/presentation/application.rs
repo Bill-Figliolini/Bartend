@@ -16,6 +16,7 @@ use crate::{
     },
     logic::BarCollection,
     presentation::{
+        constants,
         screen::{self, Screen},
         widget::sidebar,
     },
@@ -170,7 +171,7 @@ impl Bartend {
         ]
         .width(150)
         .height(Fill);
-        let sidebar_boundary = widget::rule::vertical(3);
+        let sidebar_boundary = widget::rule::vertical(constants::DIV_SIZE);
         let sidebar = container(row![sidebar_contents, sidebar_boundary]);
         let screen_contents = self.screen.view();
         let screen = container(screen_contents).width(Fill).height(Fill);

@@ -13,7 +13,7 @@ use crate::{
         quantity::{Quantity, Unit, UnitSystem},
     },
     presentation::{
-        application,
+        application, constants,
         widget::{sidebar::button, text_style::title},
     },
 };
@@ -168,7 +168,7 @@ impl Inventory {
                 }
             }
         }
-        let input_table_divider = rule::horizontal(2);
+        let input_table_divider = rule::horizontal(constants::DIV_SIZE);
         let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
