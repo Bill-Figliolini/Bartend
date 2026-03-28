@@ -156,12 +156,11 @@ impl Inventory {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 
-        let confirm_button = button("Save", || {
-            application::Message::Inventory(Message::SaveNewItem)
-        });
+        let confirm_button = iced::widget::Button::new("Save")
+            .on_press(application::Message::Inventory(Message::SaveNewItem));
         let entry_row = row![name_input, quantity_input, unit_select, confirm_button].spacing(5);
 
-        let mut error_row = row![];
+        let mut error_row = row![].spacing(20);
         for error in &self.errors {
             match error {
                 Error::NameError => {
