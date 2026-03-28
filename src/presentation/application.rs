@@ -174,8 +174,10 @@ impl Bartend {
         .height(Fill);
         let sidebar_boundary = widget::rule::vertical(constants::DIV_SIZE);
         let sidebar = container(row![sidebar_contents, sidebar_boundary]);
+
         let screen_contents = self.screen.view();
         let screen = container(screen_contents).width(Fill).height(Fill);
+
         container(row![sidebar, screen])
             .height(Fill)
             .width(Fill)
