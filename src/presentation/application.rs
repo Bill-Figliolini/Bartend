@@ -165,6 +165,7 @@ impl Bartend {
     }
 
     fn view(&self) -> Element<'_, Message> {
+        //Re do to be a function that takes in a list of element -> Message and returns the completed sidebar
         let sidebar_contents = column![
             sidebar::button("Inventory", || Message::OpenInventory),
             sidebar::button("Settings", || Message::OpenSettings),
