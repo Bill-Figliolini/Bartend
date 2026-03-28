@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use iced::{
     Element,
-    Length::Fill,
+    Length::{self, Fill},
     Task,
-    widget::{column, container, row},
+    widget::{self, column, container, row},
 };
 use rfd::AsyncFileDialog;
 
@@ -164,20 +164,19 @@ impl Bartend {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let sidebar = column![
+        let sidebar_contents = column![
             sidebar::button("Inventory", || Message::OpenInventory),
             sidebar::button("Settings", || Message::OpenSettings),
         ]
-        .width(300)
-        .padding(10);
-
-        let screen = self.screen.view();
-        container(
-            column![row![sidebar, container(screen).padding(10).width(Fill)].spacing(10),]
-                .spacing(10),
-        )
-        .height(Fill)
-        .width(Fill)
-        .into()
+        .width(150)
+        .height(Fill);
+        let sidebar_boundary = widget::rule::vertical(3);
+        let sidebar = container(row![sidebar_contents, sidebar_boundary]);
+        let screen_contents = self.screen.view();
+        let screen = container(screen_contents).width(Fill).height(Fill);
+        container(row![sidebar, screen])
+            .height(Fill)
+            .width(Fill)
+            .into()
     }
 }
