@@ -183,17 +183,22 @@ impl Inventory {
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
-        let edit_column = table::column(text("Edit").width(75), |item: &Item| {
-            match self.edit_state {
-                EditState::None => button("Edit", || {
-                    application::Message::Inventory(Message::BeginEdit(item.clone()))
-                }),
-                EditState::Editing(item_id) if item.id == item_id => {
-                    button("Cancel", || application::Message::RefreshItems)
-                }
-                EditState::Editing(_) => iced::widget::Button::new("Edit").into(),
-            }
-        });
+        let edit_column_width = 75;
+        let edit_column =
+            table::column(
+                text("Edit").width(edit_column_width),
+                |item: &Item| match self.edit_state {
+                    EditState::None => button("Edit", || {
+                        application::Message::Inventory(Message::BeginEdit(item.clone()))
+                    }),
+                    EditState::Editing(item_id) if item.id == item_id => {
+                        button("Cancel", || application::Message::RefreshItems)
+                    }
+                    EditState::Editing(_) => iced::widget::Button::new("Edit")
+                        .width(edit_column_width)
+                        .into(),
+                },
+            );
         let delete_column = table::column(text("Delete").width(50), |item: &Item| {
             button("X", || application::Message::DeleteItem(item.id))
         });
