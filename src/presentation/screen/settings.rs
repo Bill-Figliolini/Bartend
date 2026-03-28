@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use iced::{
     Element,
-    widget::{column, row},
+    Length::Fill,
+    widget::{column, container, row},
 };
 
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
     presentation::{
         application::{self, Command},
         constants,
-        widget::text_style::title,
+        widget::{footer::footer, header::header, text_style::title},
     },
 };
 
@@ -42,10 +43,8 @@ impl Settings {
     pub(super) fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
 
-        let title = title("Settings");
-        let save_button =
-            iced::widget::button("Save").on_press(application::Message::Settings(Message::Save));
-        let title_section = column![title, save_button].padding(20);
+        let title_text = title("Settings");
+        let header = header(title_text);
 
         let current_db_path = iced::widget::text!(
             "Current DB Path: {}",
@@ -70,8 +69,14 @@ impl Settings {
         );
         let unit_system_row = row![unit_text, unit_picker];
 
-        let body = column![db_row, divider, unit_system_row];
-        column![title_section, body].into()
+        let body = column![db_row, divider, unit_system_row].height(Fill);
+
+        let save_button =
+            iced::widget::button("Save").on_press(application::Message::Settings(Message::Save));
+        let footer_contents = row![save_button];
+        let footer = footer(footer_contents);
+
+        column![header, body, footer].into()
     }
     pub(super) fn update(&mut self, message: Message) -> Option<Command> {
         match message {

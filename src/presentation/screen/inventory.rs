@@ -12,7 +12,10 @@ use crate::{
         item::{Item, ItemID},
         quantity::{Quantity, Unit, UnitSystem},
     },
-    presentation::{application, constants, widget::text_style::title},
+    presentation::{
+        application, constants,
+        widget::{footer::footer, header::header, text_style::title},
+    },
 };
 
 #[derive(Debug)]
@@ -129,8 +132,7 @@ impl Inventory {
     }
     pub(super) fn view(&self) -> Element<'_, application::Message> {
         let title_text = title("Inventory");
-        let title_divider = iced::widget::rule::horizontal(constants::DIV_SIZE);
-        let title = column![title_text, title_divider];
+        let header = header(title_text);
 
         let entry_header = match self.edit_state {
             EditState::None => text("New Item:"),
@@ -220,9 +222,9 @@ impl Inventory {
 
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Inventory(Message::SwapUnits));
-        let bottom_row_contents = row![unit_swap_button];
-        let bottom_row = container(bottom_row_contents).align_left(Fill).height(40);
+        let footer_contents = row![unit_swap_button];
+        let footer = footer(footer_contents);
 
-        column![title, body, bottom_row].into()
+        column![header, body, footer].into()
     }
 }
