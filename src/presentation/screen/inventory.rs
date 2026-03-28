@@ -2,6 +2,7 @@ use std::{collections::HashSet, mem::take};
 
 use iced::{
     Element,
+    Length::Fill,
     widget::{column, container, pick_list, row, rule, table, text, text_input},
 };
 
@@ -201,11 +202,11 @@ impl Inventory {
             input_table_divider,
             inventory
         ];
-        let body = container(body_contents).align_top(400);
+        let body = container(body_contents).align_top(Fill);
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Inventory(Message::SwapUnits));
         let bottom_row_contents = row![unit_swap_button];
-        let bottom_row = container(bottom_row_contents).align_left(300);
+        let bottom_row = container(bottom_row_contents).align_left(Fill).height(40);
         column![title, body, bottom_row].into()
     }
 }
