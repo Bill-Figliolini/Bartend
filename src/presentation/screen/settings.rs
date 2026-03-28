@@ -70,7 +70,7 @@ impl Settings {
         );
         let unit_system_row = row![unit_text, unit_picker];
 
-        let body = column![db_row, divider, unit_system_row].padding(10);
+        let body = column![db_row, divider, unit_system_row];
         column![title_section, body].into()
     }
     pub(super) fn update(&mut self, message: Message) -> Option<Command> {
