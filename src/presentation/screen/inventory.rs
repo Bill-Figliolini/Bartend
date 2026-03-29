@@ -72,6 +72,20 @@ impl Inventory {
         self.contents = item_list;
     }
 
+    fn save_item(&mut self, quantity: f32) -> Option<application::Command> {
+        let quantity = Quantity::new(quantity, self.input_unit);
+        let name = take(&mut self.input_name);
+        self.input_quantity.clear();
+        match self.edit_state {
+            EditState::None => Some(application::Command::AddItem(name, quantity)),
+            EditState::Editing(item_id) => Some(application::Command::UpdateItem(Item {
+                id: item_id,
+                name,
+                quantity,
+            })),
+        }
+    }
+
     pub(super) fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::SwapUnits => {
@@ -117,29 +131,15 @@ impl Inventory {
                     }
                 };
                 if self.errors.is_empty() {
-                    let quantity = Quantity::new(quantity, self.input_unit);
-                    let name = take(&mut self.input_name);
-                    self.input_quantity.clear();
-                    match self.edit_state {
-                        EditState::None => Some(application::Command::AddItem(name, quantity)),
-                        EditState::Editing(item_id) => {
-                            Some(application::Command::UpdateItem(Item {
-                                id: item_id,
-                                name,
-                                quantity,
-                            }))
-                        }
-                    }
+                    self.save_item(quantity)
                 } else {
                     None
                 }
             }
         }
     }
-    pub(super) fn view(&self) -> Element<'_, application::Message> {
-        let title_text = title("Inventory");
-        let header = header(title_text);
 
+    fn build_item_entry_section(&self) -> Element<'_, application::Message> {
         let entry_header = match self.edit_state {
             EditState::None => text("New Item:"),
             EditState::Editing(_) => text("Edit Item:"),
@@ -177,7 +177,12 @@ impl Inventory {
                 }
             }
         }
-        let input_table_divider = rule::horizontal(constants::DIV_SIZE);
+
+        let input_divider = rule::horizontal(constants::DIV_SIZE);
+        iced::widget::container(column![entry_header, entry_row, error_row, input_divider]).into()
+    }
+
+    fn build_inventory_display(&self) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
@@ -215,15 +220,18 @@ impl Inventory {
             },
         );
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
-        let inventory = table(columns, &self.contents);
+        table(columns, &self.contents).into()
+    }
 
-        let body_contents = column![
-            entry_header,
-            entry_row,
-            error_row,
-            input_table_divider,
-            inventory
-        ];
+    pub(super) fn view(&self) -> Element<'_, application::Message> {
+        let title_text = title("Inventory");
+        let header = header(title_text);
+
+        let entry_section = self.build_item_entry_section();
+
+        let inventory = self.build_inventory_display();
+
+        let body_contents = column![entry_section, inventory];
         let body = container(body_contents).align_top(Fill);
 
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
