@@ -14,7 +14,7 @@ use crate::{
     },
     presentation::{
         application, constants,
-        widget::{Alignment, footer::footer, header::header, text_style::title},
+        widget::{footer::footer, header::header, text_style::title},
     },
 };
 
@@ -228,7 +228,8 @@ impl Inventory {
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Inventory(Message::SwapUnits));
         let footer_contents = row![unit_swap_button];
-        let footer = footer(footer_contents, Alignment::Left);
+        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
+        let footer = footer(footer_container);
 
         column![header, body, footer].into()
     }
