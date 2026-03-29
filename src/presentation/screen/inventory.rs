@@ -124,13 +124,8 @@ impl Inventory {
                 }
                 let quantity = self.input_quantity.trim().parse::<f32>();
                 let quantity = match quantity {
-                    Ok(quantity) => {
-                        if quantity <= 0.0 {
-                            self.errors.push(Error::QuantityError);
-                        }
-                        quantity
-                    }
-                    Err(_) => {
+                    Ok(quantity) if quantity > 0.0 => quantity,
+                    _ => {
                         self.errors.push(Error::QuantityError);
                         0.0
                     }
