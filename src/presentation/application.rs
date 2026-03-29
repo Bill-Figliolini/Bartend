@@ -39,10 +39,12 @@ struct Bartend {
 pub enum Message {
     NoOp,
     OpenInventory,
-    OpenSettings,
-    OpenDBPicker(PathBuf),
     DeleteItem(ItemID),
     RefreshItems,
+
+    OpenSettings,
+    OpenDBPicker(PathBuf),
+
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
 }
@@ -79,6 +81,7 @@ impl Bartend {
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::NoOp => Task::none(),
+
             Message::OpenInventory => {
                 if let Screen::Inventory(_) = self.screen {
                 } else {
@@ -87,6 +90,18 @@ impl Bartend {
                 }
                 Task::none()
             }
+            Message::DeleteItem(item) => {
+                self.bar_collection.delete_item(item);
+                let items = self.bar_collection.get_items();
+                self.screen.update_inventory(items);
+                Task::none()
+            }
+            Message::RefreshItems => {
+                let items = self.bar_collection.get_items();
+                self.screen.update_inventory(items);
+                Task::none()
+            }
+
             Message::OpenSettings => {
                 if let Screen::Settings(_) = self.screen {
                 } else {
@@ -105,17 +120,7 @@ impl Bartend {
                     Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
                 })
             }),
-            Message::DeleteItem(item) => {
-                self.bar_collection.delete_item(item);
-                let items = self.bar_collection.get_items();
-                self.screen.update_inventory(items);
-                Task::none()
-            }
-            Message::RefreshItems => {
-                let items = self.bar_collection.get_items();
-                self.screen.update_inventory(items);
-                Task::none()
-            }
+
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
