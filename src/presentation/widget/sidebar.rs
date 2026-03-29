@@ -11,8 +11,8 @@ pub struct Sidebar<'a, Message: Clone + 'a> {
 }
 
 impl<'a, Message: Clone + 'a> Sidebar<'a, Message> {
-    pub fn new() -> Sidebar<'a, Message> {
-        Sidebar {
+    pub const fn new() -> Self {
+        Self {
             buttons: Vec::new(),
         }
     }
@@ -21,7 +21,7 @@ impl<'a, Message: Clone + 'a> Sidebar<'a, Message> {
         mut self,
         content: impl Into<Element<'a, Message>>,
         on_press: impl Fn() -> Message + 'a,
-    ) -> Sidebar<'a, Message> {
+    ) -> Self {
         let button = widget::button(content)
             .on_press_with(on_press)
             .padding(10)
@@ -31,7 +31,7 @@ impl<'a, Message: Clone + 'a> Sidebar<'a, Message> {
         self
     }
     pub fn into(self) -> Element<'a, Message> {
-        let sidebar_buttons = iced::widget::Column::from_iter(self.buttons.into_iter());
+        let sidebar_buttons = iced::widget::Column::from_iter(self.buttons);
         let sidebar_contents = sidebar_buttons.width(150).height(Fill);
         let sidebar_div = iced::widget::rule::vertical(constants::DIV_SIZE);
         iced::widget::container(row![sidebar_contents, sidebar_div]).into()

@@ -72,17 +72,17 @@ impl Inventory {
         self.contents = item_list;
     }
 
-    fn save_item(&mut self, quantity: f32) -> Option<application::Command> {
+    fn save_item(&mut self, quantity: f32) -> application::Command {
         let quantity = Quantity::new(quantity, self.input_unit);
         let name = take(&mut self.input_name);
         self.input_quantity.clear();
         match self.edit_state {
-            EditState::None => Some(application::Command::AddItem(name, quantity)),
-            EditState::Editing(item_id) => Some(application::Command::UpdateItem(Item {
+            EditState::None => application::Command::AddItem(name, quantity),
+            EditState::Editing(item_id) => application::Command::UpdateItem(Item {
                 id: item_id,
                 name,
                 quantity,
-            })),
+            }),
         }
     }
 
@@ -131,7 +131,7 @@ impl Inventory {
                     }
                 };
                 if self.errors.is_empty() {
-                    self.save_item(quantity)
+                    Some(self.save_item(quantity))
                 } else {
                     None
                 }

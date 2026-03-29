@@ -157,10 +157,10 @@ pub enum UnitSystem {
 }
 
 impl UnitSystem {
-    pub fn swap(&mut self) {
+    pub const fn swap(&mut self) {
         *self = match self {
-            UnitSystem::Metric => UnitSystem::Imperial,
-            UnitSystem::Imperial => UnitSystem::Metric,
+            Self::Metric => Self::Imperial,
+            Self::Imperial => Self::Metric,
         };
     }
 }

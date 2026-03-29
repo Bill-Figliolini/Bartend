@@ -76,7 +76,7 @@ impl Config {
                 default_unit_system: UnitSystem::Metric,
             };
 
-            if let Err(_) = config.save() {
+            if config.save().is_err() {
                 return Err(ConfigError::WriteError);
             }
             config
@@ -170,13 +170,13 @@ pub struct EditableConfig {
 }
 
 impl EditableConfig {
+    #[must_use]
     pub fn commit(&self) -> Config {
-        let config = Config {
+        Config {
             path: self.path.clone(),
             db_path: self.db_path.clone(),
             default_unit_system: self.default_unit_system,
-        };
-        config
+        }
     }
 }
 

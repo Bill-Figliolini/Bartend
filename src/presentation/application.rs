@@ -61,7 +61,7 @@ impl Bartend {
         let config = match Config::load(None, None) {
             Ok(config) => config,
             Err(e) => {
-                print!("{:?}", e);
+                print!("{e:?}");
                 panic!("Unable to load Config")
             }
         };

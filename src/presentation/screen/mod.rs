@@ -37,13 +37,13 @@ impl Screen {
 
     pub fn update_inventory(&mut self, items: Vec<Item>) {
         match self {
-            Screen::Inventory(inventory) => inventory.update_inventory(items),
+            Self::Inventory(inventory) => inventory.update_inventory(items),
             _ => unreachable!(),
         }
     }
     pub fn reset_config(&mut self, config: &Config) {
         match self {
-            Screen::Settings(settings) => settings.reset(config),
+            Self::Settings(settings) => settings.reset(config),
             _ => unreachable!(),
         }
     }
