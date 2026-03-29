@@ -4,7 +4,7 @@ use iced::{
     Element,
     Length::Fill,
     Task,
-    widget::{self, column, container, row},
+    widget::{container, row},
 };
 use rfd::AsyncFileDialog;
 
@@ -16,7 +16,6 @@ use crate::{
     },
     logic::BarCollection,
     presentation::{
-        constants,
         screen::{self, Screen},
         widget::sidebar,
     },
@@ -165,15 +164,10 @@ impl Bartend {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        //Re do to be a function that takes in a list of element -> Message and returns the completed sidebar
-        let sidebar_contents = column![
-            sidebar::button("Inventory", || Message::OpenInventory),
-            sidebar::button("Settings", || Message::OpenSettings),
-        ]
-        .width(150)
-        .height(Fill);
-        let sidebar_boundary = widget::rule::vertical(constants::DIV_SIZE);
-        let sidebar = container(row![sidebar_contents, sidebar_boundary]);
+        let sidebar = sidebar::Sidebar::new()
+            .button("Inventory", || Message::OpenInventory)
+            .button("Settings", || Message::OpenSettings)
+            .into();
 
         let screen_contents = self.screen.view();
         let screen = container(screen_contents).width(Fill).height(Fill);
