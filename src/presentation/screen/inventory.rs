@@ -67,6 +67,11 @@ impl Inventory {
             errors: HashSet::with_capacity(2),
         }
     }
+
+    pub(super) fn update_inventory(&mut self, item_list: Vec<Item>) {
+        self.contents = item_list;
+    }
+
     pub(super) fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::SwapUnits => {

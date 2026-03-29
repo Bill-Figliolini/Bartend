@@ -108,12 +108,12 @@ impl Bartend {
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
                 let items = self.bar_collection.get_items();
-                self.screen = Screen::inventory(&self.config, items);
+                self.screen.update_inventory(items);
                 Task::none()
             }
             Message::RefreshItems => {
                 let items = self.bar_collection.get_items();
-                self.screen = Screen::inventory(&self.config, items);
+                self.screen.update_inventory(items);
                 Task::none()
             }
             Message::Inventory(_) => {
@@ -121,15 +121,14 @@ impl Bartend {
                     match command {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
-                            //TODO: Can this be improved, and should it?
                             let items = self.bar_collection.get_items();
-                            self.screen = Screen::inventory(&self.config, items);
+                            self.screen.update_inventory(items);
                             Task::none()
                         }
                         Command::UpdateItem(item) => {
                             self.bar_collection.update_item(item);
                             let items = self.bar_collection.get_items();
-                            self.screen = Screen::inventory(&self.config, items);
+                            self.screen.update_inventory(items);
                             Task::none()
                         }
                         _ => unreachable!(),
