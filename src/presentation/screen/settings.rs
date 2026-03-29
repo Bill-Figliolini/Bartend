@@ -7,7 +7,10 @@ use iced::{
 };
 
 use crate::{
-    common::{config::Config, quantity::UnitSystem},
+    common::{
+        config::{Config, EditableConfig},
+        quantity::UnitSystem,
+    },
     presentation::{
         application::{self, Command},
         constants,
@@ -17,33 +20,23 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Settings {
-    config: Config,
-    input_db_path: PathBuf,
-    input_unit_system: UnitSystem,
+    config: EditableConfig,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Save,
-    Cancel,
     UpdateDBPath(PathBuf),
     UpdateUnitSystem(UnitSystem),
 }
 
 impl Settings {
     pub(super) fn new(current_config: &Config) -> Self {
-        let config = current_config.clone();
-        let input_db_path = current_config.db_path().clone();
-        let default_unit_system = current_config.default_units();
-        Self {
-            config,
-            input_db_path,
-            input_unit_system: default_unit_system,
-        }
+        let config = current_config.editable();
+        Self { config }
     }
-    fn reset(&mut self) {
-        self.input_db_path = self.config.db_path().clone();
-        self.input_unit_system = self.config.default_units();
+    pub(super) fn reset(&mut self, config: &Config) {
+        self.config = config.editable();
     }
     pub(super) fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
@@ -53,11 +46,11 @@ impl Settings {
 
         let current_db_path = iced::widget::text!(
             "Current DB Path: {}",
-            self.input_db_path.display().to_string()
+            self.config.db_path.display().to_string()
         )
         .width(text_boundary);
         let db_button = iced::widget::Button::new("Choose DB File").on_press(
-            application::Message::OpenDBPicker(self.input_db_path.clone()),
+            application::Message::OpenDBPicker(self.config.db_path.clone()),
         );
         let db_row = row![current_db_path, db_button];
 
@@ -67,7 +60,7 @@ impl Settings {
         let unit_systems = vec![UnitSystem::Metric, UnitSystem::Imperial];
         let unit_picker = iced::widget::pick_list(
             unit_systems,
-            Some(self.input_unit_system),
+            Some(self.config.default_unit_system),
             |unit_system: UnitSystem| {
                 application::Message::Settings(Message::UpdateUnitSystem(unit_system))
             },
@@ -78,8 +71,8 @@ impl Settings {
 
         let save_button =
             iced::widget::button("Save").on_press(application::Message::Settings(Message::Save));
-        let cancel_button = iced::widget::button("Cancel")
-            .on_press(application::Message::Settings(Message::Cancel));
+        let cancel_button =
+            iced::widget::button("Cancel").on_press(application::Message::ResetSettings);
         let footer_contents = row![save_button, cancel_button].spacing(20);
         let footer_container = iced::widget::Container::new(footer_contents).center_x(Fill);
         let footer = footer(footer_container);
@@ -88,21 +81,13 @@ impl Settings {
     }
     pub(super) fn update(&mut self, message: Message) -> Option<Command> {
         match message {
-            Message::Save => {
-                self.config.update_db_path(self.input_db_path.clone());
-                self.config.update_default_units(self.input_unit_system);
-                Some(Command::UpdateConfig(self.config.clone()))
-            }
-            Message::Cancel => {
-                self.reset();
-                None
-            }
+            Message::Save => Some(Command::UpdateConfig(self.config.commit())),
             Message::UpdateDBPath(db_path) => {
-                self.input_db_path = db_path;
+                self.config.db_path = db_path;
                 None
             }
             Message::UpdateUnitSystem(unit_system) => {
-                self.input_unit_system = unit_system;
+                self.config.default_unit_system = unit_system;
                 None
             }
         }

@@ -117,11 +117,13 @@ impl Config {
         self.default_unit_system
     }
 
-    pub fn update_db_path(&mut self, db_path: PathBuf) {
-        self.db_path = db_path;
-    }
-    pub fn update_default_units(&mut self, unit_system: UnitSystem) {
-        self.default_unit_system = unit_system;
+    #[must_use]
+    pub fn editable(&self) -> EditableConfig {
+        EditableConfig {
+            path: self.path.clone(),
+            db_path: self.db_path.clone(),
+            default_unit_system: self.default_unit_system,
+        }
     }
 }
 
@@ -159,6 +161,23 @@ fn build_db_path() -> Result<PathBuf, ConfigError> {
         return Err(ConfigError::UnableToCreateDataDir);
     }
     Ok(db_dir.join(DEFAULT_DB_NAME))
+}
+#[derive(Debug)]
+pub struct EditableConfig {
+    path: PathBuf,
+    pub db_path: PathBuf,
+    pub default_unit_system: UnitSystem,
+}
+
+impl EditableConfig {
+    pub fn commit(&self) -> Config {
+        let config = Config {
+            path: self.path.clone(),
+            db_path: self.db_path.clone(),
+            default_unit_system: self.default_unit_system,
+        };
+        config
+    }
 }
 
 #[cfg(test)]

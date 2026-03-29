@@ -43,6 +43,7 @@ pub enum Message {
     RefreshItems,
 
     OpenSettings,
+    ResetSettings,
     OpenDBPicker(PathBuf),
 
     Inventory(screen::inventory::Message),
@@ -107,6 +108,10 @@ impl Bartend {
                 } else {
                     self.screen = Screen::settings(&self.config);
                 }
+                Task::none()
+            }
+            Message::ResetSettings => {
+                self.screen.reset_config(&self.config);
                 Task::none()
             }
             Message::OpenDBPicker(path) => Task::future(async {

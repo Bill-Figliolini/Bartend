@@ -41,6 +41,12 @@ impl Screen {
             _ => unreachable!(),
         }
     }
+    pub fn reset_config(&mut self, config: &Config) {
+        match self {
+            Screen::Settings(settings) => settings.reset(config),
+            _ => unreachable!(),
+        }
+    }
 
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
