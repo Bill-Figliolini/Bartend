@@ -11,7 +11,7 @@ use crate::{
     presentation::{
         application::{self, Command},
         constants,
-        widget::{footer::footer, header::header, text_style::title},
+        widget::{Alignment, footer::footer, header::header, text_style::title},
     },
 };
 
@@ -81,7 +81,7 @@ impl Settings {
         let cancel_button = iced::widget::button("Cancel")
             .on_press(application::Message::Settings(Message::Cancel));
         let footer_contents = row![save_button, cancel_button].spacing(20);
-        let footer = footer(footer_contents);
+        let footer = footer(footer_contents, Alignment::Center);
 
         column![header, body, footer].into()
     }
