@@ -119,6 +119,7 @@ impl Inventory {
                 if self.errors.is_empty() {
                     let quantity = Quantity::new(quantity, self.input_unit);
                     let name = take(&mut self.input_name);
+                    self.input_quantity.clear();
                     match self.edit_state {
                         EditState::None => Some(application::Command::AddItem(name, quantity)),
                         EditState::Editing(item_id) => {
