@@ -25,6 +25,7 @@ pub struct Settings {
 #[derive(Debug, Clone)]
 pub enum Message {
     Save,
+    Cancel,
     UpdateDBPath(PathBuf),
     UpdateUnitSystem(UnitSystem),
 }
@@ -39,6 +40,10 @@ impl Settings {
             input_db_path,
             input_unit_system: default_unit_system,
         }
+    }
+    fn reset(&mut self) {
+        self.input_db_path = self.config.db_path().clone();
+        self.input_unit_system = self.config.default_units();
     }
     pub(super) fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
@@ -73,7 +78,9 @@ impl Settings {
 
         let save_button =
             iced::widget::button("Save").on_press(application::Message::Settings(Message::Save));
-        let footer_contents = row![save_button];
+        let cancel_button = iced::widget::button("Cancel")
+            .on_press(application::Message::Settings(Message::Cancel));
+        let footer_contents = row![save_button, cancel_button].spacing(20);
         let footer = footer(footer_contents);
 
         column![header, body, footer].into()
@@ -84,6 +91,10 @@ impl Settings {
                 self.config.update_db_path(self.input_db_path.clone());
                 self.config.update_default_units(self.input_unit_system);
                 Some(Command::UpdateConfig(self.config.clone()))
+            }
+            Message::Cancel => {
+                self.reset();
+                None
             }
             Message::UpdateDBPath(db_path) => {
                 self.input_db_path = db_path;
