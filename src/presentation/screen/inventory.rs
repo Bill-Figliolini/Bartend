@@ -1,4 +1,4 @@
-use std::{collections::HashSet, mem::take};
+use std::mem::take;
 
 use iced::{
     Element,
@@ -28,7 +28,7 @@ pub struct Inventory {
     unit_system: UnitSystem,
 
     edit_state: EditState,
-    errors: HashSet<Error>,
+    errors: Vec<Error>,
 }
 #[derive(Debug)]
 enum EditState {
@@ -52,19 +52,24 @@ pub enum Message {
 impl Inventory {
     //Should reimplement as a builder. Will make succeeding states simpler.
     pub fn new(config: &Config, item_list: Vec<Item>) -> Self {
+        let unit_system = config.default_units();
+        let input_unit = match &unit_system {
+            UnitSystem::Metric => Unit::Milliliter,
+            UnitSystem::Imperial => Unit::FluidOunce,
+        };
         Self {
             // Input Handlers
             input_name: String::new(),
             input_quantity: String::new(),
-            input_unit: Unit::Milliliter,
+            input_unit,
 
             // Display Managers
             contents: item_list,
-            unit_system: config.default_units(),
+            unit_system,
 
             // Input State
             edit_state: EditState::None,
-            errors: HashSet::with_capacity(2),
+            errors: Vec::with_capacity(2),
         }
     }
 
@@ -115,18 +120,18 @@ impl Inventory {
                 self.errors.clear();
 
                 if self.input_name.is_empty() {
-                    self.errors.insert(Error::NameError);
+                    self.errors.push(Error::NameError);
                 }
                 let quantity = self.input_quantity.trim().parse::<f32>();
                 let quantity = match quantity {
                     Ok(quantity) => {
                         if quantity <= 0.0 {
-                            self.errors.insert(Error::QuantityError);
+                            self.errors.push(Error::QuantityError);
                         }
                         quantity
                     }
                     Err(_) => {
-                        self.errors.insert(Error::QuantityError);
+                        self.errors.push(Error::QuantityError);
                         0.0
                     }
                 };
