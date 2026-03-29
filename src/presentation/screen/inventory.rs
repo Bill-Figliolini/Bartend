@@ -2,6 +2,7 @@ use std::{collections::HashSet, mem::take};
 
 use iced::{
     Element,
+    Length::Fill,
     widget::{column, container, pick_list, row, rule, table, text, text_input},
 };
 
@@ -12,8 +13,8 @@ use crate::{
         quantity::{Quantity, Unit, UnitSystem},
     },
     presentation::{
-        application,
-        widget::{sidebar::button, text_style::title},
+        application, constants,
+        widget::{footer::footer, header::header, text_style::title},
     },
 };
 
@@ -66,6 +67,25 @@ impl Inventory {
             errors: HashSet::with_capacity(2),
         }
     }
+
+    pub(super) fn update_inventory(&mut self, item_list: Vec<Item>) {
+        self.contents = item_list;
+    }
+
+    fn save_item(&mut self, quantity: f32) -> application::Command {
+        let quantity = Quantity::new(quantity, self.input_unit);
+        let name = take(&mut self.input_name);
+        self.input_quantity.clear();
+        match self.edit_state {
+            EditState::None => application::Command::AddItem(name, quantity),
+            EditState::Editing(item_id) => application::Command::UpdateItem(Item {
+                id: item_id,
+                name,
+                quantity,
+            }),
+        }
+    }
+
     pub(super) fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::SwapUnits => {
@@ -111,28 +131,19 @@ impl Inventory {
                     }
                 };
                 if self.errors.is_empty() {
-                    let quantity = Quantity::new(quantity, self.input_unit);
-                    let name = take(&mut self.input_name);
-                    match self.edit_state {
-                        EditState::None => Some(application::Command::AddItem(name, quantity)),
-                        EditState::Editing(item_id) => {
-                            Some(application::Command::UpdateItem(Item {
-                                id: item_id,
-                                name,
-                                quantity,
-                            }))
-                        }
-                    }
+                    Some(self.save_item(quantity))
                 } else {
                     None
                 }
             }
         }
     }
-    pub(super) fn view(&self) -> Element<'_, application::Message> {
-        let title = title("Inventory");
 
-        let entry_header = text("New Item:");
+    fn build_item_entry_section(&self) -> Element<'_, application::Message> {
+        let entry_header = match self.edit_state {
+            EditState::None => text("New Item:"),
+            EditState::Editing(_) => text("Edit Item:"),
+        };
         let name_input = text_input("Name", &self.input_name)
             .id("name-input")
             .on_input(|str: String| application::Message::Inventory(Message::NameUpdate(str)));
@@ -150,12 +161,11 @@ impl Inventory {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 
-        let confirm_button = button("Save", || {
-            application::Message::Inventory(Message::SaveNewItem)
-        });
+        let confirm_button = iced::widget::Button::new("Save")
+            .on_press(application::Message::Inventory(Message::SaveNewItem));
         let entry_row = row![name_input, quantity_input, unit_select, confirm_button].spacing(5);
 
-        let mut error_row = row![];
+        let mut error_row = row![].spacing(20);
         for error in &self.errors {
             match error {
                 Error::NameError => {
@@ -167,8 +177,13 @@ impl Inventory {
                 }
             }
         }
-        let input_table_divider = rule::horizontal(2);
-        let name_column = table::column(text("Name"), |item: &Item| text(&item.name));
+
+        let input_divider = rule::horizontal(constants::DIV_SIZE);
+        iced::widget::container(column![entry_header, entry_row, error_row, input_divider]).into()
+    }
+
+    fn build_inventory_display(&self) -> Element<'_, application::Message> {
+        let name_column = table::column(text("Name").width(200), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
                 "{} {}",
@@ -177,35 +192,54 @@ impl Inventory {
             )
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
-        let edit_column = table::column(text("Edit").width(50), |item: &Item| {
-            match self.edit_state {
-                EditState::None => button("Edit", || {
-                    application::Message::Inventory(Message::BeginEdit(item.clone()))
-                }),
+        let edit_column_width = 70;
+        let edit_column = table::column(
+            text("Edit").width(edit_column_width).center(),
+            |item: &Item| match self.edit_state {
+                EditState::None => iced::widget::Button::new(text("Edit").center())
+                    .on_press(application::Message::Inventory(Message::BeginEdit(
+                        item.clone(),
+                    )))
+                    .width(edit_column_width),
                 EditState::Editing(item_id) if item.id == item_id => {
-                    button("Cancel", || application::Message::RefreshItems)
+                    iced::widget::Button::new(text("Cancel").center())
+                        .on_press(application::Message::RefreshItems)
+                        .width(edit_column_width)
                 }
-                EditState::Editing(_) => text("Edit").into(),
-            }
-        });
-        let delete_column = table::column(text("Delete").width(50), |item: &Item| {
-            button("X", || application::Message::DeleteItem(item.id))
-        });
+                EditState::Editing(_) => {
+                    iced::widget::Button::new(text("Edit").center()).width(edit_column_width)
+                }
+            },
+        );
+        let delete_column_width = 50;
+        let delete_column = table::column(
+            text("Delete").width(delete_column_width).center(),
+            |item: &Item| {
+                iced::widget::Button::new(text("X").width(delete_column_width).center())
+                    .on_press(application::Message::DeleteItem(item.id))
+            },
+        );
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
-        let inventory = table(columns, &self.contents);
+        table(columns, &self.contents).into()
+    }
 
-        let body_contents = column![
-            entry_header,
-            entry_row,
-            error_row,
-            input_table_divider,
-            inventory
-        ];
-        let body = container(body_contents).align_top(400);
+    pub(super) fn view(&self) -> Element<'_, application::Message> {
+        let title_text = title("Inventory");
+        let header = header(title_text);
+
+        let entry_section = self.build_item_entry_section();
+
+        let inventory = self.build_inventory_display();
+
+        let body_contents = column![entry_section, inventory];
+        let body = container(body_contents).align_top(Fill);
+
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Inventory(Message::SwapUnits));
-        let bottom_row_contents = row![unit_swap_button];
-        let bottom_row = container(bottom_row_contents).align_left(300);
-        column![title, body, bottom_row].into()
+        let footer_contents = row![unit_swap_button];
+        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
+        let footer = footer(footer_container);
+
+        column![header, body, footer].into()
     }
 }

@@ -34,6 +34,20 @@ impl Screen {
     pub fn inventory(config: &Config, items: Vec<Item>) -> Self {
         Self::Inventory(inventory::Inventory::new(config, items))
     }
+
+    pub fn update_inventory(&mut self, items: Vec<Item>) {
+        match self {
+            Self::Inventory(inventory) => inventory.update_inventory(items),
+            _ => unreachable!(),
+        }
+    }
+    pub fn reset_config(&mut self, config: &Config) {
+        match self {
+            Self::Settings(settings) => settings.reset(config),
+            _ => unreachable!(),
+        }
+    }
+
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }

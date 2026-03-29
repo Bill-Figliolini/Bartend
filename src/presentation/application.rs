@@ -4,7 +4,7 @@ use iced::{
     Element,
     Length::Fill,
     Task,
-    widget::{column, container, row},
+    widget::{container, row},
 };
 use rfd::AsyncFileDialog;
 
@@ -39,10 +39,13 @@ struct Bartend {
 pub enum Message {
     NoOp,
     OpenInventory,
-    OpenSettings,
-    OpenDBPicker(PathBuf),
     DeleteItem(ItemID),
     RefreshItems,
+
+    OpenSettings,
+    ResetSettings,
+    OpenDBPicker(PathBuf),
+
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
 }
@@ -58,7 +61,7 @@ impl Bartend {
         let config = match Config::load(None, None) {
             Ok(config) => config,
             Err(e) => {
-                print!("{:?}", e);
+                print!("{e:?}");
                 panic!("Unable to load Config")
             }
         };
@@ -79,6 +82,7 @@ impl Bartend {
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::NoOp => Task::none(),
+
             Message::OpenInventory => {
                 if let Screen::Inventory(_) = self.screen {
                 } else {
@@ -87,11 +91,27 @@ impl Bartend {
                 }
                 Task::none()
             }
+            Message::DeleteItem(item) => {
+                self.bar_collection.delete_item(item);
+                let items = self.bar_collection.get_items();
+                self.screen.update_inventory(items);
+                Task::none()
+            }
+            Message::RefreshItems => {
+                let items = self.bar_collection.get_items();
+                self.screen.update_inventory(items);
+                Task::none()
+            }
+
             Message::OpenSettings => {
                 if let Screen::Settings(_) = self.screen {
                 } else {
                     self.screen = Screen::settings(&self.config);
                 }
+                Task::none()
+            }
+            Message::ResetSettings => {
+                self.screen.reset_config(&self.config);
                 Task::none()
             }
             Message::OpenDBPicker(path) => Task::future(async {
@@ -105,31 +125,20 @@ impl Bartend {
                     Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
                 })
             }),
-            Message::DeleteItem(item) => {
-                self.bar_collection.delete_item(item);
-                let items = self.bar_collection.get_items();
-                self.screen = Screen::inventory(&self.config, items);
-                Task::none()
-            }
-            Message::RefreshItems => {
-                let items = self.bar_collection.get_items();
-                self.screen = Screen::inventory(&self.config, items);
-                Task::none()
-            }
+
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
-                            //TODO: Can this be improved, and should it?
                             let items = self.bar_collection.get_items();
-                            self.screen = Screen::inventory(&self.config, items);
+                            self.screen.update_inventory(items);
                             Task::none()
                         }
                         Command::UpdateItem(item) => {
                             self.bar_collection.update_item(item);
                             let items = self.bar_collection.get_items();
-                            self.screen = Screen::inventory(&self.config, items);
+                            self.screen.update_inventory(items);
                             Task::none()
                         }
                         _ => unreachable!(),
@@ -164,20 +173,17 @@ impl Bartend {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let sidebar = column![
-            sidebar::button("Inventory", || Message::OpenInventory),
-            sidebar::button("Settings", || Message::OpenSettings),
-        ]
-        .width(300)
-        .padding(10);
+        let sidebar = sidebar::Sidebar::new()
+            .button("Inventory", || Message::OpenInventory)
+            .button("Settings", || Message::OpenSettings)
+            .into();
 
-        let screen = self.screen.view();
-        container(
-            column![row![sidebar, container(screen).padding(10).width(Fill)].spacing(10),]
-                .spacing(10),
-        )
-        .height(Fill)
-        .width(Fill)
-        .into()
+        let screen_contents = self.screen.view();
+        let screen = container(screen_contents).width(Fill).height(Fill);
+
+        container(row![sidebar, screen])
+            .height(Fill)
+            .width(Fill)
+            .into()
     }
 }
