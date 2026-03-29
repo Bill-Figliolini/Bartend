@@ -1,2 +1,4 @@
 /target
 bartend.db
+perf.data
+flamegraph.svg
