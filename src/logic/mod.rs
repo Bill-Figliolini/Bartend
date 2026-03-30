@@ -5,7 +5,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::{Repository, sqlite::DB},
+    persistence::sqlite::DB,
 };
 
 ///Boundary with presentation module.
