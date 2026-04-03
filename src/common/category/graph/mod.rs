@@ -44,7 +44,7 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         if !(self.contains_vertex(&edge.0) && self.contains_vertex(&edge.1)) {
             return Err(GraphError::EdgeEndpointNotInGraph);
         }
-        if self.implies(&edge.1, &edge.0) {
+        if self.is_parent_of(&edge.1, &edge.0) {
             return Err(GraphError::WouldIntroduceCycle);
         }
         self.graph.get_mut(&edge.0).unwrap().insert(edge.1);
@@ -63,12 +63,12 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
             }
         }
     }
-    fn implies(&self, start_vertex: &T, end_vertex: &T) -> bool {
-        let current_set = self.graph.get(start_vertex);
+    fn is_parent_of(&self, parent_vertex: &T, child_vertex: &T) -> bool {
+        let current_set = self.graph.get(parent_vertex);
         match current_set {
             Some(next_set) => {
                 for vertex in next_set {
-                    if vertex == end_vertex || self.implies(vertex, end_vertex) {
+                    if vertex == child_vertex || self.is_parent_of(vertex, child_vertex) {
                         return true;
                     }
                 }
@@ -77,23 +77,22 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
             None => false,
         }
     }
-    pub fn implies_set(&self, vertex: &T) -> HashSet<T> {
-        let mut implications = HashSet::new();
-        let mut stack = Vec::new();
+    pub fn get_all_children(&self, vertex: &T) -> Option<HashSet<T>> {
         if !self.contains_vertex(vertex) {
-            return implications;
+            return None;
         }
-        for child_vertex in self.get_edges(vertex) {
+        let mut stack = Vec::new();
+        let mut children: HashSet<T> = self.get_edges(vertex).clone();
+        for child_vertex in &children {
             stack.push(*child_vertex);
-            implications.insert(*child_vertex);
         }
         while let Some(current_vertex) = stack.pop() {
             for child_vertex in self.get_edges(&current_vertex) {
                 stack.push(*child_vertex);
-                implications.insert(*child_vertex);
+                children.insert(*child_vertex);
             }
         }
-        implications
+        Some(children)
     }
 }
 
@@ -109,17 +108,36 @@ mod tests {
         assert!(!graph.contains_vertex(&2));
         assert_eq!(*graph.get_edges(&1), HashSet::from([3]));
     }
-    #[test]
-    fn implication_results_in_indirect_child_nodes_returned() {
-        let graph =
-            DirectedAcyclicGraph::build_from(&[1, 2, 3, 4, 5], &[(1, 2), (2, 3), (3, 4), (4, 5)])
-                .unwrap();
+    mod get_all_children {
+        use super::*;
+        #[test]
+        fn results_in_indirect_child_nodes_returned() {
+            let graph = DirectedAcyclicGraph::build_from(
+                &[1, 2, 3, 4, 5],
+                &[(1, 2), (2, 3), (3, 4), (4, 5)],
+            )
+            .unwrap();
 
-        let implication = graph.implies_set(&2);
+            let implication = graph.get_all_children(&2);
 
-        let expected_implication = HashSet::from([3, 4, 5]);
-        assert_eq!(implication, expected_implication);
+            let expected_implication = Some(HashSet::from([3, 4, 5]));
+            assert_eq!(implication, expected_implication);
+        }
+        #[test]
+        fn results_in_none() {
+            let graph = DirectedAcyclicGraph::build_from(
+                &[1, 2, 3, 4, 5],
+                &[(1, 2), (2, 3), (3, 4), (4, 5)],
+            )
+            .unwrap();
+
+            let implication = graph.get_all_children(&7);
+
+            let expected_implication = None;
+            assert_eq!(implication, expected_implication);
+        }
     }
+
     #[test]
     fn cycles_not_allowed_at_insertion() {
         let mut graph = DirectedAcyclicGraph::build_from(&[1, 2, 3], &[(1, 2), (2, 3)]).unwrap();
