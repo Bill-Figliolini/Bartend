@@ -65,17 +65,19 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
     }
     fn is_parent_of(&self, parent_vertex: &T, child_vertex: &T) -> bool {
         let current_set = self.graph.get(parent_vertex);
-        match current_set {
-            Some(next_set) => {
-                for vertex in next_set {
-                    if vertex == child_vertex || self.is_parent_of(vertex, child_vertex) {
-                        return true;
-                    }
-                }
-                false
-            }
-            None => false,
+        let next_set = match current_set {
+            Some(next_set) => next_set,
+            None => return false,
+        };
+        if next_set.contains(child_vertex) {
+            return true;
         }
+        for vertex in next_set {
+            if self.is_parent_of(vertex, child_vertex) {
+                return true;
+            }
+        }
+        false
     }
     pub fn get_all_children(&self, vertex: &T) -> Option<HashSet<T>> {
         if !self.contains_vertex(vertex) {
