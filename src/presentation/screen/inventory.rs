@@ -8,6 +8,7 @@ use iced::{
 
 use crate::{
     common::{
+        category::Category,
         config::Config,
         item::{Item, ItemID},
         quantity::{Quantity, Unit, UnitSystem},
@@ -23,6 +24,7 @@ pub struct Inventory {
     input_name: String,
     input_quantity: String,
     input_unit: Unit,
+    input_category: Option<Category>,
 
     contents: Vec<Item>,
     unit_system: UnitSystem,
@@ -48,6 +50,7 @@ pub enum Message {
     NameUpdate(String),
     QuantityUpdate(String),
     UnitUpdate(Unit),
+    CategoryUpdate(Option<Category>),
 }
 impl Inventory {
     //Should reimplement as a builder. Will make succeeding states simpler.
@@ -62,6 +65,7 @@ impl Inventory {
             input_name: String::new(),
             input_quantity: String::new(),
             input_unit,
+            input_category: None,
 
             // Display Managers
             contents: item_list,
@@ -107,6 +111,14 @@ impl Inventory {
             }
             Message::UnitUpdate(new) => {
                 self.input_unit = new;
+                None
+            }
+            Message::CategoryUpdate(new) => {
+                self.input_category = if self.input_category == new {
+                    None
+                } else {
+                    new
+                };
                 None
             }
             Message::BeginEdit(item) => {
@@ -161,9 +173,25 @@ impl Inventory {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 
+        let categories: Vec<Category> = vec![Category::test_cat()];
+        let category_select = pick_list(
+            categories,
+            self.input_category.clone(),
+            |category: Category| {
+                application::Message::Inventory(Message::CategoryUpdate(Some(category)))
+            },
+        );
+
         let confirm_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Inventory(Message::SaveNewItem));
-        let entry_row = row![name_input, quantity_input, unit_select, confirm_button].spacing(5);
+        let entry_row = row![
+            name_input,
+            quantity_input,
+            unit_select,
+            category_select,
+            confirm_button
+        ]
+        .spacing(5);
 
         let mut error_row = row![].spacing(20);
         for error in &self.errors {
