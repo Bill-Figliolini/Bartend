@@ -1,3 +1,4 @@
+mod categories;
 mod item;
 
 use rusqlite::{self, Connection};
