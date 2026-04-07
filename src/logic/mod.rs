@@ -14,25 +14,25 @@ use crate::{
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    inventory: DB,
+    db_handler: Box<DB>,
 }
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
-            inventory: DB::new(path),
+            db_handler: Box::new(DB::new(path)),
         }
     }
     pub fn get_items(&self) -> Vec<Item> {
-        self.inventory.get_all_items()
+        self.db_handler.get_all_items()
     }
     pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
-        self.inventory.add_item(name, quantity)
+        self.db_handler.add_item(name, quantity)
     }
     pub fn update_item(&self, item: Item) {
-        self.inventory.update_item(item);
+        self.db_handler.update_item(item);
     }
     pub fn delete_item(&self, item_id: ItemID) {
-        self.inventory.delete_item(item_id);
+        self.db_handler.delete_item(item_id);
     }
 }
