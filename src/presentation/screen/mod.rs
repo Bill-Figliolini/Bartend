@@ -1,3 +1,4 @@
+pub mod categories;
 pub mod inventory;
 pub mod settings;
 
@@ -12,6 +13,7 @@ use crate::{
 pub enum Screen {
     Inventory(inventory::Inventory),
     Settings(settings::Settings),
+    Categories(categories::Categories),
 }
 
 impl Screen {
@@ -22,6 +24,7 @@ impl Screen {
         match self {
             Self::Inventory(inventory) => inventory.view(),
             Self::Settings(settings) => settings.view(),
+            Self::Categories(categories) => todo!(),
         }
     }
     pub fn update(&mut self, message: Message) -> Option<application::Command> {
