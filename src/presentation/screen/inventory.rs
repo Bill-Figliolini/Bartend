@@ -15,6 +15,7 @@ use crate::{
     },
     presentation::{
         application, constants,
+        screen::Viewable,
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -54,28 +55,6 @@ pub enum Message {
 }
 impl Inventory {
     //Should reimplement as a builder. Will make succeeding states simpler.
-    pub fn new(config: &Config, item_list: Vec<Item>) -> Self {
-        let unit_system = config.default_units();
-        let input_unit = match &unit_system {
-            UnitSystem::Metric => Unit::Milliliter,
-            UnitSystem::Imperial => Unit::FluidOunce,
-        };
-        Self {
-            // Input Handlers
-            input_name: String::new(),
-            input_quantity: String::new(),
-            input_unit,
-            input_category: None,
-
-            // Display Managers
-            contents: item_list,
-            unit_system,
-
-            // Input State
-            edit_state: EditState::None,
-            errors: Vec::with_capacity(2),
-        }
-    }
 
     pub(super) fn update_inventory(&mut self, item_list: Vec<Item>) {
         self.contents = item_list;
@@ -95,63 +74,7 @@ impl Inventory {
         }
     }
 
-    pub(super) fn update(&mut self, message: Message) -> Option<application::Command> {
-        match message {
-            Message::SwapUnits => {
-                self.unit_system.swap();
-                None
-            }
-            Message::NameUpdate(new) => {
-                self.input_name = new;
-                None
-            }
-            Message::QuantityUpdate(new) => {
-                self.input_quantity = new;
-                None
-            }
-            Message::UnitUpdate(new) => {
-                self.input_unit = new;
-                None
-            }
-            Message::CategoryUpdate(new) => {
-                self.input_category = if self.input_category == new {
-                    None
-                } else {
-                    new
-                };
-                None
-            }
-            Message::BeginEdit(item) => {
-                self.edit_state = EditState::Editing(item.id);
-                self.input_name = item.name;
-                self.input_quantity = item.quantity.value(self.unit_system).to_string();
-                self.input_unit = item.quantity.unit(self.unit_system);
-                None
-            }
-            Message::SaveNewItem => {
-                self.errors.clear();
-
-                if self.input_name.is_empty() {
-                    self.errors.push(Error::NameError);
-                }
-                let quantity = self.input_quantity.trim().parse::<f32>();
-                let quantity = match quantity {
-                    Ok(quantity) if quantity > 0.0 => quantity,
-                    _ => {
-                        self.errors.push(Error::QuantityError);
-                        0.0
-                    }
-                };
-                if self.errors.is_empty() {
-                    Some(self.save_item(quantity))
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
-    fn build_item_entry_section(&self) -> Element<'_, application::Message> {
+    pub(super) fn build_item_entry_section(&self) -> Element<'_, application::Message> {
         let entry_header = match self.edit_state {
             EditState::None => text("New Item:"),
             EditState::Editing(_) => text("Edit Item:"),
@@ -250,8 +173,89 @@ impl Inventory {
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
         table(columns, &self.contents).into()
     }
+}
 
-    pub(super) fn view(&self) -> Element<'_, application::Message> {
+impl Viewable<Message> for Inventory {
+    fn new(config: &Config) -> Self {
+        let unit_system = config.default_units();
+        let input_unit = match &unit_system {
+            UnitSystem::Metric => Unit::Milliliter,
+            UnitSystem::Imperial => Unit::FluidOunce,
+        };
+        Self {
+            // Input Handlers
+            input_name: String::new(),
+            input_quantity: String::new(),
+            input_unit,
+            input_category: None,
+
+            // Display Managers
+            contents: Vec::new(),
+            unit_system,
+
+            // Input State
+            edit_state: EditState::None,
+            errors: Vec::with_capacity(2),
+        }
+    }
+
+    fn update(&mut self, message: Message) -> Option<application::Command> {
+        match message {
+            Message::SwapUnits => {
+                self.unit_system.swap();
+                None
+            }
+            Message::NameUpdate(new) => {
+                self.input_name = new;
+                None
+            }
+            Message::QuantityUpdate(new) => {
+                self.input_quantity = new;
+                None
+            }
+            Message::UnitUpdate(new) => {
+                self.input_unit = new;
+                None
+            }
+            Message::CategoryUpdate(new) => {
+                self.input_category = if self.input_category == new {
+                    None
+                } else {
+                    new
+                };
+                None
+            }
+            Message::BeginEdit(item) => {
+                self.edit_state = EditState::Editing(item.id);
+                self.input_name = item.name;
+                self.input_quantity = item.quantity.value(self.unit_system).to_string();
+                self.input_unit = item.quantity.unit(self.unit_system);
+                None
+            }
+            Message::SaveNewItem => {
+                self.errors.clear();
+
+                if self.input_name.is_empty() {
+                    self.errors.push(Error::NameError);
+                }
+                let quantity = self.input_quantity.trim().parse::<f32>();
+                let quantity = match quantity {
+                    Ok(quantity) if quantity > 0.0 => quantity,
+                    _ => {
+                        self.errors.push(Error::QuantityError);
+                        0.0
+                    }
+                };
+                if self.errors.is_empty() {
+                    Some(self.save_item(quantity))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn view(&self) -> Element<'_, application::Message> {
         let title_text = title("Inventory");
         let header = header(title_text);
 

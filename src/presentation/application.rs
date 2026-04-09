@@ -48,6 +48,7 @@ pub enum Message {
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
+    Categories(screen::categories::Message),
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
@@ -163,6 +164,15 @@ impl Bartend {
                             self.screen = Screen::settings(&self.config);
                             Task::none()
                         }
+                        _ => unreachable!(),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
+            Message::Categories(_) => {
+                if let Some(command) = self.screen.update(message) {
+                    match command {
                         _ => unreachable!(),
                     }
                 } else {

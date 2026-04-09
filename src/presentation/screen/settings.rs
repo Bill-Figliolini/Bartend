@@ -14,6 +14,7 @@ use crate::{
     presentation::{
         application::{self, Command},
         constants,
+        screen::Viewable,
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -31,14 +32,16 @@ pub enum Message {
 }
 
 impl Settings {
-    pub(super) fn new(current_config: &Config) -> Self {
-        let config = current_config.editable();
-        Self { config }
-    }
     pub(super) fn reset(&mut self, config: &Config) {
         self.config = config.editable();
     }
-    pub(super) fn view(&self) -> Element<'_, application::Message> {
+}
+impl Viewable<Message> for Settings {
+    fn new(current_config: &Config) -> Self {
+        let config = current_config.editable();
+        Self { config }
+    }
+    fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
 
         let title_text = title("Settings");
@@ -79,7 +82,8 @@ impl Settings {
 
         column![header, body, footer].into()
     }
-    pub(super) fn update(&mut self, message: Message) -> Option<Command> {
+
+    fn update(&mut self, message: Message) -> Option<Command> {
         match message {
             Message::Save => Some(Command::UpdateConfig(self.config.commit())),
             Message::UpdateDBPath(db_path) => {

@@ -6,7 +6,7 @@ use iced::Element;
 
 use crate::{
     common::{config::Config, item::Item},
-    presentation::application::{self, Message},
+    presentation::application::{Command, Message},
 };
 
 #[derive(Debug)]
@@ -18,24 +18,31 @@ pub enum Screen {
 
 impl Screen {
     pub fn start(config: &Config, items: Vec<Item>) -> Self {
-        Self::Inventory(inventory::Inventory::new(config, items))
+        let mut inventory = inventory::Inventory::new(config);
+        inventory.update_inventory(items);
+        Self::Inventory(inventory)
     }
     pub fn view(&self) -> Element<'_, Message> {
         match self {
             Self::Inventory(inventory) => inventory.view(),
             Self::Settings(settings) => settings.view(),
-            Self::Categories(categories) => todo!(),
+            Self::Categories(categories) => categories.view(),
         }
     }
-    pub fn update(&mut self, message: Message) -> Option<application::Command> {
+    pub fn update(&mut self, message: Message) -> Option<Command> {
         match (self, message) {
             (Self::Inventory(inventory), Message::Inventory(message)) => inventory.update(message),
             (Self::Settings(settings), Message::Settings(message)) => settings.update(message),
+            (Self::Categories(categories), Message::Categories(message)) => {
+                categories.update(message)
+            }
             _ => unreachable!(),
         }
     }
     pub fn inventory(config: &Config, items: Vec<Item>) -> Self {
-        Self::Inventory(inventory::Inventory::new(config, items))
+        let mut inventory = inventory::Inventory::new(config);
+        inventory.update_inventory(items);
+        Self::Inventory(inventory)
     }
 
     pub fn update_inventory(&mut self, items: Vec<Item>) {
@@ -54,4 +61,10 @@ impl Screen {
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
+}
+
+trait Viewable<T: Clone> {
+    fn new(config: &Config) -> Self;
+    fn view(&self) -> Element<'_, Message>;
+    fn update(&mut self, message: T) -> Option<Command>;
 }
