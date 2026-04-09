@@ -1,5 +1,7 @@
 use rusqlite::Connection;
 
+use crate::persistence::sqlite::DB;
+
 pub(super) fn create_category_tables(connection: &Connection) {
     let create_category = "
         CREATE TABLE IF NOT EXISTS category(
@@ -20,4 +22,16 @@ pub(super) fn create_category_tables(connection: &Connection) {
     if let Err(e) = graph_result {
         panic!("Graph table creation failed with error: {e}");
     }
+    let create_category_item_table = "
+        CREATE TABLE IF NOT EXISTS category_item_mapping(
+            category_id INTEGER,
+            item_id INTEGER,
+            UNIQUE(category_id, item_id);
+        );";
+    let mapping_result = connection.execute(create_category_item_table, ());
+    if let Err(e) = mapping_result {
+        panic!("Graph table creation failed with error: {e}");
+    }
 }
+
+impl DB {}
