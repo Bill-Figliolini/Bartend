@@ -47,6 +47,9 @@ impl Screen {
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
+    pub fn categories(config: &Config) -> Self {
+        Self::Categories(categories::Categories::new(config))
+    }
 }
 
 trait Viewable<T: Clone> {
