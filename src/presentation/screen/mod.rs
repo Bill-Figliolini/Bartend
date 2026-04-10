@@ -19,7 +19,7 @@ pub enum Screen {
 impl Screen {
     pub fn start(config: &Config, items: Vec<Item>) -> Self {
         let mut inventory = inventory::Inventory::new(config);
-        inventory.update_inventory(items);
+        inventory.update(inventory::Message::InventoryUpdate(items));
         Self::Inventory(inventory)
     }
     pub fn view(&self) -> Element<'_, Message> {
@@ -41,16 +41,11 @@ impl Screen {
     }
     pub fn inventory(config: &Config, items: Vec<Item>) -> Self {
         let mut inventory = inventory::Inventory::new(config);
-        inventory.update_inventory(items);
         Self::Inventory(inventory)
     }
 
-    pub fn update_inventory(&mut self, items: Vec<Item>) {
-        match self {
-            Self::Inventory(inventory) => inventory.update_inventory(items),
-            _ => unreachable!(),
-        }
-    }
+    //These can be implemented as module::Messages that Application Passes to the underlying
+    // Screen. Reducing the interface size and making it fully Indepenent
     pub fn reset_config(&mut self, config: &Config) {
         match self {
             Self::Settings(settings) => settings.reset(config),

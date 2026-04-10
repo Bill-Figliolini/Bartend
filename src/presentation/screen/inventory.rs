@@ -52,13 +52,12 @@ pub enum Message {
     QuantityUpdate(String),
     UnitUpdate(Unit),
     CategoryUpdate(Option<Category>),
+
+    //Variants for Application's use
+    InventoryUpdate(Vec<Item>),
 }
 impl Inventory {
     //Should reimplement as a builder. Will make succeeding states simpler.
-
-    pub(super) fn update_inventory(&mut self, item_list: Vec<Item>) {
-        self.contents = item_list;
-    }
 
     fn save_item(&mut self, quantity: f32) -> application::Command {
         let quantity = Quantity::new(quantity, self.input_unit);
@@ -251,6 +250,10 @@ impl Viewable<Message> for Inventory {
                 } else {
                     None
                 }
+            }
+            Message::InventoryUpdate(items) => {
+                self.contents = items;
+                None
             }
         }
     }

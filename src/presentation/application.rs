@@ -16,7 +16,7 @@ use crate::{
     },
     logic::BarCollection,
     presentation::{
-        screen::{self, Screen},
+        screen::{self, Screen, inventory},
         widget::sidebar,
     },
 };
@@ -80,6 +80,7 @@ impl Bartend {
     fn title(&self) -> String {
         format!("Bartend")
     }
+
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::NoOp => Task::none(),
@@ -95,12 +96,12 @@ impl Bartend {
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
                 let items = self.bar_collection.get_items();
-                self.screen.update_inventory(items);
+                self.screen.update(inventory_update(items));
                 Task::none()
             }
             Message::RefreshItems => {
                 let items = self.bar_collection.get_items();
-                self.screen.update_inventory(items);
+                self.screen.update(inventory_update(items));
                 Task::none()
             }
 
@@ -133,13 +134,13 @@ impl Bartend {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
                             let items = self.bar_collection.get_items();
-                            self.screen.update_inventory(items);
+                            self.screen.update(inventory_update(items));
                             Task::none()
                         }
                         Command::UpdateItem(item) => {
                             self.bar_collection.update_item(item);
                             let items = self.bar_collection.get_items();
-                            self.screen.update_inventory(items);
+                            self.screen.update(inventory_update(items));
                             Task::none()
                         }
                         _ => unreachable!(),
@@ -196,4 +197,7 @@ impl Bartend {
             .width(Fill)
             .into()
     }
+}
+fn inventory_update(items: Vec<Item>) -> Message {
+    Message::Inventory(inventory::Message::InventoryUpdate(items))
 }
