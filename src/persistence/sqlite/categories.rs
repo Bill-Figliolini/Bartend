@@ -6,7 +6,7 @@ pub(super) fn create_category_tables(connection: &Connection) {
     let create_category = "
         CREATE TABLE IF NOT EXISTS category(
             id INTEGER PRIMARY KEY,
-            name STRING NOT NULL,
+            name STRING NOT NULL
         );";
     let category_result = connection.execute(create_category, ());
     if let Err(e) = category_result {
@@ -26,7 +26,7 @@ pub(super) fn create_category_tables(connection: &Connection) {
         CREATE TABLE IF NOT EXISTS category_item_mapping(
             category_id INTEGER,
             item_id INTEGER,
-            UNIQUE(category_id, item_id);
+            UNIQUE(category_id, item_id)
         );";
     let mapping_result = connection.execute(create_category_item_table, ());
     if let Err(e) = mapping_result {
