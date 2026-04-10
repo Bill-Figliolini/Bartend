@@ -32,6 +32,9 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         }
         Ok(graph)
     }
+    pub fn get_vertices(&self) -> Vec<T> {
+        self.graph.keys().copied().into_iter().collect()
+    }
     pub fn insert_vertex(&mut self, vertex: T) {
         if !self.graph.contains_key(&vertex) {
             self.graph.insert(vertex, HashSet::new());
@@ -90,8 +93,9 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         }
         while let Some(current_vertex) = stack.pop() {
             for child_vertex in self.get_edges(&current_vertex) {
-                stack.push(*child_vertex);
-                children.insert(*child_vertex);
+                if children.insert(*child_vertex) {
+                    stack.push(*child_vertex);
+                }
             }
         }
         Some(children)
