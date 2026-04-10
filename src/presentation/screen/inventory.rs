@@ -45,7 +45,7 @@ enum Error {
 }
 #[derive(Debug, Clone)]
 pub enum Message {
-    SaveNewItem,
+    Save,
     SwapUnits,
     BeginEdit(Item),
     NameUpdate(String),
@@ -57,8 +57,6 @@ pub enum Message {
     InventoryUpdate(Vec<Item>),
 }
 impl Inventory {
-    //Should reimplement as a builder. Will make succeeding states simpler.
-
     fn save_item(&mut self, quantity: f32) -> application::Command {
         let quantity = Quantity::new(quantity, self.input_unit);
         let name = take(&mut self.input_name);
@@ -105,7 +103,7 @@ impl Inventory {
         );
 
         let confirm_button = iced::widget::Button::new("Save")
-            .on_press(application::Message::Inventory(Message::SaveNewItem));
+            .on_press(application::Message::Inventory(Message::Save));
         let entry_row = row![
             name_input,
             quantity_input,
@@ -231,7 +229,7 @@ impl Viewable<Message> for Inventory {
                 self.input_unit = item.quantity.unit(self.unit_system);
                 None
             }
-            Message::SaveNewItem => {
+            Message::Save => {
                 self.errors.clear();
 
                 if self.input_name.is_empty() {
