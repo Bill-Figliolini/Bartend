@@ -10,6 +10,15 @@ pub struct Category {
     name: String,
 }
 
+impl Category {
+    pub fn test_cat() -> Self {
+        Category {
+            id: CategoryID(1),
+            name: "test".to_string(),
+        }
+    }
+}
+
 impl Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)
