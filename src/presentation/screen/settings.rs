@@ -31,12 +31,6 @@ pub enum Message {
     UpdateUnitSystem(UnitSystem),
     ResetConfig(Config),
 }
-
-impl Settings {
-    pub(super) fn reset(&mut self, config: &Config) {
-        self.config = config.editable();
-    }
-}
 impl Viewable<Message> for Settings {
     fn new(current_config: &Config) -> Self {
         let config = current_config.editable();
