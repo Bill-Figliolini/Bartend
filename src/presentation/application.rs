@@ -16,7 +16,7 @@ use crate::{
     },
     logic::BarCollection,
     presentation::{
-        screen::{self, Screen, inventory},
+        screen::{self, Screen, inventory, settings},
         widget::sidebar,
     },
 };
@@ -113,7 +113,10 @@ impl Bartend {
                 Task::none()
             }
             Message::ResetSettings => {
-                self.screen.reset_config(&self.config);
+                self.screen
+                    .update(Message::Settings(settings::Message::ResetConfig(
+                        self.config.clone(),
+                    )));
                 Task::none()
             }
             Message::OpenDBPicker(path) => Task::future(async {

@@ -29,6 +29,7 @@ pub enum Message {
     Save,
     UpdateDBPath(PathBuf),
     UpdateUnitSystem(UnitSystem),
+    ResetConfig(Config),
 }
 
 impl Settings {
@@ -92,6 +93,10 @@ impl Viewable<Message> for Settings {
             }
             Message::UpdateUnitSystem(unit_system) => {
                 self.config.default_unit_system = unit_system;
+                None
+            }
+            Message::ResetConfig(config) => {
+                self.config = config.editable();
                 None
             }
         }

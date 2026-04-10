@@ -44,15 +44,6 @@ impl Screen {
         Self::Inventory(inventory)
     }
 
-    //These can be implemented as module::Messages that Application Passes to the underlying
-    // Screen. Reducing the interface size and making it fully Indepenent
-    pub fn reset_config(&mut self, config: &Config) {
-        match self {
-            Self::Settings(settings) => settings.reset(config),
-            _ => unreachable!(),
-        }
-    }
-
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
