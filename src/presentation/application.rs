@@ -46,6 +46,8 @@ pub enum Message {
     ResetSettings,
     OpenDBPicker(PathBuf),
 
+    OpenCategories,
+
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
     Categories(screen::categories::Message),
@@ -131,6 +133,14 @@ impl Bartend {
                 })
             }),
 
+            Message::OpenCategories => {
+                if let Screen::Categories(_) = self.screen {
+                } else {
+                    self.screen = Screen::categories(&self.config);
+                }
+                Task::none()
+            }
+
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
@@ -189,6 +199,7 @@ impl Bartend {
     fn view(&self) -> Element<'_, Message> {
         let sidebar = sidebar::Sidebar::new()
             .button("Inventory", || Message::OpenInventory)
+            .button("Categories", || Message::OpenCategories)
             .button("Settings", || Message::OpenSettings)
             .into();
 
