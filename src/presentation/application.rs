@@ -91,7 +91,7 @@ impl Bartend {
                 if let Screen::Inventory(_) = self.screen {
                 } else {
                     let items = self.bar_collection.get_items();
-                    self.screen = Screen::inventory(&self.config, items);
+                    self.screen = Screen::inventory(&self.config);
                 }
                 Task::none()
             }

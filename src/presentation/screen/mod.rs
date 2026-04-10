@@ -40,7 +40,7 @@ impl Screen {
         }
     }
     pub fn inventory(config: &Config) -> Self {
-        let mut inventory = inventory::Inventory::new(config);
+        let inventory = inventory::Inventory::new(config);
         Self::Inventory(inventory)
     }
 
