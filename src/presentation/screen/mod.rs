@@ -39,7 +39,7 @@ impl Screen {
             _ => unreachable!(),
         }
     }
-    pub fn inventory(config: &Config, items: Vec<Item>) -> Self {
+    pub fn inventory(config: &Config) -> Self {
         let mut inventory = inventory::Inventory::new(config);
         Self::Inventory(inventory)
     }
