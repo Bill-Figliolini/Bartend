@@ -4,7 +4,7 @@ mod item;
 use rusqlite::{self, Connection};
 use std::path::Path;
 
-use crate::persistence::sqlite::item::create_item_table;
+use crate::persistence::sqlite::{categories::create_category_tables, item::create_item_table};
 
 #[derive(Debug)]
 pub struct DB {
@@ -26,6 +26,7 @@ impl DB {
     }
     fn create_tables(connection: &Connection) {
         create_item_table(connection);
+        create_category_tables(connection);
     }
 }
 
