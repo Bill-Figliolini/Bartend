@@ -1,4 +1,7 @@
-use iced::{Element, widget::column};
+use iced::{
+    Element,
+    widget::{column, row, text_input},
+};
 
 use crate::{
     common::config::Config,
@@ -16,8 +19,21 @@ pub struct Categories {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    UpdateName(String),
-    SaveCategory,
+    NameUpdate(String),
+    Save,
+}
+
+impl Categories {
+    fn build_category_entry(&self) -> Element<'_, application::Message> {
+        let entry_header = iced::widget::text("New Category:");
+        let name_input = text_input("Name", &self.input_name)
+            .id("name-input")
+            .on_input(|str: String| application::Message::Categories(Message::NameUpdate(str)));
+        let confirm_button = iced::widget::Button::new("Save")
+            .on_press(application::Message::Categories(Message::Save));
+        let entry_row = row![name_input, confirm_button];
+        column![entry_header, entry_row].into()
+    }
 }
 
 impl Viewable<Message> for Categories {
@@ -29,11 +45,18 @@ impl Viewable<Message> for Categories {
 
     fn view(&self) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
-
-        column![header].into()
+        let category_entry = self.build_category_entry();
+        let body = column![category_entry];
+        column![header, body].into()
     }
 
     fn update(&mut self, message: Message) -> Option<crate::presentation::application::Command> {
-        todo!()
+        match message {
+            Message::NameUpdate(name) => {
+                self.input_name = name;
+                None
+            }
+            Message::Save => todo!(),
+        }
     }
 }
