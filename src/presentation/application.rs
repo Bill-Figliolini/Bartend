@@ -41,6 +41,7 @@ pub enum Message {
     OpenInventory,
     DeleteItem(ItemID),
     RefreshItems,
+    UpdateInventory(Vec<Item>),
 
     OpenSettings,
     ResetSettings,
@@ -56,7 +57,10 @@ pub enum Message {
 pub enum Command {
     AddItem(String, Quantity),
     UpdateItem(Item),
+
     UpdateConfig(Config),
+
+    AddCategory(String),
 }
 
 impl Bartend {
@@ -89,22 +93,27 @@ impl Bartend {
 
             Message::OpenInventory => {
                 if let Screen::Inventory(_) = self.screen {
+                    Task::none()
                 } else {
                     let items = self.bar_collection.get_items();
                     self.screen = Screen::inventory(&self.config);
-                    self.screen.update(inventory_update(items));
+                    Task::done(Message::UpdateInventory(items))
                 }
-                Task::none()
             }
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
                 let items = self.bar_collection.get_items();
-                self.screen.update(inventory_update(items));
-                Task::none()
+                Task::done(Message::UpdateInventory(items))
             }
             Message::RefreshItems => {
                 let items = self.bar_collection.get_items();
-                self.screen.update(inventory_update(items));
+                Task::done(Message::UpdateInventory(items))
+            }
+            Message::UpdateInventory(items) => {
+                self.screen
+                    .update(Message::Inventory(inventory::Message::InventoryUpdate(
+                        items,
+                    )));
                 Task::none()
             }
 
@@ -148,14 +157,12 @@ impl Bartend {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
                             let items = self.bar_collection.get_items();
-                            self.screen.update(inventory_update(items));
-                            Task::none()
+                            Task::done(Message::UpdateInventory(items))
                         }
                         Command::UpdateItem(item) => {
                             self.bar_collection.update_item(item);
                             let items = self.bar_collection.get_items();
-                            self.screen.update(inventory_update(items));
-                            Task::none()
+                            Task::done(Message::UpdateInventory(items))
                         }
                         _ => unreachable!(),
                     }
@@ -212,7 +219,4 @@ impl Bartend {
             .width(Fill)
             .into()
     }
-}
-fn inventory_update(items: Vec<Item>) -> Message {
-    Message::Inventory(inventory::Message::InventoryUpdate(items))
 }
