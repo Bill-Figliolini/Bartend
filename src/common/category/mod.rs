@@ -1,4 +1,9 @@
-use std::fmt::Display;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
+
+use crate::common::category::graph::{DirectedAcyclicGraph, GraphError};
 
 mod graph;
 
@@ -9,8 +14,58 @@ pub struct Category {
     id: CategoryID,
     name: String,
 }
+#[derive(Debug)]
+pub struct CategoryManager {
+    relations: DirectedAcyclicGraph<CategoryID>,
+    names: HashMap<CategoryID, String>,
+}
+impl CategoryManager {
+    pub fn new() -> Self {
+        todo!()
+    }
 
+    pub fn get_children(&self, id: &CategoryID) -> HashSet<CategoryID> {
+        self.relations.get_all_children(id).unwrap_or_default()
+    }
+    pub fn get_categories(&self) -> Vec<Category> {
+        let ids = self.relations.get_vertices();
+        let categories = ids
+            .into_iter()
+            .map(|id| Category::new(id, self.names.get(&id).unwrap().clone()))
+            .collect();
+        categories
+    }
+    pub fn remove_category(&mut self, id: CategoryID) {
+        self.names.remove(&id);
+        self.relations.remove(id);
+        todo!("Add hook into Persistance here")
+    }
+    pub fn add_category(&mut self, name: String) {
+        let id = todo!("Add hook into Persistance here");
+        self.names.insert(id, name);
+        self.relations.insert_vertex(id);
+    }
+    pub fn add_relation(
+        &mut self,
+        parent: &CategoryID,
+        child: &CategoryID,
+    ) -> Result<(), GraphError> {
+        match self.relations.insert_edge((parent, child)) {
+            Ok(()) => {
+                todo!("Hook into persistance here");
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
 impl Category {
+    fn new(id: CategoryID, name: String) -> Self {
+        Self { id, name }
+    }
+    pub fn id(&self) -> CategoryID {
+        self.id
+    }
     pub fn test_cat() -> Self {
         Category {
             id: CategoryID(1),
