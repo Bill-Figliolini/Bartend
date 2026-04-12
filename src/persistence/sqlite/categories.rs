@@ -1,6 +1,12 @@
 use rusqlite::Connection;
 
-use crate::persistence::sqlite::DB;
+use crate::{
+    common::{
+        category::{Category, CategoryID, CategoryManager},
+        item::ItemID,
+    },
+    persistence::sqlite::DB,
+};
 
 pub(super) fn create_category_tables(connection: &Connection) {
     let create_category = "
@@ -34,4 +40,29 @@ pub(super) fn create_category_tables(connection: &Connection) {
     }
 }
 
-impl DB {}
+impl DB {
+    fn add_category(&self, name: String) -> CategoryID {
+        todo!()
+    }
+    fn delete_category(&self, id: CategoryID) {
+        todo!()
+    }
+    fn update_category(&self, category: Category) {
+        todo!()
+    }
+    fn add_category_relation(&self, parent: CategoryID, child: CategoryID) {
+        todo!()
+    }
+    fn delete_category_relation(&self, parent: CategoryID, child: CategoryID) {
+        todo!()
+    }
+    fn add_item_to_category(&self, category: Category, item: ItemID) {
+        todo!()
+    }
+    fn remove_item_from_category(&self, category: Category, item: ItemID) {
+        todo!()
+    }
+    fn get_categories(&self) -> CategoryManager {
+        todo!()
+    }
+}
