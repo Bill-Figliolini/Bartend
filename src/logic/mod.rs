@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::{
     common::{
+        category::CategoryManager,
         item::{Item, ItemID},
         quantity::Quantity,
     },
@@ -15,12 +16,14 @@ use crate::{
 #[derive(Debug)]
 pub struct BarCollection {
     db_handler: Box<DB>,
+    category_manager: CategoryManager,
 }
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
             db_handler: Box::new(DB::new(path)),
+            category_manager: CategoryManager::new(),
         }
     }
     pub fn get_items(&self) -> Vec<Item> {
