@@ -7,11 +7,11 @@ use std::{
     hash::Hash,
 };
 #[derive(Debug)]
-struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
+pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
     graph: HashMap<T, HashSet<T>>,
 }
 #[derive(Debug)]
-enum GraphError {
+pub(super) enum GraphError {
     EdgeEndpointNotInGraph,
     WouldIntroduceCycle,
 }
