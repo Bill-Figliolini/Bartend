@@ -41,28 +41,28 @@ pub(super) fn create_category_tables(connection: &Connection) {
 }
 
 impl DB {
-    fn add_category(&self, name: String) -> CategoryID {
+    pub fn add_category(&self, name: String) -> CategoryID {
         todo!()
     }
-    fn delete_category(&self, id: CategoryID) {
+    pub fn delete_category(&self, id: CategoryID) {
         todo!()
     }
-    fn update_category(&self, category: Category) {
+    pub fn update_category(&self, category: Category) {
         todo!()
     }
-    fn add_category_relation(&self, parent: CategoryID, child: CategoryID) {
+    pub fn add_category_relation(&self, parent: CategoryID, child: CategoryID) {
         todo!()
     }
-    fn delete_category_relation(&self, parent: CategoryID, child: CategoryID) {
+    pub fn delete_category_relation(&self, parent: CategoryID, child: CategoryID) {
         todo!()
     }
-    fn add_item_to_category(&self, category: Category, item: ItemID) {
+    pub fn add_item_to_category(&self, category: Category, item: ItemID) {
         todo!()
     }
-    fn remove_item_from_category(&self, category: Category, item: ItemID) {
+    pub fn remove_item_from_category(&self, category: Category, item: ItemID) {
         todo!()
     }
-    fn get_categories(&self) -> CategoryManager {
+    pub fn get_categories(&self) -> CategoryManager {
         todo!()
     }
 }
