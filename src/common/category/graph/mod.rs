@@ -11,24 +11,24 @@ pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
     graph: HashMap<T, HashSet<T>>,
 }
 #[derive(Debug)]
-pub(super) enum GraphError {
+pub enum GraphError {
     EdgeEndpointNotInGraph,
     WouldIntroduceCycle,
 }
 
 impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             graph: HashMap::new(),
         }
     }
-    pub fn build_from(vertices: &[T], edges: &[(T, T)]) -> Result<Self, GraphError> {
+    pub fn build_from(vertices: &[T], edges: &[(&T, &T)]) -> Result<Self, GraphError> {
         let mut graph = Self::new();
         for vertex in vertices {
             graph.insert_vertex(*vertex);
         }
         for edge in edges {
-            graph.insert_edge(edge)?;
+            graph.insert_edge(*edge)?;
         }
         Ok(graph)
     }
@@ -43,14 +43,14 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
     fn contains_vertex(&self, vertex: &T) -> bool {
         self.graph.contains_key(vertex)
     }
-    pub fn insert_edge(&mut self, edge: &(T, T)) -> Result<(), GraphError> {
-        if !(self.contains_vertex(&edge.0) && self.contains_vertex(&edge.1)) {
+    pub fn insert_edge(&mut self, edge: (&T, &T)) -> Result<(), GraphError> {
+        if !(self.contains_vertex(edge.0) && self.contains_vertex(edge.1)) {
             return Err(GraphError::EdgeEndpointNotInGraph);
         }
-        if self.is_parent_of(&edge.1, &edge.0) {
+        if self.is_parent_of(edge.1, edge.0) {
             return Err(GraphError::WouldIntroduceCycle);
         }
-        self.graph.get_mut(&edge.0).unwrap().insert(edge.1);
+        self.graph.get_mut(edge.0).unwrap().insert(*edge.1);
         Ok(())
     }
     fn get_edges(&self, vertex: &T) -> &HashSet<T> {
@@ -107,7 +107,8 @@ mod tests {
     use super::*;
     #[test]
     fn removing_results_in_lower_members_being_moved() {
-        let mut graph = DirectedAcyclicGraph::build_from(&[1, 2, 3], &[(1, 2), (2, 3)]).unwrap();
+        let mut graph =
+            DirectedAcyclicGraph::build_from(&[1, 2, 3], &[(&1, &2), (&2, &3)]).unwrap();
 
         graph.remove(2);
 
@@ -120,7 +121,7 @@ mod tests {
         fn results_in_indirect_child_nodes_returned() {
             let graph = DirectedAcyclicGraph::build_from(
                 &[1, 2, 3, 4, 5],
-                &[(1, 2), (2, 3), (3, 4), (4, 5)],
+                &[(&1, &2), (&2, &3), (&3, &4), (&4, &5)],
             )
             .unwrap();
 
@@ -133,7 +134,7 @@ mod tests {
         fn results_in_none() {
             let graph = DirectedAcyclicGraph::build_from(
                 &[1, 2, 3, 4, 5],
-                &[(1, 2), (2, 3), (3, 4), (4, 5)],
+                &[(&1, &2), (&2, &3), (&3, &4), (&4, &5)],
             )
             .unwrap();
 
@@ -146,9 +147,10 @@ mod tests {
 
     #[test]
     fn cycles_not_allowed_at_insertion() {
-        let mut graph = DirectedAcyclicGraph::build_from(&[1, 2, 3], &[(1, 2), (2, 3)]).unwrap();
+        let mut graph =
+            DirectedAcyclicGraph::build_from(&[1, 2, 3], &[(&1, &2), (&2, &3)]).unwrap();
 
-        let insert_result = graph.insert_edge(&(3, 1));
+        let insert_result = graph.insert_edge((&3, &1));
 
         assert!(insert_result.is_err())
     }
