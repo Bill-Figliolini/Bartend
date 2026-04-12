@@ -3,7 +3,10 @@ use std::{
     fmt::Display,
 };
 
-use crate::common::category::graph::{DirectedAcyclicGraph, GraphError};
+use crate::{
+    common::category::graph::{DirectedAcyclicGraph, GraphError},
+    persistence::sqlite::DB,
+};
 
 mod graph;
 
@@ -35,24 +38,26 @@ impl CategoryManager {
             .collect();
         categories
     }
-    pub fn remove_category(&mut self, id: CategoryID) {
+    pub fn remove_category(&mut self, db: &DB, id: CategoryID) {
         self.names.remove(&id);
         self.relations.remove(id);
-        todo!("Add hook into Persistance here")
+        //needs more. perhaps a full commit of the new relations db as well.
+        db.delete_category(id);
     }
-    pub fn add_category(&mut self, name: String) {
-        let id = todo!("Add hook into Persistance here");
+    pub fn add_category(&mut self, db: &DB, name: String) {
+        let id = db.add_category(name.clone());
         self.names.insert(id, name);
         self.relations.insert_vertex(id);
     }
     pub fn add_relation(
         &mut self,
+        db: &DB,
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), GraphError> {
         match self.relations.insert_edge((parent, child)) {
             Ok(()) => {
-                todo!("Hook into persistance here");
+                db.add_category_relation(*parent, *child);
                 Ok(())
             }
             Err(e) => Err(e),
