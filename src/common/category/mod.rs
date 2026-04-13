@@ -40,7 +40,7 @@ impl CategoryManager {
     }
     pub fn remove_category(&mut self, db: &DB, id: CategoryID) {
         self.names.remove(&id);
-        self.relations.remove(id);
+        self.relations.remove(id); //Perhaps relations should return a full list of additions?
         //needs more. perhaps a full commit of the new relations db as well.
         db.delete_category(id);
     }
