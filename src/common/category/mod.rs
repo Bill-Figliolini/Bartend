@@ -24,7 +24,10 @@ pub struct CategoryManager {
 }
 impl CategoryManager {
     pub fn new() -> Self {
-        todo!()
+        Self {
+            relations: DirectedAcyclicGraph::build_from(&[], &[]).unwrap(),
+            names: HashMap::new(),
+        }
     }
 
     pub fn get_children(&self, id: &CategoryID) -> HashSet<CategoryID> {
