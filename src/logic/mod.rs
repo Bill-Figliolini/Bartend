@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::{
     common::{
-        category::CategoryManager,
+        category::{Category, CategoryID, CategoryManager},
         item::{Item, ItemID},
         quantity::Quantity,
     },
@@ -37,5 +37,16 @@ impl BarCollection {
     }
     pub fn delete_item(&self, item_id: ItemID) {
         self.db_handler.delete_item(item_id);
+    }
+    pub fn get_categories(&self) -> Vec<Category> {
+        self.category_manager.get_categories()
+    }
+    pub fn add_category(&mut self, name: String) {
+        self.category_manager
+            .add_category(self.db_handler.as_ref(), name);
+    }
+    pub fn delete_category(&mut self, category_id: CategoryID) {
+        self.category_manager
+            .remove_category(self.db_handler.as_ref(), category_id);
     }
 }
