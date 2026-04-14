@@ -44,7 +44,7 @@ impl CategoryManager {
     pub fn remove_category(&mut self, db: &DB, id: CategoryID) {
         self.names.remove(&id);
         self.relations.remove(id); //Perhaps relations should return a full list of additions?
-        //needs more. perhaps a full commit of the new relations db as well.
+        //needs more. a full commit of the new relations db as well.
         db.delete_category(id);
     }
     pub fn add_category(&mut self, db: &DB, name: String) {
@@ -60,7 +60,7 @@ impl CategoryManager {
     ) -> Result<(), GraphError> {
         match self.relations.insert_edge((parent, child)) {
             Ok(()) => {
-                db.add_category_relation(*parent, *child);
+                //db.add_category_relation(*parent, *child);
                 Ok(())
             }
             Err(e) => Err(e),
