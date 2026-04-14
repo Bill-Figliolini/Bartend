@@ -11,6 +11,7 @@ pub struct DB {
     connection: Connection,
 }
 
+//TODO: Idea For later revision: Invert control, pass the DB into a trait-implemmented function on the members of Common
 impl DB {
     pub fn new(path: impl AsRef<Path>) -> Self {
         let connection = match Connection::open(path) {
