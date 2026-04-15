@@ -4,12 +4,10 @@ mod item;
 use rusqlite::{self, Connection};
 use std::path::Path;
 
-use crate::persistence::sqlite::{categories::create_category_tables, item::create_item_table};
-
-#[derive(Debug)]
-pub struct DB {
-    connection: Connection,
-}
+use crate::persistence::{
+    DB,
+    sqlite::{categories::create_category_tables, item::create_item_table},
+};
 
 //TODO: Idea For later revision: Invert control, pass the DB into a trait-implemmented function on the members of Common
 impl DB {

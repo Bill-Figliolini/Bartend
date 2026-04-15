@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     common::category::graph::{DirectedAcyclicGraph, GraphError},
-    persistence::sqlite::DB,
+    persistence::DB,
 };
 
 mod graph;
