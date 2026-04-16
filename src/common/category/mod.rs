@@ -95,7 +95,7 @@ impl PartialEq for Category {
 }
 
 impl DBStore for Category {
-    fn create(&self, db: &DB) {
+    fn create(db: &DB) {
         todo!()
     }
 
@@ -117,7 +117,7 @@ impl DBStore for Category {
 }
 
 impl DBStore for CategoryManager {
-    fn create(&self, db: &DB) {
+    fn create(db: &DB) {
         todo!()
     }
 

@@ -7,7 +7,7 @@ pub struct DB {
     connection: Connection,
 }
 pub trait DBStore {
-    fn create(&self, db: &DB);
+    fn create(db: &DB);
     fn read(db: &DB) -> Self;
     fn input(db: &DB, input: impl IntoIterator) -> Self;
     fn update(&self, db: &DB);
