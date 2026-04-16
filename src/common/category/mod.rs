@@ -96,7 +96,14 @@ impl PartialEq for Category {
 
 impl DBStore for Category {
     fn create(db: &DB) {
-        todo!()
+        let query = "
+            CREATE TABLE IF NOT EXISTS category(
+                id INTEGER PRIMARY KEY,
+                name STRING NOT NULL
+            );";
+        if let Err(e) = db.connection.execute(query, ()) {
+            panic!("Category table creation failed with error: {e}");
+        };
     }
 
     fn read(db: &DB) -> Self {
@@ -118,7 +125,24 @@ impl DBStore for Category {
 
 impl DBStore for CategoryManager {
     fn create(db: &DB) {
-        todo!()
+        Category::create(db);
+        let query = "
+            CREATE TABLE IF NOT EXISTS category(
+                id INTEGER PRIMARY KEY,
+                name STRING NOT NULL
+            );";
+        if let Err(e) = db.connection.execute(query, ()) {
+            panic!("Category table creation failed with error: {e}");
+        };
+        let create_category_item_table = "
+                CREATE TABLE IF NOT EXISTS category_item_mapping(
+                    category_id INTEGER,
+                    item_id INTEGER,
+                    UNIQUE(category_id, item_id)
+                );";
+        if let Err(e) = db.connection.execute(create_category_item_table, ()) {
+            panic!("Graph table creation failed with error: {e}");
+        }
     }
 
     fn read(db: &DB) -> Self {

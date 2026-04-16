@@ -4,7 +4,7 @@ pub mod sqlite;
 
 #[derive(Debug)]
 pub struct DB {
-    connection: Connection,
+    pub connection: Connection,
 }
 pub trait DBStore {
     fn create(db: &DB);
