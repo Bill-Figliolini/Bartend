@@ -6,9 +6,10 @@ pub mod sqlite;
 pub struct DB {
     connection: Connection,
 }
-trait Persistable {
+pub trait DBStore {
     fn create(&self, db: &DB);
     fn read(db: &DB) -> Self;
+    fn input(db: &DB, input: impl IntoIterator) -> Self;
     fn update(&self, db: &DB);
     fn delete(self, db: &DB);
 }

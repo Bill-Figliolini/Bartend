@@ -54,22 +54,4 @@ impl DB {
             panic!("Error deleting category: {e}");
         }
     }
-    pub fn update_category(&self, category: Category) {
-        todo!()
-    }
-    pub fn add_category_relation(&self, parent: CategoryID, child: CategoryID) {
-        todo!()
-    }
-    pub fn delete_category_relation(&self, parent: CategoryID, child: CategoryID) {
-        todo!()
-    }
-    pub fn add_item_to_category(&self, category: Category, item: ItemID) {
-        todo!()
-    }
-    pub fn remove_item_from_category(&self, category: Category, item: ItemID) {
-        todo!()
-    }
-    pub fn get_categories(&self) -> CategoryManager {
-        todo!()
-    }
 }

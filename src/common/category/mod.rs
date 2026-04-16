@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     common::category::graph::{DirectedAcyclicGraph, GraphError},
-    persistence::DB,
+    persistence::{DB, DBStore},
 };
 
 mod graph;
@@ -91,5 +91,49 @@ impl Display for Category {
 impl PartialEq for Category {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
+    }
+}
+
+impl DBStore for Category {
+    fn create(&self, db: &DB) {
+        todo!()
+    }
+
+    fn read(db: &DB) -> Self {
+        todo!()
+    }
+
+    fn input(db: &DB, input: impl IntoIterator) -> Self {
+        todo!()
+    }
+
+    fn update(&self, db: &DB) {
+        todo!()
+    }
+
+    fn delete(self, db: &DB) {
+        todo!()
+    }
+}
+
+impl DBStore for CategoryManager {
+    fn create(&self, db: &DB) {
+        todo!()
+    }
+
+    fn read(db: &DB) -> Self {
+        todo!()
+    }
+
+    fn input(db: &DB, input: impl IntoIterator) -> Self {
+        todo!()
+    }
+
+    fn update(&self, db: &DB) {
+        todo!()
+    }
+
+    fn delete(self, db: &DB) {
+        todo!()
     }
 }
