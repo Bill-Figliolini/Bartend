@@ -1,4 +1,4 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, ToSql};
 
 pub mod sqlite;
 
@@ -8,8 +8,7 @@ pub struct DB {
 }
 pub trait DBStore {
     fn create(db: &DB);
-    fn read(db: &DB) -> Self;
-    fn input(db: &DB, input: impl IntoIterator) -> Self;
+    fn read(db: &DB, ids: &[impl ToSql]) -> impl Iterator;
     fn update(&self, db: &DB);
     fn delete(self, db: &DB);
 }

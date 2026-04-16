@@ -3,6 +3,8 @@ use std::{
     fmt::Display,
 };
 
+use rusqlite::ToSql;
+
 use crate::{
     common::category::graph::{DirectedAcyclicGraph, GraphError},
     persistence::{DB, DBStore},
@@ -94,6 +96,12 @@ impl PartialEq for Category {
     }
 }
 
+impl ToSql for CategoryID {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
+    }
+}
+
 impl DBStore for Category {
     fn create(db: &DB) {
         let query = "
@@ -106,53 +114,53 @@ impl DBStore for Category {
         };
     }
 
-    fn read(db: &DB) -> Self {
-        todo!()
-    }
-
-    fn input(db: &DB, input: impl IntoIterator) -> Self {
-        todo!()
+    fn read(db: &DB, ids: &[impl ToSql]) -> impl Iterator {
+        std::iter::empty::<i8>()
     }
 
     fn update(&self, db: &DB) {
-        todo!()
+        let query = "
+            UPDATE category SET
+            name = ?2
+            WHERE id = ?1
+        ";
+        if let Err(e) = db.connection.execute(query, (self.id, self.name.clone())) {
+            panic!("Update category failed with error: {e}");
+        }
     }
 
     fn delete(self, db: &DB) {
-        todo!()
+        let query = "
+            DELETE * FROM category WHERE id=?1
+        ";
+        if let Err(e) = db.connection.execute(query, (self.id,)) {
+            panic!("Error deleting category: {e}");
+        }
     }
 }
 
 impl DBStore for CategoryManager {
     fn create(db: &DB) {
         Category::create(db);
-        let query = "
-            CREATE TABLE IF NOT EXISTS category(
-                id INTEGER PRIMARY KEY,
-                name STRING NOT NULL
-            );";
-        if let Err(e) = db.connection.execute(query, ()) {
-            panic!("Category table creation failed with error: {e}");
-        };
+        DirectedAcyclicGraph::<CategoryID>::create(db);
+
         let create_category_item_table = "
-                CREATE TABLE IF NOT EXISTS category_item_mapping(
-                    category_id INTEGER,
-                    item_id INTEGER,
-                    UNIQUE(category_id, item_id)
-                );";
+            CREATE TABLE IF NOT EXISTS category_item_mapping(
+                category_id INTEGER,
+                item_id INTEGER,
+                UNIQUE(category_id, item_id)
+            );
+        ";
         if let Err(e) = db.connection.execute(create_category_item_table, ()) {
             panic!("Graph table creation failed with error: {e}");
         }
     }
 
-    fn read(db: &DB) -> Self {
-        todo!()
+    fn read(db: &DB, _ids: &[impl ToSql]) -> impl Iterator {
+        std::iter::empty::<i8>()
     }
 
-    fn input(db: &DB, input: impl IntoIterator) -> Self {
-        todo!()
-    }
-
+    //TODO: Consider creating some manner of diff structure to optimize this.
     fn update(&self, db: &DB) {
         todo!()
     }

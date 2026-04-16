@@ -6,6 +6,10 @@ use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
 };
+
+use rusqlite::ToSql;
+
+use crate::persistence::{DB, DBStore};
 #[derive(Debug)]
 pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
     graph: HashMap<T, HashSet<T>>,
@@ -99,6 +103,34 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
             }
         }
         Some(children)
+    }
+}
+
+impl<T: Sized + Eq + Hash + Copy + ToSql> DBStore for DirectedAcyclicGraph<T> {
+    fn create(db: &DB) {
+        let query = "
+            CREATE TABLE IF NOT EXISTS category(
+                parent_id INTEGER,
+                child_id INTEGER,
+            UNIQUE (parent_id, child_id)
+            );
+        ";
+        if let Err(e) = db.connection.execute(query, ()) {
+            panic!("Graph table creation failed with error: {e}");
+        };
+        todo!()
+    }
+
+    fn read(db: &DB, ids: &[impl ToSql]) -> impl Iterator {
+        std::iter::empty::<i8>()
+    }
+
+    fn update(&self, db: &DB) {
+        todo!()
+    }
+
+    fn delete(self, db: &DB) {
+        todo!()
     }
 }
 
