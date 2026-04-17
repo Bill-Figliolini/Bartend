@@ -121,8 +121,8 @@ impl<T: Sized + Eq + Hash + Copy + ToSql> DBStore for DirectedAcyclicGraph<T> {
         todo!()
     }
 
-    fn read(db: &DB, ids: &[impl ToSql]) -> impl Iterator {
-        std::iter::empty::<i8>()
+    fn read_all(db: &DB) -> Vec<DirectedAcyclicGraph<T>> {
+        todo!()
     }
 
     fn update(&self, db: &DB) {

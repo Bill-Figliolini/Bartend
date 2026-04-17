@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use rusqlite::ToSql;
+use rusqlite::{ToSql, params, types::FromSql};
 
 use crate::{
     common::category::graph::{DirectedAcyclicGraph, GraphError},
@@ -102,6 +102,13 @@ impl ToSql for CategoryID {
     }
 }
 
+impl FromSql for CategoryID {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let value = value.as_i64()?;
+        Ok(CategoryID(value))
+    }
+}
+
 impl DBStore for Category {
     fn create(db: &DB) {
         let query = "
@@ -114,8 +121,28 @@ impl DBStore for Category {
         };
     }
 
-    fn read(db: &DB, ids: &[impl ToSql]) -> impl Iterator {
-        std::iter::empty::<i8>()
+    fn read_all(db: &DB) -> Vec<Self> {
+        let query = "
+            SELECT * FROM category WHERE id=?1
+        ";
+        let mut stmt = db
+            .connection
+            .prepare(query)
+            .expect("Query must be valid SQL");
+        let rows = stmt
+            .query_map([], |row| {
+                let id = row.get(0).unwrap();
+                let name = row.get(1).unwrap();
+                Ok(Category { id, name })
+            })
+            .unwrap();
+        rows.fold(Vec::new(), |mut acc, category| {
+            match category {
+                Ok(category) => acc.push(category),
+                Err(e) => panic!("Error Reading Categories: {e}"),
+            }
+            acc
+        })
     }
 
     fn update(&self, db: &DB) {
@@ -156,8 +183,8 @@ impl DBStore for CategoryManager {
         }
     }
 
-    fn read(db: &DB, _ids: &[impl ToSql]) -> impl Iterator {
-        std::iter::empty::<i8>()
+    fn read_all(db: &DB) -> Vec<Self> {
+        todo!()
     }
 
     //TODO: Consider creating some manner of diff structure to optimize this.

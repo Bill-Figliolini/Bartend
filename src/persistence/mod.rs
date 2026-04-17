@@ -8,7 +8,9 @@ pub struct DB {
 }
 pub trait DBStore {
     fn create(db: &DB);
-    fn read(db: &DB, ids: &[impl ToSql]) -> impl Iterator;
+    fn read_all(db: &DB) -> Vec<Self>
+    where
+        Self: Sized;
     fn update(&self, db: &DB);
     fn delete(self, db: &DB);
 }
