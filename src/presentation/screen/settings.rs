@@ -14,7 +14,7 @@ use crate::{
     presentation::{
         application::{self, Command},
         constants,
-        screen::Viewable,
+        screen::Composition,
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -31,7 +31,7 @@ pub enum Message {
     UpdateUnitSystem(UnitSystem),
     ResetConfig(Config),
 }
-impl Viewable<Message> for Settings {
+impl Composition<Message> for Settings {
     fn new(current_config: &Config) -> Self {
         let config = current_config.editable();
         Self { config }

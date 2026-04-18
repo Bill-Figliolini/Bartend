@@ -15,7 +15,7 @@ use crate::{
     },
     presentation::{
         application, constants,
-        screen::Viewable,
+        screen::Composition,
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -172,7 +172,7 @@ impl Inventory {
     }
 }
 
-impl Viewable<Message> for Inventory {
+impl Composition<Message> for Inventory {
     fn new(config: &Config) -> Self {
         let unit_system = config.default_units();
         let input_unit = match &unit_system {

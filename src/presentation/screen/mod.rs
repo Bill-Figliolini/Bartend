@@ -52,7 +52,7 @@ impl Screen {
     }
 }
 
-trait Viewable<T: Clone> {
+trait Composition<T: Clone> {
     fn new(config: &Config) -> Self;
     fn view(&self) -> Element<'_, Message>;
     fn update(&mut self, message: T) -> Option<Command>;

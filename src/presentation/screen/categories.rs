@@ -7,7 +7,7 @@ use crate::{
     common::config::Config,
     presentation::{
         application,
-        screen::Viewable,
+        screen::Composition,
         widget::{self, text_style},
     },
 };
@@ -36,7 +36,7 @@ impl Categories {
     }
 }
 
-impl Viewable<Message> for Categories {
+impl Composition<Message> for Categories {
     fn new(_config: &Config) -> Self {
         Self {
             input_name: String::new(),
