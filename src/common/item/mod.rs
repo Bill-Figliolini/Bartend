@@ -23,6 +23,12 @@ pub struct Item {
     pub quantity: Quantity,
 }
 
+impl Item {
+    fn read(id: ItemID, db: &Database) -> Self {
+        todo!()
+    }
+}
+
 impl DBCreate for Item {
     fn create(db: &Database) {
         let create_items = "
@@ -41,10 +47,6 @@ impl DBCreate for Item {
 }
 
 impl DBUnit for Item {
-    fn read(id: impl ToSql, db: &Database) -> Self {
-        todo!()
-    }
-
     fn update(self, db: &Database) {
         todo!()
     }
