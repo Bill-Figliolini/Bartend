@@ -96,6 +96,14 @@ impl Category {
         Self { id, name }
     }
 
+    pub fn insert(name: String, db: &Database) -> CategoryID {
+        let query = "INSERT INTO category(name) VALUES (?1)";
+        if let Err(e) = db.connection.execute(query, (name,)) {
+            panic!("Error inserting category: {e}");
+        }
+        CategoryID(db.connection.last_insert_rowid())
+    }
+
     pub fn read(id: CategoryID, db: &Database) -> Self {
         let query = "SELECT * FROM category WHERE id=?1";
         let result = db.connection.query_one(query, (id,), |row| {
