@@ -96,7 +96,7 @@ impl Category {
         Self { id, name }
     }
 
-    fn read(id: CategoryID, db: &Database) -> Self {
+    pub fn read(id: CategoryID, db: &Database) -> Self {
         let query = "SELECT * FROM category WHERE id=?1";
         let result = db.connection.query_one(query, (id,), |row| {
             Ok(Self {
