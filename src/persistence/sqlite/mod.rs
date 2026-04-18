@@ -5,12 +5,12 @@ use rusqlite::{self, Connection};
 use std::path::Path;
 
 use crate::persistence::{
-    DB,
+    Database,
     sqlite::{categories::create_category_tables, item::create_item_table},
 };
 
 //TODO: Idea For later revision: Invert control, pass the DB into a trait-implemmented function on the members of Common
-impl DB {
+impl Database {
     pub fn new(path: impl AsRef<Path>) -> Self {
         let connection = match Connection::open(path) {
             Ok(connection) => connection,
@@ -39,7 +39,7 @@ mod test {
         fn items() {
             let dir = TempDir::new().unwrap();
             let file = dir.path().join("bartend.db");
-            let db = DB::new(file);
+            let db = Database::new(file);
             let items_name = "items";
             let columns = vec!["id", "name", "quantity"];
 

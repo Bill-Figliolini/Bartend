@@ -3,7 +3,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::sqlite::DB,
+    persistence::sqlite::Database,
 };
 use rusqlite::{self, Connection, OptionalExtension};
 
@@ -21,7 +21,7 @@ pub(super) fn create_item_table(connection: &Connection) {
     }
 }
 
-impl DB {
+impl Database {
     pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
         let query = "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)".to_string();
         let (quantity, unit) = quantity.db_format();
@@ -131,7 +131,7 @@ mod tests {
     fn insert() {
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("bartend.db");
-        let db = DB::new(file);
+        let db = Database::new(file);
         let name = "test";
         let quantity = Quantity::Volume { quantity: 750.0 };
 
@@ -148,7 +148,7 @@ mod tests {
     fn update() {
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("bartend.db");
-        let db = DB::new(file);
+        let db = Database::new(file);
         let quantity = Quantity::Volume { quantity: 750.0 };
         let id = db.add_item("test", quantity);
         let mut item = db.get_item(id).unwrap();
@@ -169,7 +169,7 @@ mod tests {
     fn delete() {
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("bartend.db");
-        let db = DB::new(file);
+        let db = Database::new(file);
         let quantity = Quantity::Count {
             quantity: 2.0,
             name: crate::common::quantity::CountName::Dash,
@@ -185,7 +185,7 @@ mod tests {
     fn get_all() {
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("bartend.db");
-        let db = DB::new(file);
+        let db = Database::new(file);
         let pre_items = vec![
             Item {
                 id: ItemID(1),

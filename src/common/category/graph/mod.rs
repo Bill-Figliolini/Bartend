@@ -7,7 +7,7 @@ use std::{
     hash::Hash,
 };
 
-use crate::persistence::{DB, DBCreate};
+use crate::persistence::{DBCreate, Database};
 #[derive(Debug)]
 pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
     graph: HashMap<T, HashSet<T>>,
@@ -105,7 +105,7 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
 }
 
 impl<T: Hash + Copy + Eq> DBCreate for DirectedAcyclicGraph<T> {
-    fn create(db: &DB) {
+    fn create(db: &Database) {
         let query = "
             CREATE TABLE IF NOT EXISTS category(
                 parent_id INTEGER,

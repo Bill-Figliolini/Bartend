@@ -6,7 +6,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::DB,
+    persistence::Database,
 };
 
 ///Boundary with presentation module.
@@ -15,14 +15,14 @@ use crate::{
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    db_handler: Box<DB>,
+    db_handler: Box<Database>,
     category_manager: CategoryManager,
 }
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
-            db_handler: Box::new(DB::new(path)),
+            db_handler: Box::new(Database::new(path)),
             category_manager: CategoryManager::new(),
         }
     }

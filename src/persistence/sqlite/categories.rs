@@ -1,12 +1,6 @@
 use rusqlite::Connection;
 
-use crate::{
-    common::{
-        category::{Category, CategoryID, CategoryManager},
-        item::ItemID,
-    },
-    persistence::sqlite::DB,
-};
+use crate::{common::category::CategoryID, persistence::sqlite::Database};
 
 pub(super) fn create_category_tables(connection: &Connection) {
     let create_category = "
@@ -40,7 +34,7 @@ pub(super) fn create_category_tables(connection: &Connection) {
     }
 }
 
-impl DB {
+impl Database {
     pub fn add_category(&self, name: String) -> CategoryID {
         let query = "INSERT INTO category(name) VALUES (?1)";
         match self.connection.execute(query, (name,)) {

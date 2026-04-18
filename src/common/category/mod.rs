@@ -3,11 +3,11 @@ use std::{
     fmt::Display,
 };
 
-use rusqlite::{ToSql, params, types::FromSql};
+use rusqlite::{ToSql, types::FromSql};
 
 use crate::{
     common::category::graph::{DirectedAcyclicGraph, GraphError},
-    persistence::{DB, DBCreate, DBUnit},
+    persistence::{DBCreate, DBUnit, Database},
 };
 
 mod graph;
@@ -31,7 +31,7 @@ impl CategoryManager {
             names: HashMap::new(),
         }
     }
-    fn read_categories(&mut self, db: &DB) {
+    fn read_categories(&mut self, db: &Database) {
         let query = "
                 SELECT * FROM category WHERE id=?1
             ";
@@ -65,20 +65,20 @@ impl CategoryManager {
             .collect();
         categories
     }
-    pub fn remove_category(&mut self, db: &DB, id: CategoryID) {
+    pub fn remove_category(&mut self, db: &Database, id: CategoryID) {
         self.names.remove(&id);
         self.relations.remove(id); //Perhaps relations should return a full list of additions?
         //needs more. a full commit of the new relations db as well.
         db.delete_category(id);
     }
-    pub fn add_category(&mut self, db: &DB, name: String) {
+    pub fn add_category(&mut self, db: &Database, name: String) {
         let id = db.add_category(name.clone());
         self.names.insert(id, name);
         self.relations.insert_vertex(id);
     }
     pub fn add_relation(
         &mut self,
-        db: &DB,
+        db: &Database,
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), GraphError> {
@@ -132,7 +132,7 @@ impl FromSql for CategoryID {
 }
 
 impl DBCreate for Category {
-    fn create(db: &DB) {
+    fn create(db: &Database) {
         let query = "
             CREATE TABLE IF NOT EXISTS category(
                 id INTEGER PRIMARY KEY,
@@ -144,7 +144,7 @@ impl DBCreate for Category {
     }
 }
 impl DBUnit for Category {
-    fn update(self, db: &DB) {
+    fn update(self, db: &Database) {
         let query = "
             UPDATE category SET
             name = ?2
@@ -155,7 +155,7 @@ impl DBUnit for Category {
         }
     }
 
-    fn delete(self, db: &DB) {
+    fn delete(self, db: &Database) {
         let query = "
             DELETE * FROM category WHERE id=?1
         ";
@@ -166,7 +166,7 @@ impl DBUnit for Category {
 }
 
 impl DBCreate for CategoryManager {
-    fn create(db: &DB) {
+    fn create(db: &Database) {
         Category::create(db);
         DirectedAcyclicGraph::<CategoryID>::create(db);
 
