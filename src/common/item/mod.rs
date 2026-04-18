@@ -6,7 +6,10 @@
 //! ## Potential Future Changes
 //! Variants for mappings of IDs to quantities and names could be useful for Recipes, in a later version.
 
-use crate::common::quantity::Quantity;
+use crate::{
+    common::quantity::Quantity,
+    persistence::{DBCreate, Database},
+};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ItemID(pub i64);
@@ -16,4 +19,21 @@ pub struct Item {
     pub id: ItemID,
     pub name: String,
     pub quantity: Quantity,
+}
+
+impl DBCreate for Item {
+    fn create(db: &Database) {
+        let create_items = "
+            CREATE TABLE IF NOT EXISTS items(
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                unit INTEGER NOT NULL
+            );"
+        .to_string();
+        let result = db.connection.execute(&create_items, ());
+        if let Err(e) = result {
+            panic!("DB Initialization error: {e}");
+        }
+    }
 }
