@@ -3,22 +3,12 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::sqlite::Database,
+    persistence::{DBCreate, sqlite::Database},
 };
-use rusqlite::{self, Connection, OptionalExtension};
+use rusqlite::{self, OptionalExtension};
 
-pub(super) fn create_item_table(connection: &Connection) {
-    let create_items = "CREATE TABLE IF NOT EXISTS items(
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                quantity REAL NOT NULL,
-                unit INTEGER NOT NULL
-                );"
-    .to_string();
-    let result = connection.execute(&create_items, ());
-    if let Err(e) = result {
-        panic!("DB Initialization error: {e}");
-    }
+pub(super) fn create_item_table(db: &Database) {
+    Item::create(db);
 }
 
 impl Database {

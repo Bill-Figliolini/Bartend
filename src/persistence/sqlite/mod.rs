@@ -18,14 +18,14 @@ impl Database {
                 panic!("DB could not be opened! {e}")
             }
         };
+        let db = Self { connection };
+        Self::create_tables(&db);
 
-        Self::create_tables(&connection);
-
-        Self { connection }
+        db
     }
-    fn create_tables(connection: &Connection) {
-        create_item_table(connection);
-        create_category_tables(connection);
+    fn create_tables(db: &Database) {
+        create_item_table(db);
+        create_category_tables(db);
     }
 }
 
