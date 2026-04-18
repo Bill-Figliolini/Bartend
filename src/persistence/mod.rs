@@ -10,6 +10,6 @@ pub trait DBCreate {
     fn create(db: &DB);
 }
 pub trait DBUnit {
-    fn update(self, db: &DB) -> Self;
+    fn update(self, db: &DB);
     fn delete(self, db: &DB);
 }
