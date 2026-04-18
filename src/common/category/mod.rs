@@ -7,7 +7,7 @@ use rusqlite::{ToSql, params, types::FromSql};
 
 use crate::{
     common::category::graph::{DirectedAcyclicGraph, GraphError},
-    persistence::{DB, DBStore},
+    persistence::{DB, DBCreate, DBUnit},
 };
 
 mod graph;
@@ -31,7 +31,29 @@ impl CategoryManager {
             names: HashMap::new(),
         }
     }
-
+    fn read_categories(&mut self, db: &DB) {
+        let query = "
+                SELECT * FROM category WHERE id=?1
+            ";
+        let mut stmt = db
+            .connection
+            .prepare(query)
+            .expect("Query must be valid SQL");
+        let rows = stmt
+            .query_map([], |row| {
+                let id = row.get(0).unwrap();
+                let name = row.get(1).unwrap();
+                Ok(Category { id, name })
+            })
+            .unwrap();
+        rows.fold(Vec::new(), |mut acc, category| {
+            match category {
+                Ok(category) => acc.push(category),
+                Err(e) => panic!("Error Reading Categories: {e}"),
+            }
+            acc
+        });
+    }
     pub fn get_children(&self, id: &CategoryID) -> HashSet<CategoryID> {
         self.relations.get_all_children(id).unwrap_or_default()
     }
@@ -109,7 +131,7 @@ impl FromSql for CategoryID {
     }
 }
 
-impl DBStore for Category {
+impl DBCreate for Category {
     fn create(db: &DB) {
         let query = "
             CREATE TABLE IF NOT EXISTS category(
@@ -120,32 +142,9 @@ impl DBStore for Category {
             panic!("Category table creation failed with error: {e}");
         };
     }
-
-    fn read_all(db: &DB) -> Vec<Self> {
-        let query = "
-            SELECT * FROM category WHERE id=?1
-        ";
-        let mut stmt = db
-            .connection
-            .prepare(query)
-            .expect("Query must be valid SQL");
-        let rows = stmt
-            .query_map([], |row| {
-                let id = row.get(0).unwrap();
-                let name = row.get(1).unwrap();
-                Ok(Category { id, name })
-            })
-            .unwrap();
-        rows.fold(Vec::new(), |mut acc, category| {
-            match category {
-                Ok(category) => acc.push(category),
-                Err(e) => panic!("Error Reading Categories: {e}"),
-            }
-            acc
-        })
-    }
-
-    fn update(&self, db: &DB) {
+}
+impl DBUnit for Category {
+    fn update(self, db: &DB) {
         let query = "
             UPDATE category SET
             name = ?2
@@ -166,7 +165,7 @@ impl DBStore for Category {
     }
 }
 
-impl DBStore for CategoryManager {
+impl DBCreate for CategoryManager {
     fn create(db: &DB) {
         Category::create(db);
         DirectedAcyclicGraph::<CategoryID>::create(db);
@@ -181,18 +180,5 @@ impl DBStore for CategoryManager {
         if let Err(e) = db.connection.execute(create_category_item_table, ()) {
             panic!("Graph table creation failed with error: {e}");
         }
-    }
-
-    fn read_all(db: &DB) -> Vec<Self> {
-        todo!()
-    }
-
-    //TODO: Consider creating some manner of diff structure to optimize this.
-    fn update(&self, db: &DB) {
-        todo!()
-    }
-
-    fn delete(self, db: &DB) {
-        todo!()
     }
 }

@@ -7,9 +7,7 @@ use std::{
     hash::Hash,
 };
 
-use rusqlite::ToSql;
-
-use crate::persistence::{DB, DBStore};
+use crate::persistence::{DB, DBCreate};
 #[derive(Debug)]
 pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
     graph: HashMap<T, HashSet<T>>,
@@ -106,7 +104,7 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
     }
 }
 
-impl<T: Sized + Eq + Hash + Copy + ToSql> DBStore for DirectedAcyclicGraph<T> {
+impl<T: Hash + Copy + Eq> DBCreate for DirectedAcyclicGraph<T> {
     fn create(db: &DB) {
         let query = "
             CREATE TABLE IF NOT EXISTS category(
@@ -118,18 +116,6 @@ impl<T: Sized + Eq + Hash + Copy + ToSql> DBStore for DirectedAcyclicGraph<T> {
         if let Err(e) = db.connection.execute(query, ()) {
             panic!("Graph table creation failed with error: {e}");
         };
-        todo!()
-    }
-
-    fn read_all(db: &DB) -> Vec<DirectedAcyclicGraph<T>> {
-        todo!()
-    }
-
-    fn update(&self, db: &DB) {
-        todo!()
-    }
-
-    fn delete(self, db: &DB) {
         todo!()
     }
 }
