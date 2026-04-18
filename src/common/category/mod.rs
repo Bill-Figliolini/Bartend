@@ -144,6 +144,10 @@ impl DBCreate for Category {
     }
 }
 impl DBUnit for Category {
+    fn read(id: impl ToSql, db: &Database) -> Self {
+        todo!()
+    }
+
     fn update(self, db: &Database) {
         let query = "
             UPDATE category SET

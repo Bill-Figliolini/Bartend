@@ -6,9 +6,11 @@
 //! ## Potential Future Changes
 //! Variants for mappings of IDs to quantities and names could be useful for Recipes, in a later version.
 
+use rusqlite::ToSql;
+
 use crate::{
     common::quantity::Quantity,
-    persistence::{DBCreate, Database},
+    persistence::{DBCreate, DBUnit, Database},
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -35,5 +37,19 @@ impl DBCreate for Item {
         if let Err(e) = result {
             panic!("DB Initialization error: {e}");
         }
+    }
+}
+
+impl DBUnit for Item {
+    fn read(id: impl ToSql, db: &Database) -> Self {
+        todo!()
+    }
+
+    fn update(self, db: &Database) {
+        todo!()
+    }
+
+    fn delete(self, db: &Database) {
+        todo!()
     }
 }
