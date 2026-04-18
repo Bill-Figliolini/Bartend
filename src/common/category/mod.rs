@@ -97,7 +97,17 @@ impl Category {
     }
 
     fn read(id: CategoryID, db: &Database) -> Self {
-        todo!()
+        let query = "SELECT * FROM category WHERE id=?1";
+        let result = db.connection.query_one(query, (id,), |row| {
+            Ok(Self {
+                id,
+                name: row.get(1).unwrap(),
+            })
+        });
+        match result {
+            Ok(category) => category,
+            Err(e) => panic!("Error Reading Category id {id}: {e}"),
+        }
     }
 
     pub fn id(&self) -> CategoryID {
@@ -120,6 +130,12 @@ impl Display for Category {
 impl PartialEq for Category {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
+    }
+}
+
+impl Display for CategoryID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
