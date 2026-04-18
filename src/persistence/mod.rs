@@ -6,11 +6,10 @@ pub mod sqlite;
 pub struct DB {
     pub connection: Connection,
 }
-pub trait DBStore {
+pub trait DBCreate {
     fn create(db: &DB);
-    fn read_all(db: &DB) -> Vec<Self>
-    where
-        Self: Sized;
-    fn update(&self, db: &DB);
+}
+pub trait DBUnit {
+    fn update(self, db: &DB) -> Self;
     fn delete(self, db: &DB);
 }
