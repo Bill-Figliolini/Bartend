@@ -6,7 +6,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::Database,
+    persistence::{DBUnit, Database},
 };
 
 ///Boundary with presentation module.
@@ -33,10 +33,10 @@ impl BarCollection {
         self.db_handler.add_item(name, quantity)
     }
     pub fn update_item(&self, item: Item) {
-        self.db_handler.update_item(item);
+        item.update(&self.db_handler);
     }
-    pub fn delete_item(&self, item_id: ItemID) {
-        self.db_handler.delete_item(item_id);
+    pub fn delete_item(&self, item: Item) {
+        item.delete(&self.db_handler);
     }
     pub fn get_categories(&self) -> Vec<Category> {
         self.category_manager.get_categories()
@@ -48,5 +48,8 @@ impl BarCollection {
     pub fn delete_category(&mut self, category_id: CategoryID) {
         self.category_manager
             .remove_category(self.db_handler.as_ref(), category_id);
+    }
+    pub fn update_category(&mut self, category: Category) {
+        category.update(&self.db_handler);
     }
 }

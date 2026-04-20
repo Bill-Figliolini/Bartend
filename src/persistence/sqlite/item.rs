@@ -49,33 +49,6 @@ impl Database {
             .unwrap()
     }
 
-    pub fn update_item(&self, item: Item) {
-        let id = item.id.0;
-        let query = "UPDATE items SET
-                name = ?2,
-                quantity = ?3,
-                unit = ?4
-                WHERE id = ?1"
-            .to_string();
-        let (quantity, unit) = item.quantity.db_format();
-
-        if let Err(e) = self
-            .connection
-            .execute(&query, (id, item.name, quantity, unit))
-        {
-            panic!("Update item failed with error: {e}");
-        }
-    }
-
-    pub fn delete_item(&self, id: ItemID) {
-        let id = id.0;
-        let query = "DELETE FROM items WHERE id = ?1".to_string();
-
-        if let Err(e) = self.connection.execute(&query, (id,)) {
-            panic!("Delete_item failed with error: {e}");
-        }
-    }
-
     pub fn get_all_items(&self) -> Vec<Item> {
         let query = "SELECT * FROM items".to_string();
         let mut stmt = self
@@ -115,6 +88,8 @@ impl Database {
 
 #[cfg(test)]
 mod tests {
+    use crate::persistence::DBUnit;
+
     use super::*;
     use tempfile::TempDir;
     #[test]
@@ -147,7 +122,7 @@ mod tests {
         item.name = new_name.clone();
         item.quantity = new_quantity;
 
-        db.update_item(item);
+        item.update(&db);
         let item = db.get_item(id);
 
         assert!(item.is_some());
@@ -166,10 +141,11 @@ mod tests {
         };
 
         let id = db.add_item("test", quantity);
-        db.delete_item(id);
         let item = db.get_item(id);
-
-        assert!(item.is_none())
+        let item = item.unwrap();
+        item.delete(&db);
+        let new_item = db.get_item(id);
+        assert!(new_item.is_none())
     }
     #[test]
     fn get_all() {

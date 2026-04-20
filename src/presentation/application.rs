@@ -9,11 +9,7 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    common::{
-        config::Config,
-        item::{Item, ItemID},
-        quantity::Quantity,
-    },
+    common::{config::Config, item::Item, quantity::Quantity},
     logic::BarCollection,
     presentation::{
         screen::{self, Screen, inventory, settings},
@@ -39,7 +35,7 @@ struct Bartend {
 pub enum Message {
     NoOp,
     OpenInventory,
-    DeleteItem(ItemID),
+    DeleteItem(Item),
     RefreshItems,
     UpdateInventory(Vec<Item>),
 

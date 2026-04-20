@@ -164,7 +164,7 @@ impl Inventory {
             text("Delete").width(delete_column_width).center(),
             |item: &Item| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteItem(item.id))
+                    .on_press(application::Message::DeleteItem(item.clone()))
             },
         );
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
@@ -251,6 +251,7 @@ impl Composition<Message> for Inventory {
             }
             Message::InventoryUpdate(items) => {
                 self.contents = items;
+                self.edit_state = EditState::None;
                 None
             }
         }

@@ -48,10 +48,29 @@ impl DBCreate for Item {
 
 impl DBUnit for Item {
     fn update(self, db: &Database) {
-        todo!()
+        let id = self.id.0;
+        let query = "UPDATE items SET
+                        name = ?2,
+                        quantity = ?3,
+                        unit = ?4
+                        WHERE id = ?1"
+            .to_string();
+        let (quantity, unit) = self.quantity.db_format();
+
+        if let Err(e) = db
+            .connection
+            .execute(&query, (id, self.name, quantity, unit))
+        {
+            panic!("Update item failed with error: {e}");
+        }
     }
 
     fn delete(self, db: &Database) {
-        todo!()
+        let id = self.id.0;
+        let query = "DELETE FROM items WHERE id = ?1".to_string();
+
+        if let Err(e) = db.connection.execute(&query, (id,)) {
+            panic!("Delete_item failed with error: {e}");
+        }
     }
 }
