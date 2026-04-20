@@ -41,13 +41,11 @@ impl BarCollection {
     pub fn get_categories(&self) -> Vec<Category> {
         self.category_manager.get_categories()
     }
-    pub fn add_category(&mut self, name: String) {
-        self.category_manager
-            .add_category(self.db_handler.as_ref(), name);
+    pub fn add_category(&mut self, name: String) -> CategoryID {
+        Category::insert(name, &self.db_handler)
     }
-    pub fn delete_category(&mut self, category_id: CategoryID) {
-        self.category_manager
-            .remove_category(self.db_handler.as_ref(), category_id);
+    pub fn delete_category(&mut self, category: Category) {
+        category.delete(&self.db_handler);
     }
     pub fn update_category(&mut self, category: Category) {
         category.update(&self.db_handler);
