@@ -1,11 +1,7 @@
 use crate::{
     common::category::{CategoryID, CategoryManager},
-    persistence::{DBCreate, sqlite::Database},
+    persistence::{DBCreate, Database},
 };
-
-pub(super) fn create_category_tables(db: &Database) {
-    CategoryManager::create(db);
-}
 
 impl Database {
     pub fn add_category(&self, name: String) -> CategoryID {
