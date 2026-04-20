@@ -203,6 +203,8 @@ impl DBCreate for CategoryManager {
             CREATE TABLE IF NOT EXISTS category_item_mapping(
                 category_id INTEGER,
                 item_id INTEGER,
+                FOREIGN KEY (category_id) REFERENCES category(id),
+                FOREIGN KEY (item_id) REFERENCES items(id),
                 UNIQUE(category_id, item_id)
             );
         ";

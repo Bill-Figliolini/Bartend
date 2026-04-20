@@ -110,13 +110,14 @@ impl<T: Hash + Copy + Eq> DBCreate for DirectedAcyclicGraph<T> {
             CREATE TABLE IF NOT EXISTS category(
                 parent_id INTEGER,
                 child_id INTEGER,
+                FOREIGN KEY (parent_id) REFERENCES category(id),
+                FOREIGN KEY (child_id) REFERENCES category(id),
             UNIQUE (parent_id, child_id)
             );
         ";
         if let Err(e) = db.connection.execute(query, ()) {
             panic!("Graph table creation failed with error: {e}");
         };
-        todo!()
     }
 }
 
