@@ -6,7 +6,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::{DBUnit, Database},
+    persistence::{DBCreate, DBUnit, Database},
 };
 
 ///Boundary with presentation module.
@@ -15,39 +15,42 @@ use crate::{
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    db_handler: Box<Database>,
+    db: Box<Database>,
     category_manager: CategoryManager,
 }
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
+        let db = Box::new(Database::new(path));
+        Item::create(&db);
+        CategoryManager::create(&db);
         Self {
-            db_handler: Box::new(Database::new(path)),
+            db,
             category_manager: CategoryManager::new(),
         }
     }
     pub fn get_items(&self) -> Vec<Item> {
-        self.db_handler.get_all_items()
+        self.db.get_all_items()
     }
     pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
-        self.db_handler.add_item(name, quantity)
+        self.db.add_item(name, quantity)
     }
     pub fn update_item(&self, item: Item) {
-        item.update(&self.db_handler);
+        item.update(&self.db);
     }
     pub fn delete_item(&self, item: Item) {
-        item.delete(&self.db_handler);
+        item.delete(&self.db);
     }
     pub fn get_categories(&self) -> Vec<Category> {
         self.category_manager.get_categories()
     }
     pub fn add_category(&mut self, name: String) -> CategoryID {
-        Category::insert(name, &self.db_handler)
+        Category::insert(name, &self.db)
     }
     pub fn delete_category(&mut self, category: Category) {
-        category.delete(&self.db_handler);
+        category.delete(&self.db);
     }
     pub fn update_category(&mut self, category: Category) {
-        category.update(&self.db_handler);
+        category.update(&self.db);
     }
 }
