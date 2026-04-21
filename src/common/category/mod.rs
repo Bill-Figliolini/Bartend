@@ -26,10 +26,9 @@ pub struct CategoryManager {
 }
 impl CategoryManager {
     pub fn new() -> Self {
-        Self {
-            relations: DirectedAcyclicGraph::build_from(&[], &[]).unwrap(),
-            names: HashMap::new(),
-        }
+        let relations = DirectedAcyclicGraph::build_from(&[], &[]).unwrap();
+        let names = HashMap::new();
+        Self { relations, names }
     }
     fn read_categories(&mut self, db: &Database) {
         let query = "

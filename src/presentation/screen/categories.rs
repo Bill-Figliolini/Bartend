@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    common::config::Config,
+    common::{category::Category, config::Config},
     presentation::{
         application,
         screen::Composition,
@@ -15,10 +15,13 @@ use crate::{
 #[derive(Debug)]
 pub struct Categories {
     input_name: String,
+
+    categories: Vec<Category>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    CategoryListUpdate(Vec<Category>),
     NameUpdate(String),
     Save,
 }
@@ -40,23 +43,29 @@ impl Composition<Message> for Categories {
     fn new(_config: &Config) -> Self {
         Self {
             input_name: String::new(),
+            categories: Vec::new(),
         }
     }
 
     fn view(&self) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
-        let body = column![category_entry];
+        let categories = column![];
+        let body = column![category_entry, categories];
         column![header, body].into()
     }
 
-    fn update(&mut self, message: Message) -> Option<crate::presentation::application::Command> {
+    fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
+            Message::CategoryListUpdate(list) => {
+                self.categories = list;
+                None
+            }
             Message::NameUpdate(name) => {
                 self.input_name = name;
                 None
             }
-            Message::Save => todo!(),
+            Message::Save => Some(application::Command::AddCategory(self.input_name.clone())),
         }
     }
 }
