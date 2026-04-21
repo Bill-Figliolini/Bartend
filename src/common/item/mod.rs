@@ -6,8 +6,6 @@
 //! ## Potential Future Changes
 //! Variants for mappings of IDs to quantities and names could be useful for Recipes, in a later version.
 
-use rusqlite::ToSql;
-
 use crate::{
     common::quantity::Quantity,
     persistence::{DBCreate, DBUnit, Database},
@@ -24,6 +22,9 @@ pub struct Item {
 }
 
 impl Item {
+    fn insert(name: String, quantity: Quantity) -> ItemID {
+        todo!()
+    }
     fn read(id: ItemID, db: &Database) -> Self {
         todo!()
     }

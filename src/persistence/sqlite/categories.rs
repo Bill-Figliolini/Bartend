@@ -1,7 +1,4 @@
-use crate::{
-    common::category::{CategoryID, CategoryManager},
-    persistence::{DBCreate, Database},
-};
+use crate::{common::category::CategoryID, persistence::Database};
 
 impl Database {
     pub fn add_category(&self, name: String) -> CategoryID {

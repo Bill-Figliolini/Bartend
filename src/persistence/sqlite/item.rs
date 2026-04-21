@@ -3,7 +3,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::{DBCreate, Database},
+    persistence::Database,
 };
 use rusqlite::{self, OptionalExtension};
 impl Database {
@@ -83,7 +83,7 @@ impl Database {
 
 #[cfg(test)]
 mod tests {
-    use crate::persistence::DBUnit;
+    use crate::persistence::{DBCreate, DBUnit};
 
     use super::*;
     use tempfile::TempDir;
