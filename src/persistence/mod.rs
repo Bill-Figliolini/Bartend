@@ -8,6 +8,14 @@ pub mod sqlite;
 pub struct Database {
     pub connection: Connection,
 }
+
+#[derive(Debug)]
+pub struct MockDB {}
+pub trait Repository {
+    fn execute(&mut self, input: String);
+    fn get_last_id(&self) -> i64;
+}
+
 pub trait DBCreate {
     fn create(db: &Database);
 }
@@ -25,5 +33,25 @@ impl Database {
         };
         let db = Self { connection };
         db
+    }
+}
+
+impl Repository for Database {
+    fn execute(&mut self, input: String) {
+        todo!()
+    }
+
+    fn get_last_id(&self) -> i64 {
+        todo!()
+    }
+}
+
+impl Repository for MockDB {
+    fn execute(&mut self, input: String) {
+        todo!()
+    }
+
+    fn get_last_id(&self) -> i64 {
+        todo!()
     }
 }
