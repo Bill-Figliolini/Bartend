@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::atomic::AtomicI64};
 
 use rusqlite::Connection;
 
@@ -10,9 +10,11 @@ pub struct Database {
 }
 
 #[derive(Debug)]
-pub struct MockDB {}
+pub struct MockDB {
+    current_id: AtomicI64,
+}
 pub trait Repository {
-    fn execute(&mut self, input: String);
+    fn execute(&mut self, sql: &str);
     fn get_last_id(&self) -> i64;
 }
 
@@ -37,21 +39,32 @@ impl Database {
 }
 
 impl Repository for Database {
-    fn execute(&mut self, input: String) {
-        todo!()
+    fn execute(&mut self, sql: &str) {
+        if let Err(e) = self.connection.execute(sql, ()) {
+            panic!("DB Error:\r\n sql: {sql}\r\nerror: {e}");
+        }
     }
 
     fn get_last_id(&self) -> i64 {
-        todo!()
+        self.connection.last_insert_rowid()
+    }
+}
+
+impl MockDB {
+    pub fn new() -> Self {
+        Self {
+            current_id: AtomicI64::new(0),
+        }
     }
 }
 
 impl Repository for MockDB {
-    fn execute(&mut self, input: String) {
-        todo!()
+    fn execute(&mut self, _sql: &str) {
+        return;
     }
 
     fn get_last_id(&self) -> i64 {
-        todo!()
+        self.current_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     }
 }
