@@ -5,10 +5,7 @@ use std::{
 
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::{
-    common::category::graph::{DirectedAcyclicGraph, GraphError},
-    persistence::{DBCreate, DBUnit, Database},
-};
+use crate::common::category::graph::{DirectedAcyclicGraph, GraphError};
 
 mod graph;
 
@@ -30,8 +27,9 @@ impl CategoryManager {
         let names = HashMap::new();
         Self { relations, names }
     }
-    fn read_categories(&mut self, db: &Database) {
-        let query = "
+    fn read_categories(&mut self) {
+        todo!()
+        /*let query = "
                 SELECT * FROM category WHERE id=?1
             ";
         let mut stmt = db
@@ -51,7 +49,7 @@ impl CategoryManager {
                 Err(e) => panic!("Error Reading Categories: {e}"),
             }
             acc
-        });
+        });*/
     }
     pub fn get_children(&self, id: &CategoryID) -> HashSet<CategoryID> {
         self.relations.get_all_children(id).unwrap_or_default()
@@ -64,28 +62,19 @@ impl CategoryManager {
             .collect();
         categories
     }
-    pub fn remove_category(&mut self, db: &Database, id: CategoryID) {
-        self.names.remove(&id);
-        self.relations.remove(id); //Perhaps relations should return a full list of additions?
-        //needs more. a full commit of the new relations db as well.
-        db.delete_category(id);
+    pub fn remove_category(&mut self, id: CategoryID) -> Vec<String> {
+        todo!()
     }
-    pub fn add_category(&mut self, db: &Database, name: String) {
-        let id = db.add_category(name.clone());
-        self.names.insert(id, name);
-        self.relations.insert_vertex(id);
+    pub fn add_category(&mut self, name: String) -> String {
+        todo!();
     }
     pub fn add_relation(
         &mut self,
-        db: &Database,
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), GraphError> {
         match self.relations.insert_edge((parent, child)) {
-            Ok(()) => {
-                //db.add_category_relation(*parent, *child);
-                Ok(())
-            }
+            Ok(()) => Ok(()),
             Err(e) => Err(e),
         }
     }
@@ -95,36 +84,55 @@ impl Category {
         Self { id, name }
     }
 
-    pub fn insert(name: String, db: &Database) -> CategoryID {
-        let query = "INSERT INTO category(name) VALUES (?1)";
-        if let Err(e) = db.connection.execute(query, (name,)) {
-            panic!("Error inserting category: {e}");
-        }
-        CategoryID(db.connection.last_insert_rowid())
+    pub fn insert(input: Category) {
+        todo!()
     }
 
-    pub fn read(id: CategoryID, db: &Database) -> Self {
-        let query = "SELECT * FROM category WHERE id=?1";
-        let result = db.connection.query_one(query, (id,), |row| {
-            Ok(Self {
-                id,
-                name: row.get(1).unwrap(),
-            })
-        });
-        match result {
-            Ok(category) => category,
-            Err(e) => panic!("Error Reading Category id {id}: {e}"),
-        }
+    pub fn read(id: CategoryID) -> Self {
+        todo!()
     }
 
     pub fn id(&self) -> CategoryID {
         self.id
     }
-    pub fn test_cat() -> Self {
-        Category {
-            id: CategoryID(1),
-            name: "test".to_string(),
-        }
+    pub fn create() -> String {
+        "CREATE TABLE IF NOT EXISTS category(
+            id INTEGER PRIMARY KEY,
+            name STRING NOT NULL
+        );"
+        .to_string()
+    }
+    pub fn update(&self) -> String {
+        format!(
+            "
+            UPDATE category SET
+            name = {}
+            WHERE id = {}
+        ",
+            self.name, self.id.0
+        )
+    }
+    pub fn delete(self) -> String {
+        format!("DELETE * FROM category WHERE id={}", self.id.0)
+    }
+}
+
+impl CategoryManager {
+    pub fn create() -> Vec<String> {
+        let mut stmts = Vec::new();
+        stmts.push(Category::create());
+        stmts.push(DirectedAcyclicGraph::<CategoryID>::create());
+
+        let query = "CREATE TABLE IF NOT EXISTS category_item_mapping(
+                category_id INTEGER,
+                item_id INTEGER,
+                FOREIGN KEY (category_id) REFERENCES category(id),
+                FOREIGN KEY (item_id) REFERENCES items(id),
+                UNIQUE(category_id, item_id)
+            );"
+        .to_string();
+        stmts.push(query);
+        stmts
     }
 }
 
@@ -156,59 +164,5 @@ impl FromSql for CategoryID {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         let value = value.as_i64()?;
         Ok(CategoryID(value))
-    }
-}
-
-impl DBCreate for Category {
-    fn create(db: &Database) {
-        let query = "
-            CREATE TABLE IF NOT EXISTS category(
-                id INTEGER PRIMARY KEY,
-                name STRING NOT NULL
-            );";
-        if let Err(e) = db.connection.execute(query, ()) {
-            panic!("Category table creation failed with error: {e}");
-        };
-    }
-}
-impl DBUnit for Category {
-    fn update(self, db: &Database) {
-        let query = "
-            UPDATE category SET
-            name = ?2
-            WHERE id = ?1
-        ";
-        if let Err(e) = db.connection.execute(query, (self.id, self.name.clone())) {
-            panic!("Update category failed with error: {e}");
-        }
-    }
-
-    fn delete(self, db: &Database) {
-        let query = "
-            DELETE * FROM category WHERE id=?1
-        ";
-        if let Err(e) = db.connection.execute(query, (self.id,)) {
-            panic!("Error deleting category: {e}");
-        }
-    }
-}
-
-impl DBCreate for CategoryManager {
-    fn create(db: &Database) {
-        Category::create(db);
-        DirectedAcyclicGraph::<CategoryID>::create(db);
-
-        let create_category_item_table = "
-            CREATE TABLE IF NOT EXISTS category_item_mapping(
-                category_id INTEGER,
-                item_id INTEGER,
-                FOREIGN KEY (category_id) REFERENCES category(id),
-                FOREIGN KEY (item_id) REFERENCES items(id),
-                UNIQUE(category_id, item_id)
-            );
-        ";
-        if let Err(e) = db.connection.execute(create_category_item_table, ()) {
-            panic!("Graph table creation failed with error: {e}");
-        }
     }
 }

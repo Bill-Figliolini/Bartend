@@ -93,7 +93,7 @@ impl Inventory {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 
-        let categories: Vec<Category> = vec![Category::test_cat()];
+        let categories: Vec<Category> = Vec::new();
         let category_select = pick_list(
             categories,
             self.input_category.clone(),

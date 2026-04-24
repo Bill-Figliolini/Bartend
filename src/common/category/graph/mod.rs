@@ -7,7 +7,6 @@ use std::{
     hash::Hash,
 };
 
-use crate::persistence::{DBCreate, Database};
 #[derive(Debug)]
 pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
     graph: HashMap<T, HashSet<T>>,
@@ -104,20 +103,16 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
     }
 }
 
-impl<T: Hash + Copy + Eq> DBCreate for DirectedAcyclicGraph<T> {
-    fn create(db: &Database) {
-        let query = "
-            CREATE TABLE IF NOT EXISTS category(
-                parent_id INTEGER,
-                child_id INTEGER,
-                FOREIGN KEY (parent_id) REFERENCES category(id),
-                FOREIGN KEY (child_id) REFERENCES category(id),
-            UNIQUE (parent_id, child_id)
-            );
-        ";
-        if let Err(e) = db.connection.execute(query, ()) {
-            panic!("Graph table creation failed with error: {e}");
-        };
+impl<T: Hash + Copy + Eq> DirectedAcyclicGraph<T> {
+    pub fn create() -> String {
+        "CREATE TABLE IF NOT EXISTS category(
+            parent_id INTEGER,
+            child_id INTEGER,
+            FOREIGN KEY (parent_id) REFERENCES category(id),
+            FOREIGN KEY (child_id) REFERENCES category(id),
+        UNIQUE (parent_id, child_id));
+        "
+        .to_string()
     }
 }
 

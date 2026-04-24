@@ -81,8 +81,20 @@ impl Quantity {
             Self::Volume { quantity } => (*quantity, 0),
             Self::Mass { quantity } => (*quantity, 1),
             Self::Count { quantity, name } => match name {
-                crate::common::quantity::CountName::Dash => (*quantity, 2),
+                CountName::Dash => (*quantity, 2),
             },
+        }
+    }
+    #[must_use]
+    pub fn from_db(unit_type: i32, quantity: f32) -> Self {
+        match unit_type {
+            0 => Self::Volume { quantity },
+            1 => Self::Mass { quantity },
+            2 => Self::Count {
+                quantity,
+                name: CountName::Dash,
+            },
+            _ => unreachable!("Quantity was stored with invalid type {unit_type} in db"),
         }
     }
 }

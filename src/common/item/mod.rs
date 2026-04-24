@@ -6,10 +6,7 @@
 //! ## Potential Future Changes
 //! Variants for mappings of IDs to quantities and names could be useful for Recipes, in a later version.
 
-use crate::{
-    common::quantity::Quantity,
-    persistence::{DBCreate, DBUnit, Database},
-};
+use crate::{common::quantity::Quantity, persistence::Database};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ItemID(pub i64);
@@ -22,56 +19,36 @@ pub struct Item {
 }
 
 impl Item {
-    fn insert(name: String, quantity: Quantity) -> ItemID {
-        todo!()
+    pub fn create() -> String {
+        "CREATE TABLE IF NOT EXISTS items(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit INTEGER NOT NULL
+        );"
+        .to_string()
     }
-    fn read(id: ItemID, db: &Database) -> Self {
-        todo!()
+    pub fn insert(name: String, quantity: Quantity) -> String {
+        let (quantity, unit) = quantity.db_format();
+        format!("INSERT INTO items(name, quantity, unit) VALUES ({name}, {quantity}, {unit})")
+            .to_string()
     }
-}
 
-impl DBCreate for Item {
-    fn create(db: &Database) {
-        let create_items = "
-            CREATE TABLE IF NOT EXISTS items(
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                quantity REAL NOT NULL,
-                unit INTEGER NOT NULL
-            );"
-        .to_string();
-        let result = db.connection.execute(&create_items, ());
-        if let Err(e) = result {
-            panic!("DB Initialization error: {e}");
-        }
-    }
-}
-
-impl DBUnit for Item {
-    fn update(self, db: &Database) {
+    pub fn update(&self) -> String {
         let id = self.id.0;
-        let query = "UPDATE items SET
-                        name = ?2,
-                        quantity = ?3,
-                        unit = ?4
-                        WHERE id = ?1"
-            .to_string();
         let (quantity, unit) = self.quantity.db_format();
-
-        if let Err(e) = db
-            .connection
-            .execute(&query, (id, self.name, quantity, unit))
-        {
-            panic!("Update item failed with error: {e}");
-        }
+        format!(
+            "UPDATE items SET
+            name = {},
+            quantity = {quantity},
+            unit = {unit}
+            WHERE id = {id}",
+            self.name
+        )
+        .to_string()
     }
 
-    fn delete(self, db: &Database) {
-        let id = self.id.0;
-        let query = "DELETE FROM items WHERE id = ?1".to_string();
-
-        if let Err(e) = db.connection.execute(&query, (id,)) {
-            panic!("Delete_item failed with error: {e}");
-        }
+    pub fn delete(self) -> String {
+        format!("DELETE FROM items WHERE id = {}", self.id.0)
     }
 }

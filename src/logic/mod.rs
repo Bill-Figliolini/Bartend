@@ -6,7 +6,7 @@ use crate::{
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::{DBCreate, DBUnit, Database},
+    persistence::Database,
 };
 
 ///Boundary with presentation module.
@@ -22,35 +22,38 @@ pub struct BarCollection {
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
         let db = Box::new(Database::new(path));
-        Item::create(&db);
-        CategoryManager::create(&db);
+        let mut db_initializers = Vec::new();
+        db_initializers.push(Item::create());
+        db_initializers.extend(CategoryManager::create());
+        db.bulk_execute(db_initializers.as_ref());
         Self {
             db,
             category_manager: CategoryManager::new(),
         }
     }
     pub fn get_items(&self) -> Vec<Item> {
-        self.db.get_all_items()
+        todo!()
     }
     pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
-        self.db.add_item(name, quantity)
+        todo!()
     }
     pub fn update_item(&self, item: Item) {
-        item.update(&self.db);
+        self.db.execute(&item.update());
     }
     pub fn delete_item(&self, item: Item) {
-        item.delete(&self.db);
+        self.db.execute(&item.delete());
     }
     pub fn get_categories(&self) -> Vec<Category> {
         self.category_manager.get_categories()
     }
     pub fn add_category(&mut self, name: String) -> CategoryID {
-        Category::insert(name, &self.db)
+        todo!()
     }
     pub fn delete_category(&mut self, category: Category) {
-        category.delete(&self.db);
+        let stmts = Vec::new();
+        self.db.bulk_execute(&stmts);
     }
     pub fn update_category(&mut self, category: Category) {
-        category.update(&self.db);
+        self.db.execute(&category.update());
     }
 }
