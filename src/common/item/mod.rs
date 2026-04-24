@@ -28,27 +28,38 @@ impl Item {
         );"
         .to_string()
     }
-    pub fn insert(name: String, quantity: Quantity) -> String {
+    pub fn insert(name: String, quantity: Quantity, db: &Database) -> ItemID {
         let (quantity, unit) = quantity.db_format();
-        format!("INSERT INTO items(name, quantity, unit) VALUES ({name}, {quantity}, {unit})")
-            .to_string()
+        if let Err(e) = db.connection.execute(
+            "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)",
+            (name, quantity, unit),
+        ) {
+            panic!("Error inserting Item: {e}");
+        };
+        ItemID(db.connection.last_insert_rowid())
     }
 
-    pub fn update(&self) -> String {
+    pub fn update(&self, db: &Database) {
         let id = self.id.0;
         let (quantity, unit) = self.quantity.db_format();
-        format!(
+        if let Err(e) = db.connection.execute(
             "UPDATE items SET
-            name = {},
-            quantity = {quantity},
-            unit = {unit}
-            WHERE id = {id}",
-            self.name
-        )
-        .to_string()
+            name = ?2,
+            quantity = ?3,
+            unit = ?4
+            WHERE id = ?1",
+            (id, self.name.clone(), quantity, unit),
+        ) {
+            panic!("Error while updating item: {e}");
+        }
     }
 
-    pub fn delete(self) -> String {
-        format!("DELETE FROM items WHERE id = {}", self.id.0)
+    pub fn delete(self, db: &Database) {
+        if let Err(e) = db
+            .connection
+            .execute("DELETE FROM items WHERE id = ?1", (self.id.0,))
+        {
+            panic!("Error Deleting Item: {e}");
+        }
     }
 }
