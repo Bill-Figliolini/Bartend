@@ -52,7 +52,7 @@ impl BarCollection {
         item.delete(&self.db);
     }
     pub fn get_categories(&self) -> Vec<Category> {
-        todo!()
+        Category::get_range(0, 100, &self.db)
     }
     pub fn add_category(&mut self, name: String) -> CategoryID {
         Category::insert(name, &self.db)
