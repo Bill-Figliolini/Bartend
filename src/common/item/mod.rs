@@ -28,7 +28,7 @@ impl Item {
         );"
         .to_string()
     }
-    pub fn insert(name: String, quantity: Quantity, db: &Database) -> ItemID {
+    pub fn insert(name: &str, quantity: Quantity, db: &Database) -> ItemID {
         let (quantity, unit) = quantity.db_format();
         if let Err(e) = db.connection.execute(
             "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)",
@@ -61,5 +61,27 @@ impl Item {
         {
             panic!("Error Deleting Item: {e}");
         }
+    }
+    pub fn get_range(offset: i64, quantity: i64, db: &Database) -> Vec<Item> {
+        let query = format!("SELECT * FROM ITEMS LIMIT {quantity} OFFSET {offset}");
+        let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
+        let rows = stmt
+            .query_map([], |row| {
+                let id = ItemID(row.get(0).unwrap());
+                let name = row.get(1).unwrap();
+                let quantity = Quantity::from_db(row.get(3).unwrap(), row.get(2).unwrap());
+                Ok(Item { id, name, quantity })
+            })
+            .unwrap();
+        rows.into_iter().fold(
+            Vec::with_capacity((quantity - offset) as usize),
+            |mut acc, row| {
+                match row {
+                    Ok(item) => acc.push(item),
+                    Err(e) => panic!("Retrieving Items failled with error: {e}"),
+                };
+                acc
+            },
+        )
     }
 }

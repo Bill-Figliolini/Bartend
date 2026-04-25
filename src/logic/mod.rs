@@ -25,23 +25,28 @@ impl BarCollection {
         let mut db_initializers = Vec::new();
         db_initializers.push(Item::create());
         db_initializers.extend(CategoryManager::create());
-        db.bulk_execute(db_initializers.as_ref());
+        if let Err(e) = db
+            .connection
+            .execute_batch(db_initializers.join(";\n").as_ref())
+        {
+            panic!("Error initializing DB: {e}");
+        };
         Self {
             db,
             category_manager: CategoryManager::new(),
         }
     }
     pub fn get_items(&self) -> Vec<Item> {
-        todo!()
+        Item::get_range(0, 100, &self.db)
     }
     pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
-        todo!()
+        Item::insert(name, quantity, &self.db)
     }
     pub fn update_item(&self, item: Item) {
-        self.db.execute(&item.update());
+        item.update(&self.db);
     }
     pub fn delete_item(&self, item: Item) {
-        self.db.execute(&item.delete());
+        item.delete(&self.db);
     }
     pub fn get_categories(&self) -> Vec<Category> {
         self.category_manager.get_categories()
@@ -50,10 +55,9 @@ impl BarCollection {
         todo!()
     }
     pub fn delete_category(&mut self, category: Category) {
-        let stmts = Vec::new();
-        self.db.bulk_execute(&stmts);
+        todo!()
     }
     pub fn update_category(&mut self, category: Category) {
-        self.db.execute(&category.update());
+        todo!()
     }
 }
