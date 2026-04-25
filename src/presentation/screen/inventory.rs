@@ -299,6 +299,14 @@ impl Composition<Message> for Inventory {
             Message::InventoryUpdate(items) => {
                 self.contents = items;
                 self.edit_state = EditState::None;
+                self.errors.clear();
+                self.input_name.clear();
+                self.input_quantity.clear();
+                self.input_category = None;
+                self.input_unit = match self.unit_system {
+                    UnitSystem::Metric => Unit::Milliliter,
+                    UnitSystem::Imperial => Unit::FluidOunce,
+                };
                 None
             }
             Message::CategoryMappingUpdate(mapping) => {

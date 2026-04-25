@@ -141,6 +141,7 @@ impl Composition<Message> for Categories {
             Message::CategoryListUpdate(list) => {
                 self.contents = list;
                 self.edit_state = EditState::None;
+                self.input_name.clear();
                 None
             }
             Message::NameUpdate(name) => {
