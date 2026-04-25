@@ -1,6 +1,6 @@
 use iced::{
     Element,
-    widget::{column, row, text_input},
+    widget::{column, row, table, text_input},
 };
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 pub struct Categories {
     input_name: String,
 
-    categories: Vec<Category>,
+    contents: Vec<Category>,
 }
 
 #[derive(Debug, Clone)]
@@ -37,20 +37,24 @@ impl Categories {
         let entry_row = row![name_input, confirm_button];
         column![entry_header, entry_row].into()
     }
+    fn build_category_display(&self) -> Element<'_, application::Message> {
+        let columns = vec![];
+        table(columns, &self.contents).into()
+    }
 }
 
 impl Composition<Message> for Categories {
     fn new(_config: &Config) -> Self {
         Self {
             input_name: String::new(),
-            categories: Vec::new(),
+            contents: Vec::new(),
         }
     }
 
     fn view(&self) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
-        let categories = column![];
+        let categories = self.build_category_display();
         let body = column![category_entry, categories];
         column![header, body].into()
     }
@@ -58,7 +62,7 @@ impl Composition<Message> for Categories {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::CategoryListUpdate(list) => {
-                self.categories = list;
+                self.contents = list;
                 None
             }
             Message::NameUpdate(name) => {
