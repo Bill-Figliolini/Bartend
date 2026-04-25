@@ -151,7 +151,7 @@ impl Inventory {
                     .width(edit_column_width),
                 EditState::Editing(item_id) if item.id == item_id => {
                     iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::RefreshItems)
+                        .on_press(application::Message::UpdateInventory)
                         .width(edit_column_width)
                 }
                 EditState::Editing(_) => {
