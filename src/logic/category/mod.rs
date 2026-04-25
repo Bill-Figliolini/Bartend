@@ -8,8 +8,8 @@ use crate::persistence::Database;
 pub struct CategoryID(pub i64);
 #[derive(Debug, Clone)]
 pub struct Category {
-    id: CategoryID,
-    name: String,
+    pub id: CategoryID,
+    pub name: String,
 }
 impl Category {
     pub fn insert(name: String, db: &Database) -> CategoryID {
@@ -20,10 +20,6 @@ impl Category {
             panic!("Error inserting Category: {e}");
         }
         CategoryID(db.connection.last_insert_rowid())
-    }
-
-    pub fn id(&self) -> CategoryID {
-        self.id
     }
     pub fn create() -> String {
         "CREATE TABLE IF NOT EXISTS category(
@@ -47,7 +43,7 @@ impl Category {
     pub fn delete(self, db: &Database) {
         if let Err(e) = db
             .connection
-            .execute("DELETE * FROM category WHERE id=?1", (self.id,))
+            .execute("DELETE FROM category WHERE id=?1", (self.id,))
         {
             panic!("Error deleting Category: {e}");
         }

@@ -9,7 +9,7 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    logic::{BarCollection, config::Config, item::Item, quantity::Quantity},
+    logic::{BarCollection, category::Category, config::Config, item::Item, quantity::Quantity},
     presentation::{
         screen::{self, Screen, categories, inventory, settings},
         widget::sidebar,
@@ -43,6 +43,7 @@ pub enum Message {
 
     OpenCategories,
     UpdateCategories,
+    DeleteCategory(Category),
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -56,6 +57,7 @@ pub enum Command {
     UpdateConfig(Config),
 
     AddCategory(String),
+    UpdateCategory(Category),
 }
 
 impl Bartend {
@@ -138,7 +140,7 @@ impl Bartend {
                 } else {
                     self.screen = Screen::categories(&self.config);
                 }
-                Task::none()
+                Task::done(Message::UpdateCategories)
             }
             Message::UpdateCategories => {
                 let categories = self.bar_collection.get_categories();
@@ -146,6 +148,10 @@ impl Bartend {
                     categories::Message::CategoryListUpdate(categories),
                 ));
                 Task::none()
+            }
+            Message::DeleteCategory(category) => {
+                self.bar_collection.delete_category(category);
+                Task::done(Message::UpdateCategories)
             }
 
             Message::Inventory(_) => {
@@ -172,7 +178,7 @@ impl Bartend {
                             let db_changed = self.config.db_path() != config.db_path();
                             self.config = config;
                             match self.config.save() {
-                                Ok(_) => {}
+                                Ok(()) => {}
                                 Err(e) => panic!("{e:?}"),
                             }
                             if db_changed {
@@ -192,6 +198,10 @@ impl Bartend {
                     match command {
                         Command::AddCategory(name) => {
                             self.bar_collection.add_category(name);
+                            Task::done(Message::UpdateCategories)
+                        }
+                        Command::UpdateCategory(category) => {
+                            self.bar_collection.update_category(category);
                             Task::done(Message::UpdateCategories)
                         }
                         _ => unreachable!(),
