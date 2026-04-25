@@ -28,6 +28,7 @@ pub struct Inventory {
     input_category: Option<Category>,
 
     contents: Vec<Item>,
+    categories: Vec<Category>,
     unit_system: UnitSystem,
 
     edit_state: EditState,
@@ -55,6 +56,7 @@ pub enum Message {
 
     //Variants for Application's use
     InventoryUpdate(Vec<Item>),
+    CategoryListInitialization(Vec<Category>),
 }
 impl Inventory {
     fn save_item(&mut self, quantity: f32) -> application::Command {
@@ -93,9 +95,8 @@ impl Inventory {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 
-        let categories: Vec<Category> = Vec::new();
         let category_select = pick_list(
-            categories,
+            self.categories.clone(),
             self.input_category.clone(),
             |category: Category| {
                 application::Message::Inventory(Message::CategoryUpdate(Some(category)))
@@ -188,6 +189,7 @@ impl Composition<Message> for Inventory {
 
             // Display Managers
             contents: Vec::new(),
+            categories: Vec::new(),
             unit_system,
 
             // Input State
@@ -252,6 +254,10 @@ impl Composition<Message> for Inventory {
             Message::InventoryUpdate(items) => {
                 self.contents = items;
                 self.edit_state = EditState::None;
+                None
+            }
+            Message::CategoryListInitialization(categories) => {
+                self.categories = categories;
                 None
             }
         }
