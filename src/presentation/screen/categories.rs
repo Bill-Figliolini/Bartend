@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    common::{category::Category, config::Config},
+    logic::{category::Category, config::Config},
     presentation::{
         application,
         screen::Composition,

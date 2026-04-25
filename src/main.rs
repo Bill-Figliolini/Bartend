@@ -1,5 +1,4 @@
-pub mod common;
-mod logic;
+pub mod logic;
 mod persistence;
 mod presentation;
 

@@ -5,7 +5,7 @@ pub mod settings;
 use iced::Element;
 
 use crate::{
-    common::{config::Config, item::Item},
+    logic::{config::Config, item::Item},
     presentation::application::{Command, Message},
 };
 

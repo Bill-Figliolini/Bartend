@@ -9,8 +9,7 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    common::{config::Config, item::Item, quantity::Quantity},
-    logic::BarCollection,
+    logic::{BarCollection, config::Config, item::Item, quantity::Quantity},
     presentation::{
         screen::{self, Screen, inventory, settings},
         widget::sidebar,

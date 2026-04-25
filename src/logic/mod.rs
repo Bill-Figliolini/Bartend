@@ -1,7 +1,11 @@
 use std::path::Path;
 
+pub mod category;
+pub mod config;
+pub mod item;
+pub mod quantity;
 use crate::{
-    common::{
+    logic::{
         category::{Category, CategoryID, CategoryManager},
         item::{Item, ItemID},
         quantity::Quantity,

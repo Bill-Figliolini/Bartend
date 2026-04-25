@@ -5,7 +5,7 @@ use std::{
 
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::common::category::graph::{DirectedAcyclicGraph, GraphError};
+use crate::logic::category::graph::{DirectedAcyclicGraph, GraphError};
 
 mod graph;
 

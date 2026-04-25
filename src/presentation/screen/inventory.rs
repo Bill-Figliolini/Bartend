@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    common::{
+    logic::{
         category::Category,
         config::Config,
         item::{Item, ItemID},
