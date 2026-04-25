@@ -1,13 +1,8 @@
-use std::{collections::HashSet, fmt::Display};
+use std::fmt::Display;
 
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::{
-    logic::category::graph::{DirectedAcyclicGraph, GraphError},
-    persistence::Database,
-};
-
-mod graph;
+use crate::persistence::Database;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CategoryID(pub i64);
@@ -21,7 +16,7 @@ impl Category {
         Self { id, name }
     }
 
-    pub fn insert(input: Category) {
+    pub fn insert(name: String, db: &Database) -> CategoryID {
         todo!()
     }
 

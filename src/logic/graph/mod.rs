@@ -108,8 +108,8 @@ impl<T: Hash + Copy + Eq> DirectedAcyclicGraph<T> {
         "CREATE TABLE IF NOT EXISTS category(
             parent_id INTEGER,
             child_id INTEGER,
-            FOREIGN KEY (parent_id) REFERENCES category(id),
-            FOREIGN KEY (child_id) REFERENCES category(id),
+            FOREIGN KEY (parent_id) REFERENCES category(id) ON DELETE CASCADE,
+            FOREIGN KEY (child_id) REFERENCES category(id) ON DELETE CASCADE,
         UNIQUE (parent_id, child_id));
         "
         .to_string()

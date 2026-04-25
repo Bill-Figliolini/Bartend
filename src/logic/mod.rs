@@ -2,6 +2,7 @@ use std::path::Path;
 
 pub mod category;
 pub mod config;
+pub mod graph;
 pub mod item;
 pub mod quantity;
 use crate::{
