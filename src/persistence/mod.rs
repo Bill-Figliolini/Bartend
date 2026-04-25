@@ -15,7 +15,6 @@ impl Database {
                 panic!("DB could not be opened! {e}")
             }
         };
-        let db = Self { connection };
-        db
+        Self { connection }
     }
 }
