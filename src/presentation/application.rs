@@ -9,14 +9,9 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    common::{
-        config::Config,
-        item::{Item, ItemID},
-        quantity::Quantity,
-    },
-    logic::BarCollection,
+    logic::{BarCollection, category::Category, config::Config, item::Item, quantity::Quantity},
     presentation::{
-        screen::{self, Screen},
+        screen::{self, Screen, categories, inventory, settings},
         widget::sidebar,
     },
 };
@@ -39,21 +34,30 @@ struct Bartend {
 pub enum Message {
     NoOp,
     OpenInventory,
-    DeleteItem(ItemID),
-    RefreshItems,
+    DeleteItem(Item),
+    UpdateInventory,
 
     OpenSettings,
     ResetSettings,
     OpenDBPicker(PathBuf),
 
+    OpenCategories,
+    UpdateCategories,
+    DeleteCategory(Category),
+
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
+    Categories(screen::categories::Message),
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
     AddItem(String, Quantity),
     UpdateItem(Item),
+
     UpdateConfig(Config),
+
+    AddCategory(String),
+    UpdateCategory(Category),
 }
 
 impl Bartend {
@@ -79,27 +83,29 @@ impl Bartend {
     fn title(&self) -> String {
         format!("Bartend")
     }
+
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::NoOp => Task::none(),
 
             Message::OpenInventory => {
                 if let Screen::Inventory(_) = self.screen {
+                    Task::none()
                 } else {
-                    let items = self.bar_collection.get_items();
-                    self.screen = Screen::inventory(&self.config, items);
+                    self.screen = Screen::inventory(&self.config);
+                    Task::done(Message::UpdateInventory)
                 }
-                Task::none()
             }
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
-                let items = self.bar_collection.get_items();
-                self.screen.update_inventory(items);
-                Task::none()
+                Task::done(Message::UpdateInventory)
             }
-            Message::RefreshItems => {
+            Message::UpdateInventory => {
                 let items = self.bar_collection.get_items();
-                self.screen.update_inventory(items);
+                self.screen
+                    .update(Message::Inventory(inventory::Message::InventoryUpdate(
+                        items,
+                    )));
                 Task::none()
             }
 
@@ -111,7 +117,10 @@ impl Bartend {
                 Task::none()
             }
             Message::ResetSettings => {
-                self.screen.reset_config(&self.config);
+                self.screen
+                    .update(Message::Settings(settings::Message::ResetConfig(
+                        self.config.clone(),
+                    )));
                 Task::none()
             }
             Message::OpenDBPicker(path) => Task::future(async {
@@ -126,20 +135,35 @@ impl Bartend {
                 })
             }),
 
+            Message::OpenCategories => {
+                if let Screen::Categories(_) = self.screen {
+                } else {
+                    self.screen = Screen::categories(&self.config);
+                }
+                Task::done(Message::UpdateCategories)
+            }
+            Message::UpdateCategories => {
+                let categories = self.bar_collection.get_categories();
+                self.screen.update(Message::Categories(
+                    categories::Message::CategoryListUpdate(categories),
+                ));
+                Task::none()
+            }
+            Message::DeleteCategory(category) => {
+                self.bar_collection.delete_category(category);
+                Task::done(Message::UpdateCategories)
+            }
+
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
-                            let items = self.bar_collection.get_items();
-                            self.screen.update_inventory(items);
-                            Task::none()
+                            Task::done(Message::UpdateInventory)
                         }
                         Command::UpdateItem(item) => {
                             self.bar_collection.update_item(item);
-                            let items = self.bar_collection.get_items();
-                            self.screen.update_inventory(items);
-                            Task::none()
+                            Task::done(Message::UpdateInventory)
                         }
                         _ => unreachable!(),
                     }
@@ -154,7 +178,7 @@ impl Bartend {
                             let db_changed = self.config.db_path() != config.db_path();
                             self.config = config;
                             match self.config.save() {
-                                Ok(_) => {}
+                                Ok(()) => {}
                                 Err(e) => panic!("{e:?}"),
                             }
                             if db_changed {
@@ -169,12 +193,30 @@ impl Bartend {
                     Task::none()
                 }
             }
+            Message::Categories(_) => {
+                if let Some(command) = self.screen.update(message) {
+                    match command {
+                        Command::AddCategory(name) => {
+                            self.bar_collection.add_category(name);
+                            Task::done(Message::UpdateCategories)
+                        }
+                        Command::UpdateCategory(category) => {
+                            self.bar_collection.update_category(category);
+                            Task::done(Message::UpdateCategories)
+                        }
+                        _ => unreachable!(),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
         }
     }
 
     fn view(&self) -> Element<'_, Message> {
         let sidebar = sidebar::Sidebar::new()
             .button("Inventory", || Message::OpenInventory)
+            .button("Categories", || Message::OpenCategories)
             .button("Settings", || Message::OpenSettings)
             .into();
 

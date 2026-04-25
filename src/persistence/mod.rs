@@ -1,13 +1,20 @@
-use crate::common::{
-    item::{Item, ItemID},
-    quantity::Quantity,
-};
-pub mod sqlite;
+use std::path::Path;
 
-pub trait Repository {
-    fn add_item(&self, name: &str, quantity: Quantity) -> ItemID;
-    fn get_item(&self, id: ItemID) -> Option<Item>;
-    fn update_item(&self, item: Item);
-    fn delete_item(&self, id: ItemID);
-    fn get_all_items(&self) -> Vec<Item>;
+use rusqlite::Connection;
+
+#[derive(Debug)]
+pub struct Database {
+    pub connection: Connection,
+}
+
+impl Database {
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        let connection = match Connection::open(path) {
+            Ok(connection) => connection,
+            Err(e) => {
+                panic!("DB could not be opened! {e}")
+            }
+        };
+        Self { connection }
+    }
 }

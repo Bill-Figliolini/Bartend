@@ -7,13 +7,15 @@ use iced::{
 };
 
 use crate::{
-    common::{
+    logic::{
+        category::Category,
         config::Config,
         item::{Item, ItemID},
         quantity::{Quantity, Unit, UnitSystem},
     },
     presentation::{
         application, constants,
+        screen::Composition,
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -23,6 +25,7 @@ pub struct Inventory {
     input_name: String,
     input_quantity: String,
     input_unit: Unit,
+    input_category: Option<Category>,
 
     contents: Vec<Item>,
     unit_system: UnitSystem,
@@ -42,41 +45,18 @@ enum Error {
 }
 #[derive(Debug, Clone)]
 pub enum Message {
-    SaveNewItem,
+    Save,
     SwapUnits,
     BeginEdit(Item),
     NameUpdate(String),
     QuantityUpdate(String),
     UnitUpdate(Unit),
+    CategoryUpdate(Option<Category>),
+
+    //Variants for Application's use
+    InventoryUpdate(Vec<Item>),
 }
 impl Inventory {
-    //Should reimplement as a builder. Will make succeeding states simpler.
-    pub fn new(config: &Config, item_list: Vec<Item>) -> Self {
-        let unit_system = config.default_units();
-        let input_unit = match &unit_system {
-            UnitSystem::Metric => Unit::Milliliter,
-            UnitSystem::Imperial => Unit::FluidOunce,
-        };
-        Self {
-            // Input Handlers
-            input_name: String::new(),
-            input_quantity: String::new(),
-            input_unit,
-
-            // Display Managers
-            contents: item_list,
-            unit_system,
-
-            // Input State
-            edit_state: EditState::None,
-            errors: Vec::with_capacity(2),
-        }
-    }
-
-    pub(super) fn update_inventory(&mut self, item_list: Vec<Item>) {
-        self.contents = item_list;
-    }
-
     fn save_item(&mut self, quantity: f32) -> application::Command {
         let quantity = Quantity::new(quantity, self.input_unit);
         let name = take(&mut self.input_name);
@@ -91,55 +71,7 @@ impl Inventory {
         }
     }
 
-    pub(super) fn update(&mut self, message: Message) -> Option<application::Command> {
-        match message {
-            Message::SwapUnits => {
-                self.unit_system.swap();
-                None
-            }
-            Message::NameUpdate(new) => {
-                self.input_name = new;
-                None
-            }
-            Message::QuantityUpdate(new) => {
-                self.input_quantity = new;
-                None
-            }
-            Message::UnitUpdate(new) => {
-                self.input_unit = new;
-                None
-            }
-            Message::BeginEdit(item) => {
-                self.edit_state = EditState::Editing(item.id);
-                self.input_name = item.name;
-                self.input_quantity = item.quantity.value(self.unit_system).to_string();
-                self.input_unit = item.quantity.unit(self.unit_system);
-                None
-            }
-            Message::SaveNewItem => {
-                self.errors.clear();
-
-                if self.input_name.is_empty() {
-                    self.errors.push(Error::NameError);
-                }
-                let quantity = self.input_quantity.trim().parse::<f32>();
-                let quantity = match quantity {
-                    Ok(quantity) if quantity > 0.0 => quantity,
-                    _ => {
-                        self.errors.push(Error::QuantityError);
-                        0.0
-                    }
-                };
-                if self.errors.is_empty() {
-                    Some(self.save_item(quantity))
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
-    fn build_item_entry_section(&self) -> Element<'_, application::Message> {
+    pub(super) fn build_item_entry_section(&self) -> Element<'_, application::Message> {
         let entry_header = match self.edit_state {
             EditState::None => text("New Item:"),
             EditState::Editing(_) => text("Edit Item:"),
@@ -161,9 +93,25 @@ impl Inventory {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 
+        let categories: Vec<Category> = Vec::new();
+        let category_select = pick_list(
+            categories,
+            self.input_category.clone(),
+            |category: Category| {
+                application::Message::Inventory(Message::CategoryUpdate(Some(category)))
+            },
+        );
+
         let confirm_button = iced::widget::Button::new("Save")
-            .on_press(application::Message::Inventory(Message::SaveNewItem));
-        let entry_row = row![name_input, quantity_input, unit_select, confirm_button].spacing(5);
+            .on_press(application::Message::Inventory(Message::Save));
+        let entry_row = row![
+            name_input,
+            quantity_input,
+            unit_select,
+            category_select,
+            confirm_button
+        ]
+        .spacing(5);
 
         let mut error_row = row![].spacing(20);
         for error in &self.errors {
@@ -203,7 +151,7 @@ impl Inventory {
                     .width(edit_column_width),
                 EditState::Editing(item_id) if item.id == item_id => {
                     iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::RefreshItems)
+                        .on_press(application::Message::UpdateInventory)
                         .width(edit_column_width)
                 }
                 EditState::Editing(_) => {
@@ -216,14 +164,100 @@ impl Inventory {
             text("Delete").width(delete_column_width).center(),
             |item: &Item| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteItem(item.id))
+                    .on_press(application::Message::DeleteItem(item.clone()))
             },
         );
         let columns = vec![name_column, quantity_column, edit_column, delete_column];
         table(columns, &self.contents).into()
     }
+}
 
-    pub(super) fn view(&self) -> Element<'_, application::Message> {
+impl Composition<Message> for Inventory {
+    fn new(config: &Config) -> Self {
+        let unit_system = config.default_units();
+        let input_unit = match &unit_system {
+            UnitSystem::Metric => Unit::Milliliter,
+            UnitSystem::Imperial => Unit::FluidOunce,
+        };
+        Self {
+            // Input Handlers
+            input_name: String::new(),
+            input_quantity: String::new(),
+            input_unit,
+            input_category: None,
+
+            // Display Managers
+            contents: Vec::new(),
+            unit_system,
+
+            // Input State
+            edit_state: EditState::None,
+            errors: Vec::with_capacity(2),
+        }
+    }
+
+    fn update(&mut self, message: Message) -> Option<application::Command> {
+        match message {
+            Message::SwapUnits => {
+                self.unit_system.swap();
+                None
+            }
+            Message::NameUpdate(new) => {
+                self.input_name = new;
+                None
+            }
+            Message::QuantityUpdate(new) => {
+                self.input_quantity = new;
+                None
+            }
+            Message::UnitUpdate(new) => {
+                self.input_unit = new;
+                None
+            }
+            Message::CategoryUpdate(new) => {
+                self.input_category = if self.input_category == new {
+                    None
+                } else {
+                    new
+                };
+                None
+            }
+            Message::BeginEdit(item) => {
+                self.edit_state = EditState::Editing(item.id);
+                self.input_name = item.name;
+                self.input_quantity = item.quantity.value(self.unit_system).to_string();
+                self.input_unit = item.quantity.unit(self.unit_system);
+                None
+            }
+            Message::Save => {
+                self.errors.clear();
+
+                if self.input_name.is_empty() {
+                    self.errors.push(Error::NameError);
+                }
+                let quantity = self.input_quantity.trim().parse::<f32>();
+                let quantity = match quantity {
+                    Ok(quantity) if quantity > 0.0 => quantity,
+                    _ => {
+                        self.errors.push(Error::QuantityError);
+                        0.0
+                    }
+                };
+                if self.errors.is_empty() {
+                    Some(self.save_item(quantity))
+                } else {
+                    None
+                }
+            }
+            Message::InventoryUpdate(items) => {
+                self.contents = items;
+                self.edit_state = EditState::None;
+                None
+            }
+        }
+    }
+
+    fn view(&self) -> Element<'_, application::Message> {
         let title_text = title("Inventory");
         let header = header(title_text);
 

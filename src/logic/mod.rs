@@ -1,11 +1,17 @@
 use std::path::Path;
 
+pub mod category;
+pub mod config;
+pub mod graph;
+pub mod item;
+pub mod quantity;
 use crate::{
-    common::{
+    logic::{
+        category::{Category, CategoryID},
         item::{Item, ItemID},
         quantity::Quantity,
     },
-    persistence::{Repository, sqlite::DB},
+    persistence::Database,
 };
 
 ///Boundary with presentation module.
@@ -14,25 +20,50 @@ use crate::{
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    inventory: DB,
+    db: Box<Database>,
 }
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
-        Self {
-            inventory: DB::new(path),
+        let db = Box::new(Database::new(path));
+        let db_initializers = [
+            "PRAGMA foreign_keys = ON".to_string(),
+            Item::create(),
+            Category::create(),
+        ];
+
+        if let Err(e) = db
+            .connection
+            .execute_batch(db_initializers.join(";\n").as_ref())
+        {
+            panic!("Error initializing DB: {e}");
         }
+        Self { db }
     }
+    #[must_use]
     pub fn get_items(&self) -> Vec<Item> {
-        self.inventory.get_all_items()
+        Item::get_range(0, 100, &self.db)
     }
     pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
-        self.inventory.add_item(name, quantity)
+        Item::insert(name, quantity, &self.db)
     }
     pub fn update_item(&self, item: Item) {
-        self.inventory.update_item(item);
+        item.update(&self.db);
     }
-    pub fn delete_item(&self, item_id: ItemID) {
-        self.inventory.delete_item(item_id);
+    pub fn delete_item(&self, item: Item) {
+        item.delete(&self.db);
+    }
+    #[must_use]
+    pub fn get_categories(&self) -> Vec<Category> {
+        Category::get_range(0, 100, &self.db)
+    }
+    pub fn add_category(&mut self, name: String) -> CategoryID {
+        Category::insert(name, &self.db)
+    }
+    pub fn delete_category(&mut self, category: Category) {
+        category.delete(&self.db);
+    }
+    pub fn update_category(&mut self, category: Category) {
+        category.update(&self.db);
     }
 }

@@ -7,13 +7,14 @@ use iced::{
 };
 
 use crate::{
-    common::{
+    logic::{
         config::{Config, EditableConfig},
         quantity::UnitSystem,
     },
     presentation::{
         application::{self, Command},
         constants,
+        screen::Composition,
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -28,17 +29,14 @@ pub enum Message {
     Save,
     UpdateDBPath(PathBuf),
     UpdateUnitSystem(UnitSystem),
+    ResetConfig(Config),
 }
-
-impl Settings {
-    pub(super) fn new(current_config: &Config) -> Self {
+impl Composition<Message> for Settings {
+    fn new(current_config: &Config) -> Self {
         let config = current_config.editable();
         Self { config }
     }
-    pub(super) fn reset(&mut self, config: &Config) {
-        self.config = config.editable();
-    }
-    pub(super) fn view(&self) -> Element<'_, application::Message> {
+    fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
 
         let title_text = title("Settings");
@@ -79,7 +77,8 @@ impl Settings {
 
         column![header, body, footer].into()
     }
-    pub(super) fn update(&mut self, message: Message) -> Option<Command> {
+
+    fn update(&mut self, message: Message) -> Option<Command> {
         match message {
             Message::Save => Some(Command::UpdateConfig(self.config.commit())),
             Message::UpdateDBPath(db_path) => {
@@ -88,6 +87,10 @@ impl Settings {
             }
             Message::UpdateUnitSystem(unit_system) => {
                 self.config.default_unit_system = unit_system;
+                None
+            }
+            Message::ResetConfig(config) => {
+                self.config = config.editable();
                 None
             }
         }
