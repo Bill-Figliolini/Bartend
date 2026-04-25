@@ -49,7 +49,7 @@ enum Error {
 pub enum Message {
     Save,
     SwapUnits,
-    BeginEdit(Item),
+    BeginEdit(Item, Option<Category>),
     NameUpdate(String),
     QuantityUpdate(String),
     UnitUpdate(Unit),
@@ -168,11 +168,25 @@ impl Inventory {
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
             |item: &Item| match self.edit_state {
-                EditState::None => iced::widget::Button::new(text("Edit").center())
-                    .on_press(application::Message::Inventory(Message::BeginEdit(
-                        item.clone(),
-                    )))
-                    .width(edit_column_width),
+                EditState::None => {
+                    let category = match self.item_category_mapping.get(&item.id) {
+                        Some(id_ref) => {
+                            let id = *id_ref;
+                            Some(
+                                self.categories
+                                    .iter()
+                                    .find(|category| category.id == id)
+                                    .unwrap()
+                                    .clone(),
+                            )
+                        }
+                        None => None,
+                    };
+                    iced::widget::Button::new(text("Edit").center()).on_press(
+                        application::Message::Inventory(Message::BeginEdit(item.clone(), category)),
+                    )
+                }
+                .width(edit_column_width),
                 EditState::Editing(item_id) if item.id == item_id => {
                     iced::widget::Button::new(text("Cancel").center())
                         .on_press(application::Message::UpdateInventory)
@@ -254,11 +268,12 @@ impl Composition<Message> for Inventory {
                 };
                 None
             }
-            Message::BeginEdit(item) => {
+            Message::BeginEdit(item, category_id) => {
                 self.edit_state = EditState::Editing(item.id);
                 self.input_name = item.name;
                 self.input_quantity = item.quantity.value(self.unit_system).to_string();
                 self.input_unit = item.quantity.unit(self.unit_system);
+                self.input_category = category_id;
                 None
             }
             Message::Save => {
