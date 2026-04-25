@@ -9,7 +9,13 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    logic::{BarCollection, category::Category, config::Config, item::Item, quantity::Quantity},
+    logic::{
+        BarCollection,
+        category::{Category, CategoryID},
+        config::Config,
+        item::Item,
+        quantity::Quantity,
+    },
     presentation::{
         screen::{self, Screen, categories, inventory, settings},
         widget::sidebar,
@@ -51,8 +57,8 @@ pub enum Message {
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
-    AddItem(String, Quantity),
-    UpdateItem(Item),
+    AddItem(String, Quantity, Option<CategoryID>),
+    UpdateItem(Item, Option<CategoryID>),
 
     UpdateConfig(Config),
 
@@ -72,7 +78,15 @@ impl Bartend {
 
         let bar_collection = BarCollection::new(config.db_path());
         let items = bar_collection.get_items();
-        let screen = Screen::start(&config, items);
+        let mapping = bar_collection.get_item_mapping(&items);
+        let mut screen = Screen::start(&config, items);
+        let categories = bar_collection.get_categories();
+        _ = screen.update(Message::Inventory(
+            inventory::Message::CategoryListInitialization(categories),
+        ));
+        screen.update(Message::Inventory(
+            inventory::Message::CategoryMappingUpdate(mapping),
+        ));
         Self {
             screen,
             config,
@@ -93,6 +107,10 @@ impl Bartend {
                     Task::none()
                 } else {
                     self.screen = Screen::inventory(&self.config);
+                    let categories = self.bar_collection.get_categories();
+                    _ = self.screen.update(Message::Inventory(
+                        inventory::Message::CategoryListInitialization(categories),
+                    ));
                     Task::done(Message::UpdateInventory)
                 }
             }
@@ -102,10 +120,14 @@ impl Bartend {
             }
             Message::UpdateInventory => {
                 let items = self.bar_collection.get_items();
+                let mapping = self.bar_collection.get_item_mapping(&items);
                 self.screen
                     .update(Message::Inventory(inventory::Message::InventoryUpdate(
                         items,
                     )));
+                self.screen.update(Message::Inventory(
+                    inventory::Message::CategoryMappingUpdate(mapping),
+                ));
                 Task::none()
             }
 
@@ -157,12 +179,12 @@ impl Bartend {
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
-                        Command::AddItem(name, quantity) => {
-                            self.bar_collection.add_item(&name, quantity);
+                        Command::AddItem(name, quantity, category_id) => {
+                            self.bar_collection.add_item(&name, quantity, category_id);
                             Task::done(Message::UpdateInventory)
                         }
-                        Command::UpdateItem(item) => {
-                            self.bar_collection.update_item(item);
+                        Command::UpdateItem(item, category_id) => {
+                            self.bar_collection.update_item(item, category_id);
                             Task::done(Message::UpdateInventory)
                         }
                         _ => unreachable!(),

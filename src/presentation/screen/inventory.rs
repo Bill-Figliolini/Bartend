@@ -1,4 +1,4 @@
-use std::mem::take;
+use std::{collections::HashMap, mem::take};
 
 use iced::{
     Element,
@@ -8,7 +8,7 @@ use iced::{
 
 use crate::{
     logic::{
-        category::Category,
+        category::{Category, CategoryID},
         config::Config,
         item::{Item, ItemID},
         quantity::{Quantity, Unit, UnitSystem},
@@ -28,6 +28,8 @@ pub struct Inventory {
     input_category: Option<Category>,
 
     contents: Vec<Item>,
+    categories: Vec<Category>,
+    item_category_mapping: HashMap<ItemID, CategoryID>,
     unit_system: UnitSystem,
 
     edit_state: EditState,
@@ -55,19 +57,28 @@ pub enum Message {
 
     //Variants for Application's use
     InventoryUpdate(Vec<Item>),
+    CategoryMappingUpdate(HashMap<ItemID, CategoryID>),
+    CategoryListInitialization(Vec<Category>),
 }
 impl Inventory {
     fn save_item(&mut self, quantity: f32) -> application::Command {
         let quantity = Quantity::new(quantity, self.input_unit);
         let name = take(&mut self.input_name);
+        let category_id = match take(&mut self.input_category) {
+            Some(category) => Some(category.id),
+            None => None,
+        };
         self.input_quantity.clear();
         match self.edit_state {
-            EditState::None => application::Command::AddItem(name, quantity),
-            EditState::Editing(item_id) => application::Command::UpdateItem(Item {
-                id: item_id,
-                name,
-                quantity,
-            }),
+            EditState::None => application::Command::AddItem(name, quantity, category_id),
+            EditState::Editing(item_id) => application::Command::UpdateItem(
+                Item {
+                    id: item_id,
+                    name,
+                    quantity,
+                },
+                category_id,
+            ),
         }
     }
 
@@ -93,9 +104,8 @@ impl Inventory {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
 
-        let categories: Vec<Category> = Vec::new();
         let category_select = pick_list(
-            categories,
+            self.categories.clone(),
             self.input_category.clone(),
             |category: Category| {
                 application::Message::Inventory(Message::CategoryUpdate(Some(category)))
@@ -134,10 +144,24 @@ impl Inventory {
         let name_column = table::column(text("Name").width(200), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
-                "{} {}",
+                "{:.0} {}",
                 item.quantity.value(self.unit_system),
                 item.quantity.unit(self.unit_system).to_string()
             )
+        });
+        let category_column = table::column(text("Category").width(100), |item: &Item| match self
+            .item_category_mapping
+            .get(&item.id)
+        {
+            Some(cat_id) => text(
+                self.categories
+                    .iter()
+                    .find(|category| category.id == *cat_id)
+                    .unwrap()
+                    .name
+                    .clone(),
+            ),
+            None => text!("None"),
         });
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
         let edit_column_width = 70;
@@ -167,7 +191,13 @@ impl Inventory {
                     .on_press(application::Message::DeleteItem(item.clone()))
             },
         );
-        let columns = vec![name_column, quantity_column, edit_column, delete_column];
+        let columns = vec![
+            name_column,
+            quantity_column,
+            category_column,
+            edit_column,
+            delete_column,
+        ];
         table(columns, &self.contents).into()
     }
 }
@@ -188,6 +218,8 @@ impl Composition<Message> for Inventory {
 
             // Display Managers
             contents: Vec::new(),
+            categories: Vec::new(),
+            item_category_mapping: HashMap::new(),
             unit_system,
 
             // Input State
@@ -252,6 +284,14 @@ impl Composition<Message> for Inventory {
             Message::InventoryUpdate(items) => {
                 self.contents = items;
                 self.edit_state = EditState::None;
+                None
+            }
+            Message::CategoryMappingUpdate(mapping) => {
+                self.item_category_mapping = mapping;
+                None
+            }
+            Message::CategoryListInitialization(categories) => {
+                self.categories = categories;
                 None
             }
         }

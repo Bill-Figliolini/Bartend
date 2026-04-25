@@ -6,6 +6,8 @@
 //! ## Potential Future Changes
 //! Variants for mappings of IDs to quantities and names could be useful for Recipes, in a later version.
 
+use rusqlite::{ToSql, types::FromSql};
+
 use crate::{logic::quantity::Quantity, persistence::Database};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -70,7 +72,7 @@ impl Item {
         let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
         let rows = stmt
             .query_map([], |row| {
-                let id = ItemID(row.get(0).unwrap());
+                let id = row.get(0).unwrap();
                 let name = row.get(1).unwrap();
                 let quantity = Quantity::from_db(row.get(3).unwrap(), row.get(2).unwrap());
                 Ok(Item { id, name, quantity })
@@ -84,5 +86,18 @@ impl Item {
                 }
                 acc
             })
+    }
+}
+
+impl ToSql for ItemID {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
+    }
+}
+
+impl FromSql for ItemID {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let value = value.as_i64()?;
+        Ok(Self(value))
     }
 }
