@@ -55,10 +55,10 @@ impl BarCollection {
         todo!()
     }
     pub fn add_category(&mut self, name: String) -> CategoryID {
-        todo!()
+        Category::insert(name, &self.db)
     }
     pub fn delete_category(&mut self, category: Category) {
-        todo!()
+        category.delete(&self.db)
     }
     pub fn update_category(&mut self, category: Category) {
         category.update(&self.db);

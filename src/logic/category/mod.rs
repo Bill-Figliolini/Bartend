@@ -12,12 +12,14 @@ pub struct Category {
     name: String,
 }
 impl Category {
-    fn new(id: CategoryID, name: String) -> Self {
-        Self { id, name }
-    }
-
     pub fn insert(name: String, db: &Database) -> CategoryID {
-        todo!()
+        if let Err(e) = db
+            .connection
+            .execute("INSERT INTO category(name) VALUES(?1)", (name,))
+        {
+            panic!("Error inserting Category: {e}");
+        }
+        CategoryID(db.connection.last_insert_rowid())
     }
 
     pub fn id(&self) -> CategoryID {
@@ -42,8 +44,34 @@ impl Category {
             panic!("Error Updating Category: {e}");
         };
     }
-    pub fn delete(self) -> String {
-        format!("DELETE * FROM category WHERE id={}", self.id.0)
+    pub fn delete(self, db: &Database) {
+        if let Err(e) = db
+            .connection
+            .execute("DELETE * FROM category WHERE id=?1", (self.id,))
+        {
+            panic!("Error deleting Category: {e}");
+        }
+    }
+    pub fn get_range(offset: usize, quantity: usize, db: &Database) -> Vec<Category> {
+        let query = format!("SELECT * FROM category LIMIT {quantity} OFFSET {offset}");
+        let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
+        let rows = stmt
+            .query_map([], |row| {
+                let id = row.get(0).unwrap();
+                let name = row.get(1).unwrap();
+                Ok(Category { id, name })
+            })
+            .unwrap();
+        rows.into_iter().fold(
+            Vec::with_capacity((quantity - offset) as usize),
+            |mut acc, row| {
+                match row {
+                    Ok(item) => acc.push(item),
+                    Err(e) => panic!("Retrieving Items failled with error: {e}"),
+                };
+                acc
+            },
+        )
     }
 }
 
