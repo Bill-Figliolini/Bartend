@@ -11,7 +11,7 @@ use rfd::AsyncFileDialog;
 use crate::{
     logic::{BarCollection, config::Config, item::Item, quantity::Quantity},
     presentation::{
-        screen::{self, Screen, inventory, settings},
+        screen::{self, Screen, categories, inventory, settings},
         widget::sidebar,
     },
 };
@@ -35,7 +35,6 @@ pub enum Message {
     NoOp,
     OpenInventory,
     DeleteItem(Item),
-    RefreshItems,
     UpdateInventory,
 
     OpenSettings,
@@ -43,6 +42,7 @@ pub enum Message {
     OpenDBPicker(PathBuf),
 
     OpenCategories,
+    UpdateCategories,
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -96,11 +96,6 @@ impl Bartend {
             }
             Message::DeleteItem(item) => {
                 self.bar_collection.delete_item(item);
-                let items = self.bar_collection.get_items();
-                Task::done(Message::UpdateInventory)
-            }
-            Message::RefreshItems => {
-                let items = self.bar_collection.get_items();
                 Task::done(Message::UpdateInventory)
             }
             Message::UpdateInventory => {
@@ -145,18 +140,23 @@ impl Bartend {
                 }
                 Task::none()
             }
+            Message::UpdateCategories => {
+                let categories = self.bar_collection.get_categories();
+                self.screen.update(Message::Categories(
+                    categories::Message::CategoryListUpdate(categories),
+                ));
+                Task::none()
+            }
 
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(name, quantity) => {
                             self.bar_collection.add_item(&name, quantity);
-                            let items = self.bar_collection.get_items();
                             Task::done(Message::UpdateInventory)
                         }
                         Command::UpdateItem(item) => {
                             self.bar_collection.update_item(item);
-                            let items = self.bar_collection.get_items();
                             Task::done(Message::UpdateInventory)
                         }
                         _ => unreachable!(),
@@ -192,7 +192,7 @@ impl Bartend {
                     match command {
                         Command::AddCategory(name) => {
                             self.bar_collection.add_category(name);
-                            Task::none()
+                            Task::done(Message::UpdateCategories)
                         }
                         _ => unreachable!(),
                     }
