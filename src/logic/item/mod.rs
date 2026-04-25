@@ -19,6 +19,7 @@ pub struct Item {
 }
 
 impl Item {
+    #[must_use]
     pub fn create() -> String {
         "CREATE TABLE IF NOT EXISTS items(
             id INTEGER PRIMARY KEY,
@@ -35,7 +36,7 @@ impl Item {
             (name, quantity, unit),
         ) {
             panic!("Error inserting Item: {e}");
-        };
+        }
         ItemID(db.connection.last_insert_rowid())
     }
 
@@ -64,7 +65,7 @@ impl Item {
     }
 
     //TODO: refactor this; take in a query and a fn(&row) -> T
-    pub fn get_range(offset: i64, quantity: i64, db: &Database) -> Vec<Item> {
+    pub fn get_range(offset: usize, quantity: usize, db: &Database) -> Vec<Item> {
         let query = format!("SELECT * FROM items LIMIT {quantity} OFFSET {offset}");
         let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
         let rows = stmt
@@ -75,15 +76,13 @@ impl Item {
                 Ok(Item { id, name, quantity })
             })
             .unwrap();
-        rows.into_iter().fold(
-            Vec::with_capacity((quantity - offset) as usize),
-            |mut acc, row| {
+        rows.into_iter()
+            .fold(Vec::with_capacity(quantity), |mut acc, row| {
                 match row {
                     Ok(item) => acc.push(item),
                     Err(e) => panic!("Retrieving Items failled with error: {e}"),
-                };
+                }
                 acc
-            },
-        )
+            })
     }
 }

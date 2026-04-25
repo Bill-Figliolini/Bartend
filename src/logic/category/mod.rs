@@ -21,6 +21,7 @@ impl Category {
         }
         CategoryID(db.connection.last_insert_rowid())
     }
+    #[must_use]
     pub fn create() -> String {
         "CREATE TABLE IF NOT EXISTS category(
             id INTEGER PRIMARY KEY,
@@ -55,19 +56,17 @@ impl Category {
             .query_map([], |row| {
                 let id = row.get(0).unwrap();
                 let name = row.get(1).unwrap();
-                Ok(Category { id, name })
+                Ok(Self { id, name })
             })
             .unwrap();
-        rows.into_iter().fold(
-            Vec::with_capacity((quantity - offset) as usize),
-            |mut acc, row| {
+        rows.into_iter()
+            .fold(Vec::with_capacity(quantity), |mut acc, row| {
                 match row {
                     Ok(item) => acc.push(item),
                     Err(e) => panic!("Retrieving Items failled with error: {e}"),
-                };
+                }
                 acc
-            },
-        )
+            })
     }
 }
 
@@ -98,6 +97,6 @@ impl ToSql for CategoryID {
 impl FromSql for CategoryID {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         let value = value.as_i64()?;
-        Ok(CategoryID(value))
+        Ok(Self(value))
     }
 }

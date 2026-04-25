@@ -26,19 +26,21 @@ pub struct BarCollection {
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
         let db = Box::new(Database::new(path));
-        let mut db_initializers = Vec::new();
-        db_initializers.push("PRAGMA foreign_keys = ON".to_string());
-        db_initializers.push(Item::create());
-        db_initializers.push(Category::create());
+        let db_initializers = [
+            "PRAGMA foreign_keys = ON".to_string(),
+            Item::create(),
+            Category::create(),
+        ];
 
         if let Err(e) = db
             .connection
             .execute_batch(db_initializers.join(";\n").as_ref())
         {
             panic!("Error initializing DB: {e}");
-        };
+        }
         Self { db }
     }
+    #[must_use]
     pub fn get_items(&self) -> Vec<Item> {
         Item::get_range(0, 100, &self.db)
     }
@@ -51,6 +53,7 @@ impl BarCollection {
     pub fn delete_item(&self, item: Item) {
         item.delete(&self.db);
     }
+    #[must_use]
     pub fn get_categories(&self) -> Vec<Category> {
         Category::get_range(0, 100, &self.db)
     }
@@ -58,7 +61,7 @@ impl BarCollection {
         Category::insert(name, &self.db)
     }
     pub fn delete_category(&mut self, category: Category) {
-        category.delete(&self.db)
+        category.delete(&self.db);
     }
     pub fn update_category(&mut self, category: Category) {
         category.update(&self.db);
