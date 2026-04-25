@@ -62,8 +62,10 @@ impl Item {
             panic!("Error Deleting Item: {e}");
         }
     }
+
+    //TODO: refactor this; take in a query and a fn(&row) -> T
     pub fn get_range(offset: i64, quantity: i64, db: &Database) -> Vec<Item> {
-        let query = format!("SELECT * FROM ITEMS LIMIT {quantity} OFFSET {offset}");
+        let query = format!("SELECT * FROM items LIMIT {quantity} OFFSET {offset}");
         let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
         let rows = stmt
             .query_map([], |row| {
