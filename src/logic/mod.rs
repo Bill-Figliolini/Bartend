@@ -54,21 +54,12 @@ impl BarCollection {
         let ids = items.iter().map(|item| item.id);
         self.get_item_category_map(ids)
     }
-    pub fn add_item(
-        &self,
-        name: &str,
-        quantity: Quantity,
-        category_id: Option<CategoryID>,
-    ) -> ItemID {
+    pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
         let item_id = Item::insert(name, quantity, &self.db);
-        if let Some(category_id) = category_id {
-            self.add_item_category_mapping(item_id, category_id);
-        }
         item_id
     }
-    pub fn update_item(&self, item: Item, category_id: Option<CategoryID>) {
+    pub fn update_item(&self, item: Item) {
         item.update(&self.db);
-        self.update_item_category_mapping(item.id, category_id);
     }
     pub fn delete_item(&self, item: Item) {
         item.delete(&self.db);
@@ -118,7 +109,7 @@ impl BarCollection {
         }
         mapping
     }
-    fn add_item_category_mapping(&self, item_id: ItemID, category_id: CategoryID) {
+    pub fn add_item_category_mapping(&self, item_id: ItemID, category_id: CategoryID) {
         if let Err(e) = self.db.connection.execute(
             "INSERT INTO category_item(category_id, item_id) VALUES (?1, ?2)",
             (category_id, item_id),
@@ -126,7 +117,7 @@ impl BarCollection {
             panic!("Error inserting Item Mapping: {e}")
         }
     }
-    fn update_item_category_mapping(&self, item_id: ItemID, category_id: Option<CategoryID>) {
+    pub fn update_item_category_mapping(&self, item_id: ItemID, category_id: Option<CategoryID>) {
         if let Err(e) = self
             .db
             .connection

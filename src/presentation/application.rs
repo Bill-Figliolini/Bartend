@@ -180,11 +180,17 @@ impl Bartend {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(name, quantity, category_id) => {
-                            self.bar_collection.add_item(&name, quantity, category_id);
+                            let item_id = self.bar_collection.add_item(&name, quantity);
+                            if let Some(category_id) = category_id {
+                                self.bar_collection
+                                    .add_item_category_mapping(item_id, category_id);
+                            }
                             Task::done(Message::UpdateInventory)
                         }
                         Command::UpdateItem(item, category_id) => {
-                            self.bar_collection.update_item(item, category_id);
+                            self.bar_collection
+                                .update_item_category_mapping(item.id, category_id);
+                            self.bar_collection.update_item(item);
                             Task::done(Message::UpdateInventory)
                         }
                         _ => unreachable!(),
