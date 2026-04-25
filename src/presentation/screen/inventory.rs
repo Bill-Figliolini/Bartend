@@ -82,7 +82,7 @@ impl Inventory {
         }
     }
 
-    pub(super) fn build_item_entry_section(&self) -> Element<'_, application::Message> {
+    fn build_item_entry_section(&self) -> Element<'_, application::Message> {
         let entry_header = match self.edit_state {
             EditState::None => text("New Item:"),
             EditState::Editing(_) => text("Edit Item:"),
