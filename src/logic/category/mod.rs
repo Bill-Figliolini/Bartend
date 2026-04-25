@@ -1,11 +1,11 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Display,
-};
+use std::{collections::HashSet, fmt::Display};
 
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::logic::category::graph::{DirectedAcyclicGraph, GraphError};
+use crate::{
+    logic::category::graph::{DirectedAcyclicGraph, GraphError},
+    persistence::Database,
+};
 
 mod graph;
 
@@ -19,14 +19,13 @@ pub struct Category {
 #[derive(Debug)]
 pub struct CategoryManager {
     relations: DirectedAcyclicGraph<CategoryID>,
-    names: HashMap<CategoryID, String>,
 }
 impl CategoryManager {
     pub fn new() -> Self {
         let relations = DirectedAcyclicGraph::build_from(&[], &[]).unwrap();
-        let names = HashMap::new();
-        Self { relations, names }
+        Self { relations }
     }
+
     fn read_categories(&mut self) {
         todo!()
         /*let query = "
@@ -55,23 +54,19 @@ impl CategoryManager {
         self.relations.get_all_children(id).unwrap_or_default()
     }
     pub fn get_categories(&self) -> Vec<Category> {
-        let ids = self.relations.get_vertices();
-        let categories = ids
-            .into_iter()
-            .map(|id| Category::new(id, self.names.get(&id).unwrap().clone()))
-            .collect();
-        categories
-    }
-    pub fn remove_category(&mut self, id: CategoryID) -> Vec<String> {
         todo!()
     }
-    pub fn add_category(&mut self, name: String) -> String {
+    pub fn remove_category(&mut self, id: CategoryID, db: &Database) {
+        todo!()
+    }
+    pub fn add_category(&mut self, name: String, db: &Database) -> CategoryID {
         todo!();
     }
     pub fn add_relation(
         &mut self,
         parent: &CategoryID,
         child: &CategoryID,
+        db: &Database,
     ) -> Result<(), GraphError> {
         match self.relations.insert_edge((parent, child)) {
             Ok(()) => Ok(()),
@@ -88,10 +83,6 @@ impl Category {
         todo!()
     }
 
-    pub fn read(id: CategoryID) -> Self {
-        todo!()
-    }
-
     pub fn id(&self) -> CategoryID {
         self.id
     }
@@ -102,15 +93,17 @@ impl Category {
         );"
         .to_string()
     }
-    pub fn update(&self) -> String {
-        format!(
+    pub fn update(&self, db: &Database) {
+        if let Err(e) = db.connection.execute(
             "
             UPDATE category SET
-            name = {}
-            WHERE id = {}
+            name = ?2
+            WHERE id = ?1
         ",
-            self.name, self.id.0
-        )
+            (self.id.0, self.name.clone()),
+        ) {
+            panic!("Error Updating Category: {e}");
+        };
     }
     pub fn delete(self) -> String {
         format!("DELETE * FROM category WHERE id={}", self.id.0)
