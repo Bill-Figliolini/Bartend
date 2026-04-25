@@ -6,7 +6,7 @@ pub mod item;
 pub mod quantity;
 use crate::{
     logic::{
-        category::{Category, CategoryID, CategoryManager},
+        category::{Category, CategoryID},
         item::{Item, ItemID},
         quantity::Quantity,
     },
@@ -20,25 +20,23 @@ use crate::{
 #[derive(Debug)]
 pub struct BarCollection {
     db: Box<Database>,
-    category_manager: CategoryManager,
 }
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
         let db = Box::new(Database::new(path));
         let mut db_initializers = Vec::new();
+        db_initializers.push("PRAGMA foreign_keys = ON".to_string());
         db_initializers.push(Item::create());
-        db_initializers.extend(CategoryManager::create());
+        db_initializers.push(Category::create());
+
         if let Err(e) = db
             .connection
             .execute_batch(db_initializers.join(";\n").as_ref())
         {
             panic!("Error initializing DB: {e}");
         };
-        Self {
-            db,
-            category_manager: CategoryManager::new(),
-        }
+        Self { db }
     }
     pub fn get_items(&self) -> Vec<Item> {
         Item::get_range(0, 100, &self.db)
@@ -53,7 +51,7 @@ impl BarCollection {
         item.delete(&self.db);
     }
     pub fn get_categories(&self) -> Vec<Category> {
-        self.category_manager.get_categories()
+        todo!()
     }
     pub fn add_category(&mut self, name: String) -> CategoryID {
         todo!()
@@ -62,6 +60,6 @@ impl BarCollection {
         todo!()
     }
     pub fn update_category(&mut self, category: Category) {
-        todo!()
+        category.update(&self.db);
     }
 }
