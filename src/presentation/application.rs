@@ -54,6 +54,7 @@ pub enum Message {
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
     Categories(screen::categories::Message),
+    Recipes(screen::recipes::Message),
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {

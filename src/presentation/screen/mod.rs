@@ -1,5 +1,6 @@
 pub mod categories;
 pub mod inventory;
+pub mod recipes;
 pub mod settings;
 
 use iced::Element;
@@ -14,6 +15,7 @@ pub enum Screen {
     Inventory(inventory::Inventory),
     Settings(settings::Settings),
     Categories(categories::Categories),
+    Recipes(recipes::Recipes),
 }
 
 impl Screen {
@@ -27,6 +29,7 @@ impl Screen {
             Self::Inventory(inventory) => inventory.view(),
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(),
+            Self::Recipes(recipes) => recipes.view(),
         }
     }
     pub fn update(&mut self, message: Message) -> Option<Command> {
@@ -36,6 +39,7 @@ impl Screen {
             (Self::Categories(categories), Message::Categories(message)) => {
                 categories.update(message)
             }
+            (Self::Recipes(recipes), Message::Recipes(message)) => recipes.update(message),
             _ => unreachable!(),
         }
     }
