@@ -11,7 +11,7 @@ use rusqlite::{ToSql, types::FromSql};
 use crate::{logic::quantity::Quantity, persistence::Database};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct ItemID(pub i64);
+pub struct ItemID(i64);
 
 #[derive(Debug, Clone)]
 pub struct Item {

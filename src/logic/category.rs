@@ -5,7 +5,7 @@ use rusqlite::{ToSql, types::FromSql};
 use crate::persistence::Database;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CategoryID(pub i64);
+pub struct CategoryID(i64);
 #[derive(Debug, Clone)]
 pub struct Category {
     pub id: CategoryID,
