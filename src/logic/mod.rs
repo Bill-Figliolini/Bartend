@@ -5,6 +5,7 @@ pub mod config;
 pub mod graph;
 pub mod item;
 pub mod quantity;
+pub mod recipe;
 use rusqlite::OptionalExtension;
 
 use crate::{
