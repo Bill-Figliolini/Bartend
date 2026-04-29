@@ -7,7 +7,10 @@ use iced::Element;
 
 use crate::{
     logic::{config::Config, item::Item},
-    presentation::application::{Command, Message},
+    presentation::{
+        application::{Command, Message},
+        screen::recipes::Recipes,
+    },
 };
 
 #[derive(Debug)]
@@ -53,6 +56,9 @@ impl Screen {
     }
     pub fn categories(config: &Config) -> Self {
         Self::Categories(categories::Categories::new(config))
+    }
+    pub fn recipes(config: &Config) -> Self {
+        Screen::Recipes(Recipes::new(config))
     }
 }
 

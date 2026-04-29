@@ -51,6 +51,8 @@ pub enum Message {
     UpdateCategories,
     DeleteCategory(Category),
 
+    OpenRecipes,
+
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
     Categories(screen::categories::Message),
@@ -177,6 +179,14 @@ impl Bartend {
                 Task::done(Message::UpdateCategories)
             }
 
+            Message::OpenRecipes => {
+                if let Screen::Recipes(_) = self.screen {
+                } else {
+                    self.screen = Screen::recipes(&self.config);
+                }
+                Task::none()
+            }
+
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
@@ -239,6 +249,15 @@ impl Bartend {
                     Task::none()
                 }
             }
+            Message::Recipes(_) => {
+                if let Some(command) = self.screen.update(message) {
+                    match command {
+                        _ => unreachable!(),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
         }
     }
 
@@ -246,6 +265,7 @@ impl Bartend {
         let sidebar = sidebar::Sidebar::new()
             .button("Inventory", || Message::OpenInventory)
             .button("Categories", || Message::OpenCategories)
+            .button("Recipes", || Message::OpenRecipes)
             .button("Settings", || Message::OpenSettings)
             .into();
 
