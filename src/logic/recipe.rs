@@ -1,15 +1,70 @@
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::logic::{category::CategoryID, quantity::Quantity};
+use crate::{
+    logic::{category::CategoryID, quantity::Quantity},
+    persistence::Database,
+};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct RecipeID(i64);
 
 #[derive(Debug)]
-struct Recipe {
+pub struct Recipe {
     id: RecipeID,
     name: String,
-    ingredients: Vec<(CategoryID, Quantity)>,
+    ingredients: Vec<Ingredient>,
+}
+
+#[derive(Debug)]
+pub struct Ingredient {
+    category: CategoryID,
+    quantity: Quantity,
+}
+
+impl Recipe {
+    pub fn create() -> String {
+        "CREATE TABLE IF NOT EXISTS recipes(
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL
+        )"
+        .to_string()
+    }
+    pub fn insert(db: &Database, name: String, ingredients: Vec<Ingredient>) {
+        let query = "INSERT INTO recipes(name) VALUES (?1)";
+        if let Err(e) = db.connection.execute(query, (name,)) {
+            panic!("Recipe insertion failure with {e}");
+        }
+        let recipe_id = RecipeID(db.connection.last_insert_rowid());
+        for (idx, ingredient) in ingredients.into_iter().enumerate() {
+            ingredient.insert(db, &recipe_id, idx);
+        }
+    }
+}
+impl Ingredient {
+    pub fn create() -> String {
+        "CREATE TABLE IF NOT EXISTS recipe_ingredients(
+            recipe_id INTEGER,
+            index INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            quantity REAL NOT NULL,
+            unit INTEGER NOT NULL,
+            FOREIGN KEY (recipe_id) REFERENCES recipe(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE RESTRICT,
+            UNIQUE(recipe_id, index)
+        )"
+        .to_string()
+    }
+    pub fn insert(self, db: &Database, recipe_id: &RecipeID, idx: usize) {
+        let query = "INSERT INTO recipe_ingredients(recipe_id, index, category_id, quantity, unit) VALUES (?1, ?2, ?3, ?4)";
+        let (quantity, unit) = self.quantity.db_format();
+
+        if let Err(e) = db.connection.execute(
+            query,
+            (recipe_id, idx as i64, self.category, quantity, unit),
+        ) {
+            panic!("Ingredient insertion failure with {e}");
+        }
+    }
 }
 
 impl ToSql for RecipeID {
