@@ -48,7 +48,7 @@ impl BarCollection {
     }
     #[must_use]
     pub fn get_items(&self) -> Vec<Item> {
-        Item::get_range(0, 100, &self.db)
+        Item::get_range(&self.db, 0, 100)
     }
     #[must_use]
     pub fn get_item_mapping(&self, items: &Vec<Item>) -> HashMap<ItemID, CategoryID> {
@@ -56,7 +56,7 @@ impl BarCollection {
         self.get_item_category_map(ids)
     }
     pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
-        let item_id = Item::insert(name, quantity, &self.db);
+        let item_id = Item::insert(&self.db, name, quantity);
         item_id
     }
     pub fn update_item(&self, item: Item) {
@@ -67,10 +67,10 @@ impl BarCollection {
     }
     #[must_use]
     pub fn get_categories(&self) -> Vec<Category> {
-        Category::get_range(0, 100, &self.db)
+        Category::get_range(&self.db, 0, 100)
     }
     pub fn add_category(&mut self, name: String) -> CategoryID {
-        Category::insert(name, &self.db)
+        Category::insert(&self.db, name)
     }
     pub fn delete_category(&mut self, category: Category) {
         category.delete(&self.db);

@@ -31,7 +31,7 @@ impl Item {
         );"
         .to_string()
     }
-    pub fn insert(name: &str, quantity: Quantity, db: &Database) -> ItemID {
+    pub fn insert(db: &Database, name: &str, quantity: Quantity) -> ItemID {
         let (quantity, unit) = quantity.db_format();
         if let Err(e) = db.connection.execute(
             "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)",
@@ -67,7 +67,7 @@ impl Item {
     }
 
     //TODO: refactor this; take in a query and a fn(&row) -> T
-    pub fn get_range(offset: usize, quantity: usize, db: &Database) -> Vec<Item> {
+    pub fn get_range(db: &Database, offset: usize, quantity: usize) -> Vec<Item> {
         let query = format!("SELECT * FROM items LIMIT {quantity} OFFSET {offset}");
         let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
         let rows = stmt

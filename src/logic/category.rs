@@ -12,7 +12,7 @@ pub struct Category {
     pub name: String,
 }
 impl Category {
-    pub fn insert(name: String, db: &Database) -> CategoryID {
+    pub fn insert(db: &Database, name: String) -> CategoryID {
         if let Err(e) = db
             .connection
             .execute("INSERT INTO category(name) VALUES(?1)", (name,))
@@ -49,7 +49,7 @@ impl Category {
             panic!("Error deleting Category: {e}");
         }
     }
-    pub fn get_range(offset: usize, quantity: usize, db: &Database) -> Vec<Category> {
+    pub fn get_range(db: &Database, offset: usize, quantity: usize) -> Vec<Category> {
         let query = format!("SELECT * FROM category LIMIT {quantity} OFFSET {offset}");
         let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
         let rows = stmt

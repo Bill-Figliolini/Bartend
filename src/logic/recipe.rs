@@ -39,6 +39,9 @@ impl Recipe {
             ingredient.insert(db, &recipe_id, idx);
         }
     }
+    pub fn get_range(db: &Database, offset: usize, quantity: usize) -> Vec<Recipe> {
+        todo!()
+    }
 }
 impl Ingredient {
     pub fn create() -> String {
