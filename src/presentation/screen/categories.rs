@@ -69,7 +69,10 @@ impl Categories {
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
-        let entry_header = iced::widget::text("New Category:");
+        let entry_header = match self.edit_state{
+            EditState::None => iced::widget::text("New Category:"),
+            EditState::Editing(_) => iced::widget::text("Edit Category:"),
+        }
         let name_input = text_input("Name", &self.input_name)
             .id("name-input")
             .on_input(|str: String| application::Message::Categories(Message::NameUpdate(str)));
