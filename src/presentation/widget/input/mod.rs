@@ -1,4 +1,4 @@
-use std::{fmt::Display, mem::take};
+use std::fmt::Display;
 
 use iced::Element;
 
@@ -11,15 +11,15 @@ pub fn _name_entry<'a, Message: Clone>(
     todo!()
 }
 
-pub fn name_unload(name: &mut String) -> Result<String, Error> {
+pub fn name_unload(name: &String) -> Result<String, Error> {
     if name.is_empty() {
         Err(Error::StringEmpty)
     } else {
-        Ok(take(name))
+        Ok(name.clone())
     }
 }
 
-pub fn quantity_unload(value: &mut String, unit: &Unit) -> Result<Quantity, Error> {
+pub fn quantity_unload(value: &String, unit: &Unit) -> Result<Quantity, Error> {
     let unvalidated_quantity = value.trim().parse::<f32>();
     let quantity = match unvalidated_quantity {
         Ok(quantity) if quantity > 0.0 => quantity,
@@ -38,7 +38,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
             Self::StringEmpty => "String Must Not Be Empty".to_string(),
-            Self::QuantityInvalid => todo!(),
+            Self::QuantityInvalid => "Quantity must be a non-zero positive number".to_string(),
         };
         write!(f, "{text}")
     }

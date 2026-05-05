@@ -1,4 +1,7 @@
-use std::{collections::HashMap, mem::take};
+use std::{
+    collections::{HashMap, HashSet},
+    mem::take,
+};
 
 use iced::{
     Element,
@@ -16,7 +19,12 @@ use crate::{
     presentation::{
         application, constants,
         screen::Composition,
-        widget::{footer::footer, header::header, text_style::title},
+        widget::{
+            footer::footer,
+            header::header,
+            input::{Error, name_unload, quantity_unload},
+            text_style::title,
+        },
     },
 };
 
@@ -33,18 +41,14 @@ pub struct Inventory {
     unit_system: UnitSystem,
 
     edit_state: EditState,
-    errors: Vec<Error>,
+    errors: HashSet<Error>,
 }
 #[derive(Debug)]
 enum EditState {
     None,
     Editing(ItemID),
 }
-#[derive(Debug, Hash, PartialEq, Eq)]
-enum Error {
-    NameError,
-    QuantityError,
-}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Save,
@@ -61,14 +65,11 @@ pub enum Message {
     CategoryListInitialization(Vec<Category>),
 }
 impl Inventory {
-    fn save_item(&mut self, quantity: f32) -> application::Command {
-        let quantity = Quantity::new(quantity, self.input_unit);
-        let name = take(&mut self.input_name);
+    fn save(&mut self, name: String, quantity: Quantity) -> application::Command {
         let category_id = match take(&mut self.input_category) {
             Some(category) => Some(category.id),
             None => None,
         };
-        self.input_quantity.clear();
         match self.edit_state {
             EditState::None => application::Command::AddItem(name, quantity, category_id),
             EditState::Editing(item_id) => application::Command::UpdateItem(
@@ -123,18 +124,10 @@ impl Inventory {
         ]
         .spacing(5);
 
-        let mut error_row = row![].spacing(20);
-        for error in &self.errors {
-            match error {
-                Error::NameError => {
-                    error_row = error_row.push(text!("Name Must Not Be Empty"));
-                }
-                Error::QuantityError => {
-                    error_row =
-                        error_row.push(text!("Quantity must be a positive, non-zero number"));
-                }
-            }
-        }
+        let error_row = row(self
+            .errors
+            .iter()
+            .map(|error| text!("{} ", error.to_string()).into()));
 
         let input_divider = rule::horizontal(constants::DIV_SIZE);
         iced::widget::container(column![entry_header, entry_row, error_row, input_divider]).into()
@@ -238,7 +231,7 @@ impl Composition<Message> for Inventory {
 
             // Input State
             edit_state: EditState::None,
-            errors: Vec::with_capacity(2),
+            errors: HashSet::new(),
         }
     }
 
@@ -277,23 +270,29 @@ impl Composition<Message> for Inventory {
                 None
             }
             Message::Save => {
-                self.errors.clear();
-
-                if self.input_name.is_empty() {
-                    self.errors.push(Error::NameError);
-                }
-                let quantity = self.input_quantity.trim().parse::<f32>();
-                let quantity = match quantity {
-                    Ok(quantity) if quantity > 0.0 => quantity,
-                    _ => {
-                        self.errors.push(Error::QuantityError);
-                        0.0
+                match (
+                    name_unload(&self.input_name),
+                    quantity_unload(&self.input_quantity, &self.input_unit),
+                ) {
+                    (Ok(name), Ok(quantity)) => {
+                        self.errors.clear();
+                        self.input_name.clear();
+                        self.input_quantity.clear();
+                        Some(self.save(name, quantity))
                     }
-                };
-                if self.errors.is_empty() {
-                    Some(self.save_item(quantity))
-                } else {
-                    None
+                    (Ok(_), Err(eq)) => {
+                        self.errors.insert(eq);
+                        None
+                    }
+                    (Err(en), Ok(_)) => {
+                        self.errors.insert(en);
+                        None
+                    }
+                    (Err(en), Err(eq)) => {
+                        self.errors.insert(en);
+                        self.errors.insert(eq);
+                        None
+                    }
                 }
             }
             Message::InventoryUpdate(items) => {

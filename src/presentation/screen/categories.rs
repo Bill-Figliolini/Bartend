@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display, mem::take};
+use std::collections::HashSet;
 
 use iced::{
     Element,
@@ -13,7 +13,11 @@ use crate::{
     presentation::{
         application,
         screen::Composition,
-        widget::{self, text_style},
+        widget::{
+            self,
+            input::{Error, name_unload},
+            text_style,
+        },
     },
 };
 
@@ -39,33 +43,11 @@ enum EditState {
     Editing(CategoryID),
     None,
 }
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-enum Error {
-    NameEmpty,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let text = match self {
-            Self::NameEmpty => "Name Must Not Be Empty".to_string(),
-        };
-        write!(f, "{text}")
-    }
-}
-
 impl Categories {
-    fn save(&mut self) -> Option<application::Command> {
-        if self.input_name.is_empty() {
-            self.errors.insert(Error::NameEmpty);
-            return None;
-        }
-        let name = take(&mut self.input_name);
+    fn save(&mut self, name: String) -> application::Command {
         match self.edit_state {
-            EditState::Editing(id) => {
-                Some(application::Command::UpdateCategory(Category { id, name }))
-            }
-            EditState::None => Some(application::Command::AddCategory(name)),
+            EditState::Editing(id) => application::Command::UpdateCategory(Category { id, name }),
+            EditState::None => application::Command::AddCategory(name),
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
@@ -82,7 +64,7 @@ impl Categories {
         let error_row = row(self
             .errors
             .iter()
-            .map(|error| text(error.to_string()).into()));
+            .map(|error| text!("{} ", error.to_string()).into()));
         column![entry_header, entry_row, error_row].into()
     }
     fn build_category_display(&self) -> Element<'_, application::Message> {
@@ -156,10 +138,16 @@ impl Composition<Message> for Categories {
                 self.edit_state = EditState::Editing(category.id);
                 None
             }
-            Message::Save => {
-                self.errors.clear();
-                self.save()
-            }
+            Message::Save => match name_unload(&self.input_name) {
+                Ok(name) => {
+                    self.input_name.clear();
+                    Some(self.save(name))
+                }
+                Err(e) => {
+                    self.errors.insert(e);
+                    None
+                }
+            },
         }
     }
 }
