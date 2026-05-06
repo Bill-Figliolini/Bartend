@@ -28,7 +28,7 @@ pub fn quantity_unload(value: &String, unit: &Unit) -> Result<Quantity, Error> {
     Ok(Quantity::new(quantity, *unit))
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum Error {
     StringEmpty,
     QuantityInvalid,
