@@ -40,7 +40,28 @@ impl Recipe {
         }
     }
     pub fn get_range(db: &Database, offset: usize, quantity: usize) -> Vec<Recipe> {
-        todo!()
+        let query = format!("SELECT * FROM recipes LIMIT {quantity} OFFSET {offset}");
+        let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
+        let rows = stmt
+            .query_map([], |row| {
+                let id = row.get(0).unwrap();
+                let name = row.get(1).unwrap();
+                let ingredients = Ingredient::get_for_recipe(db, &id);
+                Ok(Recipe {
+                    id,
+                    name,
+                    ingredients,
+                })
+            })
+            .unwrap();
+        rows.into_iter()
+            .fold(Vec::with_capacity(quantity), |mut acc, row| {
+                match row {
+                    Ok(recipe) => acc.push(recipe),
+                    Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
+                }
+                acc
+            })
     }
 }
 impl Ingredient {
@@ -67,6 +88,25 @@ impl Ingredient {
         ) {
             panic!("Ingredient insertion failure with {e}");
         }
+    }
+    pub fn get_for_recipe(db: &Database, recipe_id: &RecipeID) -> Vec<Ingredient> {
+        let mut stmt = db
+            .connection
+            .prepare(
+                "SELECT category_id, quantity, unit FROM ingredients WHERE recipe_id = ?1 ORDER BY idx;",
+            )
+            .unwrap();
+        let rows = stmt
+            .query_map((*recipe_id,), |row| {
+                let category = row.get(0).unwrap();
+                let quantity = Quantity::from_db(row.get(2).unwrap(), row.get(1).unwrap());
+                Ok(Ingredient { category, quantity })
+            })
+            .unwrap();
+        rows.into_iter().fold(Vec::new(), |mut acc, ingredient| {
+            acc.push(ingredient.unwrap());
+            acc
+        })
     }
 }
 
