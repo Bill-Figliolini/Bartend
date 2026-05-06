@@ -6,6 +6,7 @@ use std::{
 use iced::{
     Element,
     Length::Fill,
+    wgpu::wgt::error,
     widget::{column, container, pick_list, row, rule, table, text, text_input},
 };
 
@@ -134,7 +135,7 @@ impl Inventory {
     }
 
     fn build_inventory_display(&self) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(200), |item: &Item| text(&item.name));
+        let name_column = table::column(text("Name").width(Fill), |item: &Item| text(&item.name));
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
                 "{:.0} {}",
@@ -142,7 +143,7 @@ impl Inventory {
                 item.quantity.unit(self.unit_system).to_string()
             )
         });
-        let category_column = table::column(text("Category").width(100), |item: &Item| match self
+        let category_column = table::column(text("Category").width(200), |item: &Item| match self
             .item_category_mapping
             .get(&item.id)
         {
@@ -207,6 +208,11 @@ impl Inventory {
         ];
         table(columns, &self.contents).into()
     }
+
+    fn clear_inputs(&mut self) {
+        self.input_name.clear();
+        self.input_quantity.clear();
+    }
 }
 
 impl Composition<Message> for Inventory {
@@ -270,29 +276,24 @@ impl Composition<Message> for Inventory {
                 None
             }
             Message::Save => {
-                match (
-                    name_unload(&self.input_name),
-                    quantity_unload(&self.input_quantity, &self.input_unit),
-                ) {
-                    (Ok(name), Ok(quantity)) => {
-                        self.errors.clear();
-                        self.input_name.clear();
-                        self.input_quantity.clear();
-                        Some(self.save(name, quantity))
-                    }
-                    (Ok(_), Err(eq)) => {
-                        self.errors.insert(eq);
-                        None
-                    }
-                    (Err(en), Ok(_)) => {
-                        self.errors.insert(en);
-                        None
-                    }
-                    (Err(en), Err(eq)) => {
-                        self.errors.insert(en);
-                        self.errors.insert(eq);
-                        None
-                    }
+                self.errors.clear();
+                let name_result = name_unload(&self.input_name);
+                let quantity_result = quantity_unload(&self.input_quantity, &self.input_unit);
+
+                if let Err(ref e) = name_result {
+                    self.errors.insert(e.clone());
+                };
+                if let Err(ref e) = quantity_result {
+                    self.errors.insert(e.clone());
+                };
+
+                if self.errors.is_empty() {
+                    self.clear_inputs();
+                    let name = name_result.unwrap();
+                    let quantity = quantity_result.unwrap();
+                    Some(self.save(name, quantity))
+                } else {
+                    None
                 }
             }
             Message::InventoryUpdate(items) => {
