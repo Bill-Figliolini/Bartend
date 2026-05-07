@@ -1,15 +1,11 @@
+pub mod name_input;
 use std::fmt::Display;
 
+use crate::{
+    logic::quantity::{Quantity, Unit},
+    presentation::application::Message,
+};
 use iced::Element;
-
-use crate::logic::quantity::{Quantity, Unit};
-
-pub fn _name_entry<'a, Message: Clone>(
-    _value: &str,
-    _message: impl Fn(String) -> Message + 'a,
-) -> Element<'a, Message> {
-    todo!()
-}
 
 pub fn name_unload(name: &String) -> Result<String, Error> {
     if name.is_empty() {
@@ -32,6 +28,14 @@ pub fn quantity_unload(value: &String, unit: &Unit) -> Result<Quantity, Error> {
 pub enum Error {
     StringEmpty,
     QuantityInvalid,
+}
+
+trait Input<'a, T> {
+    fn new(id: String) -> Self;
+    fn display(&self, to_message: impl Fn(&String) -> Message + 'a) -> Element<'a, Message>;
+    fn update(&mut self, input: String);
+    fn get_output(&self) -> Result<T, Error>;
+    fn clear(&mut self);
 }
 
 impl Display for Error {
