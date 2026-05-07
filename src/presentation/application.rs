@@ -15,9 +15,10 @@ use crate::{
         config::Config,
         item::Item,
         quantity::Quantity,
+        recipe::{Ingredient, Recipe},
     },
     presentation::{
-        screen::{self, Screen, categories, inventory, settings},
+        screen::{self, Screen, categories, inventory, recipes, settings},
         widget::sidebar,
     },
 };
@@ -52,6 +53,7 @@ pub enum Message {
     DeleteCategory(Category),
 
     OpenRecipes,
+    UpdateRecipes,
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -67,6 +69,9 @@ pub enum Command {
 
     AddCategory(String),
     UpdateCategory(Category),
+
+    AddRecipe(String, Vec<Ingredient>),
+    UpdateRecipe(Recipe),
 }
 
 impl Bartend {
@@ -183,9 +188,14 @@ impl Bartend {
                 if let Screen::Recipes(_) = self.screen {
                 } else {
                     self.screen = Screen::recipes(&self.config);
+                    let categories = self.bar_collection.get_categories();
+                    _ = self.screen.update(Message::Recipes(
+                        recipes::Message::InitializeCategoryList(categories),
+                    ));
                 }
-                Task::none()
+                Task::done(Message::UpdateRecipes)
             }
+            Message::UpdateRecipes => Task::none(),
 
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
@@ -252,6 +262,8 @@ impl Bartend {
             Message::Recipes(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
+                        Command::AddRecipe(name, ingredients) => todo!(),
+                        Command::UpdateRecipe(recipe) => todo!(),
                         _ => unreachable!(),
                     }
                 } else {
