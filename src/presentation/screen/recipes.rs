@@ -12,7 +12,7 @@ use crate::{
         screen::Composition,
         widget::{
             header::header,
-            input::{Error, Input, name_input::NameInput},
+            input::{Error, Input, StringInputUpdate, name_input::NameInput},
             text_style::title,
         },
     },
@@ -83,7 +83,7 @@ impl Composition<Message> for Recipes {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::NameUpdate(new_name) => {
-                self.input_name.update(new_name);
+                self.input_name.string_update(new_name);
                 None
             }
             Message::Save => match self.input_name.get_output() {

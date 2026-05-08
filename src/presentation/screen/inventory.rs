@@ -22,7 +22,7 @@ use crate::{
         widget::{
             footer::footer,
             header::header,
-            input::{Error, Input, name_input::NameInput, quantity_unload},
+            input::{Error, Input, StringInputUpdate, name_input::NameInput, quantity_unload},
             text_style::title,
         },
     },
@@ -92,13 +92,7 @@ impl Inventory {
         let quantity_input = text_input("Quantity", &self.input_quantity)
             .id("quantity-input")
             .on_input(|str: String| application::Message::Inventory(Message::QuantityUpdate(str)));
-        let units = vec![
-            Unit::Milliliter,
-            Unit::FluidOunce,
-            Unit::Gram,
-            Unit::MassOunce,
-            Unit::Dash,
-        ];
+        let units = Unit::get_units();
         let unit_select = pick_list(units, Some(self.input_unit), |unit: Unit| {
             application::Message::Inventory(Message::UnitUpdate(unit))
         });
@@ -247,7 +241,7 @@ impl Composition<Message> for Inventory {
                 None
             }
             Message::NameUpdate(new) => {
-                self.input_name.update(new);
+                self.input_name.string_update(new);
                 None
             }
             Message::QuantityUpdate(new) => {
@@ -268,7 +262,7 @@ impl Composition<Message> for Inventory {
             }
             Message::BeginEdit(item, category_id) => {
                 self.edit_state = EditState::Editing(item.id);
-                self.input_name.update(item.name);
+                self.input_name.string_update(item.name);
                 self.input_quantity = item.quantity.value(self.unit_system).to_string();
                 self.input_unit = item.quantity.unit(self.unit_system);
                 self.input_category = category_id;

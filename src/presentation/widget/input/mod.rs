@@ -1,4 +1,5 @@
 pub mod name_input;
+pub mod quantity_input;
 use std::fmt::Display;
 
 use crate::{
@@ -25,9 +26,16 @@ pub enum Error {
 pub trait Input<'a, T> {
     fn new<F: Fn(String) -> Message + 'static>(id: &str, on_input: F) -> Self;
     fn display(&self) -> Element<'a, Message>;
-    fn update(&mut self, input: String);
     fn get_output(&self) -> Result<T, Error>;
     fn clear(&mut self);
+}
+
+pub trait StringInputUpdate {
+    fn string_update(&mut self, input: String);
+}
+
+pub trait PickInputUpdate<T> {
+    fn pick_update(&mut self, input: T);
 }
 
 impl Display for Error {

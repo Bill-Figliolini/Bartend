@@ -3,7 +3,10 @@ use std::{fmt::Debug, rc::Rc};
 use iced::widget::text_input;
 
 use super::Error;
-use crate::presentation::{application::Message, widget::input::Input};
+use crate::presentation::{
+    application::Message,
+    widget::input::{Input, StringInputUpdate},
+};
 pub struct NameInput {
     id: String,
     name: String,
@@ -25,9 +28,6 @@ impl<'a> Input<'a, String> for NameInput {
             .on_input(move |s| on_input(s))
             .into()
     }
-    fn update(&mut self, input: String) {
-        self.name = input
-    }
 
     fn get_output(&self) -> Result<String, Error> {
         if self.name.is_empty() {
@@ -41,6 +41,13 @@ impl<'a> Input<'a, String> for NameInput {
         self.name.clear();
     }
 }
+
+impl StringInputUpdate for NameInput {
+    fn string_update(&mut self, input: String) {
+        self.name = input
+    }
+}
+
 impl Debug for NameInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NameInput")

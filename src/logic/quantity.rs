@@ -150,6 +150,18 @@ pub enum Unit {
     Dash,
 }
 
+impl Unit {
+    pub fn get_units() -> Vec<Unit> {
+        vec![
+            Unit::Milliliter,
+            Unit::FluidOunce,
+            Unit::Gram,
+            Unit::MassOunce,
+            Unit::Dash,
+        ]
+    }
+}
+
 impl Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
