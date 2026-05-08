@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use iced::{
     Element,
-    widget::{column, row, table, text, text_input},
+    widget::{column, row, table, text},
 };
 
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
         screen::Composition,
         widget::{
             self,
-            input::{Error, name_unload},
+            input::{Error, Input, name_input::NameInput},
             text_style,
         },
     },
@@ -23,7 +23,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Categories {
-    input_name: String,
+    input_name: NameInput,
 
     edit_state: EditState,
     errors: HashSet<Error>,
@@ -55,9 +55,7 @@ impl Categories {
             EditState::None => iced::widget::text("New Category:"),
             EditState::Editing(_) => iced::widget::text("Edit Category:"),
         };
-        let name_input = text_input("Name", &self.input_name)
-            .id("name-input")
-            .on_input(|str: String| application::Message::Categories(Message::NameUpdate(str)));
+        let name_input = self.input_name.display();
         let confirm_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));
         let entry_row = row![name_input, confirm_button];
@@ -106,7 +104,9 @@ impl Categories {
 impl Composition<Message> for Categories {
     fn new(_config: &Config) -> Self {
         Self {
-            input_name: String::new(),
+            input_name: NameInput::new("name-input", |str: String| {
+                application::Message::Categories(Message::NameUpdate(str))
+            }),
             edit_state: EditState::None,
             errors: HashSet::new(),
             contents: Vec::new(),
@@ -130,15 +130,15 @@ impl Composition<Message> for Categories {
                 None
             }
             Message::NameUpdate(name) => {
-                self.input_name = name;
+                self.input_name.update(name);
                 None
             }
             Message::BeginEdit(category) => {
-                self.input_name = category.name;
+                self.input_name.update(category.name);
                 self.edit_state = EditState::Editing(category.id);
                 None
             }
-            Message::Save => match name_unload(&self.input_name) {
+            Message::Save => match self.input_name.get_output() {
                 Ok(name) => {
                     self.input_name.clear();
                     Some(self.save(name))

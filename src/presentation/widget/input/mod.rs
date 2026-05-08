@@ -7,14 +7,6 @@ use crate::{
 };
 use iced::Element;
 
-pub fn name_unload(name: &String) -> Result<String, Error> {
-    if name.is_empty() {
-        Err(Error::StringEmpty)
-    } else {
-        Ok(name.clone())
-    }
-}
-
 pub fn quantity_unload(value: &String, unit: &Unit) -> Result<Quantity, Error> {
     let unvalidated_quantity = value.trim().parse::<f32>();
     let quantity = match unvalidated_quantity {
@@ -30,9 +22,9 @@ pub enum Error {
     QuantityInvalid,
 }
 
-trait Input<'a, T> {
-    fn new(id: String) -> Self;
-    fn display(&self, to_message: impl Fn(&String) -> Message + 'a) -> Element<'a, Message>;
+pub trait Input<'a, T> {
+    fn new<F: Fn(String) -> Message + 'static>(id: &str, on_input: F) -> Self;
+    fn display(&self) -> Element<'a, Message>;
     fn update(&mut self, input: String);
     fn get_output(&self) -> Result<T, Error>;
     fn clear(&mut self);

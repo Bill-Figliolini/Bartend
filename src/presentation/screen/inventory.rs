@@ -6,7 +6,6 @@ use std::{
 use iced::{
     Element,
     Length::Fill,
-    wgpu::wgt::error,
     widget::{column, container, pick_list, row, rule, table, text, text_input},
 };
 
@@ -23,7 +22,7 @@ use crate::{
         widget::{
             footer::footer,
             header::header,
-            input::{Error, name_unload, quantity_unload},
+            input::{Error, Input, name_input::NameInput, quantity_unload},
             text_style::title,
         },
     },
@@ -31,7 +30,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Inventory {
-    input_name: String,
+    input_name: NameInput,
     input_quantity: String,
     input_unit: Unit,
     input_category: Option<Category>,
@@ -89,9 +88,7 @@ impl Inventory {
             EditState::None => text("New Item:"),
             EditState::Editing(_) => text("Edit Item:"),
         };
-        let name_input = text_input("Name", &self.input_name)
-            .id("name-input")
-            .on_input(|str: String| application::Message::Inventory(Message::NameUpdate(str)));
+        let name_input = self.input_name.display();
         let quantity_input = text_input("Quantity", &self.input_quantity)
             .id("quantity-input")
             .on_input(|str: String| application::Message::Inventory(Message::QuantityUpdate(str)));
@@ -224,7 +221,9 @@ impl Composition<Message> for Inventory {
         };
         Self {
             // Input Handlers
-            input_name: String::new(),
+            input_name: NameInput::new("name-input", |str: String| {
+                application::Message::Inventory(Message::NameUpdate(str))
+            }),
             input_quantity: String::new(),
             input_unit,
             input_category: None,
@@ -248,7 +247,7 @@ impl Composition<Message> for Inventory {
                 None
             }
             Message::NameUpdate(new) => {
-                self.input_name = new;
+                self.input_name.update(new);
                 None
             }
             Message::QuantityUpdate(new) => {
@@ -269,7 +268,7 @@ impl Composition<Message> for Inventory {
             }
             Message::BeginEdit(item, category_id) => {
                 self.edit_state = EditState::Editing(item.id);
-                self.input_name = item.name;
+                self.input_name.update(item.name);
                 self.input_quantity = item.quantity.value(self.unit_system).to_string();
                 self.input_unit = item.quantity.unit(self.unit_system);
                 self.input_category = category_id;
@@ -277,7 +276,7 @@ impl Composition<Message> for Inventory {
             }
             Message::Save => {
                 self.errors.clear();
-                let name_result = name_unload(&self.input_name);
+                let name_result = self.input_name.get_output();
                 let quantity_result = quantity_unload(&self.input_quantity, &self.input_unit);
 
                 if let Err(ref e) = name_result {
