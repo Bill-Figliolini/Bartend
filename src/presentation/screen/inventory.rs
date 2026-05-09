@@ -22,7 +22,7 @@ use crate::{
         widget::{
             footer::footer,
             header::header,
-            input::{Error, Input, StringInputUpdate, name_input::NameInput, quantity_unload},
+            input::{Error, Input, InputString, name_input::NameInput, quantity_unload},
             text_style::title,
         },
     },
@@ -241,7 +241,7 @@ impl Composition<Message> for Inventory {
                 None
             }
             Message::NameUpdate(new) => {
-                self.input_name.string_update(new);
+                self.input_name.update(new);
                 None
             }
             Message::QuantityUpdate(new) => {
@@ -262,7 +262,7 @@ impl Composition<Message> for Inventory {
             }
             Message::BeginEdit(item, category_id) => {
                 self.edit_state = EditState::Editing(item.id);
-                self.input_name.string_update(item.name);
+                self.input_name.update(item.name);
                 self.input_quantity = item.quantity.value(self.unit_system).to_string();
                 self.input_unit = item.quantity.unit(self.unit_system);
                 self.input_category = category_id;

@@ -1,55 +1,85 @@
-use crate::{
-    logic::quantity::{Quantity, Unit},
-    presentation::widget::input::{Input, PickInputUpdate, StringInputUpdate},
+use std::{fmt::Display, rc::Rc};
+
+use crate::presentation::{
+    application::Message,
+    widget::input::{Input, InputPick, InputString},
 };
 
 use super::Error;
 
-pub struct QuantityInput {
+pub struct NumberInput {
     id: String,
-    input_quantity: String,
-    input_unit: Unit,
-    units: Vec<Unit>,
-    
+    input_number: String,
+    on_input: Rc<dyn Fn(String) -> Message + 'static>,
 }
-impl<'a> Input<'a, Quantity> for QuantityInput {
-    fn new<F: Fn(String) -> crate::presentation::application::Message + 'static>(
-        id: &str,
-        on_input: F,
-    ) -> Self {
+pub struct PickInput<T> {
+    id: String,
+    input: Option<T>,
+    on_input: Rc<dyn Fn(T) -> Message + 'static>,
+}
+
+impl<'a> Input<'a, String, f32> for NumberInput {
+    fn new<F: Fn(String) -> Message + 'static>(id: &str, on_input: F) -> Self {
+        let on_input = Rc::new(on_input);
         Self {
             id: id.to_string(),
-            input_quantity: String::new(),
-            input_unit: Unit::Milliliter,
-            units: Unit::get_units(),
+            input_number: String::new(),
+            on_input,
         }
     }
 
-    fn display(&self) -> iced::Element<'a, crate::presentation::application::Message> {
-        todo!()
-    }
-
-    fn get_output(&self) -> Result<Quantity, Error> {
-        let unvalidated_quantity = self.input_quantity.trim().parse::<f32>();
-        let quantity = match unvalidated_quantity {
-            Ok(quantity) if quantity > 0.0 => quantity,
+    fn get_output(&self) -> Result<f32, Error> {
+        let unvalidated_quantity = self.input_number.trim().parse::<f32>();
+        match unvalidated_quantity {
+            Ok(quantity) => Ok(quantity),
             _ => return Err(Error::QuantityInvalid),
-        };
-        Ok(Quantity::new(quantity, self.input_unit))
+        }
     }
 
     fn clear(&mut self) {
-        self.input_quantity.clear();
+        self.input_number.clear();
     }
 }
 
-impl StringInputUpdate for QuantityInput {
-    fn string_update(&mut self, input: String) {
-        self.input_quantity = input;
+impl<'a> InputString<'a> for NumberInput {
+    fn display(&self) -> iced::Element<'a, Message> {
+        todo!()
+    }
+    fn update(&mut self, input: String) {
+        self.input_number = input;
     }
 }
-impl PickInputUpdate<Unit> for QuantityInput {
-    fn pick_update(&mut self, input: Unit) {
-        self.input_unit = input;
+
+impl<'a, T> Input<'a, T, T> for PickInput<T>
+where
+    T: Display,
+{
+    fn new<F: Fn(T) -> Message + 'static>(id: &str, on_input: F) -> Self {
+        let on_input = Rc::new(on_input);
+        Self {
+            id: id.to_string(),
+            input: None,
+            on_input,
+        }
+    }
+
+    fn get_output(&self) -> Result<T, Error> {
+        todo!()
+    }
+
+    fn clear(&mut self) {
+        self.input = None;
+    }
+}
+
+impl<'a, T> InputPick<'a, T> for PickInput<T>
+where
+    T: Display,
+{
+    fn display(&self) -> iced::Element<'a, Message> {
+        todo!()
+    }
+    fn update(&mut self, input: Option<T>) {
+        self.input = input;
     }
 }

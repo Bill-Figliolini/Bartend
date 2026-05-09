@@ -15,7 +15,7 @@ use crate::{
         screen::Composition,
         widget::{
             self,
-            input::{Error, Input, StringInputUpdate, name_input::NameInput},
+            input::{Error, Input, InputString, name_input::NameInput},
             text_style,
         },
     },
@@ -130,11 +130,11 @@ impl Composition<Message> for Categories {
                 None
             }
             Message::NameUpdate(name) => {
-                self.input_name.string_update(name);
+                self.input_name.update(name);
                 None
             }
             Message::BeginEdit(category) => {
-                self.input_name.string_update(category.name);
+                self.input_name.update(category.name);
                 self.edit_state = EditState::Editing(category.id);
                 None
             }

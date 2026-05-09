@@ -23,19 +23,26 @@ pub enum Error {
     QuantityInvalid,
 }
 
-pub trait Input<'a, T> {
-    fn new<F: Fn(String) -> Message + 'static>(id: &str, on_input: F) -> Self;
-    fn display(&self) -> Element<'a, Message>;
-    fn get_output(&self) -> Result<T, Error>;
+pub trait Input<'a, InputType, OutputType>
+where
+    InputType: Display,
+{
+    fn new<F: Fn(InputType) -> Message + 'static>(id: &str, on_input: F) -> Self;
+    fn get_output(&self) -> Result<OutputType, Error>;
     fn clear(&mut self);
 }
 
-pub trait StringInputUpdate {
-    fn string_update(&mut self, input: String);
+pub trait InputString<'a> {
+    fn display(&self) -> Element<'a, Message>;
+    fn update(&mut self, input: String);
 }
 
-pub trait PickInputUpdate<T> {
-    fn pick_update(&mut self, input: T);
+pub trait InputPick<'a, T>
+where
+    T: Display,
+{
+    fn display(&self) -> Element<'a, Message>;
+    fn update(&mut self, input: Option<T>);
 }
 
 impl Display for Error {
@@ -46,4 +53,9 @@ impl Display for Error {
         };
         write!(f, "{text}")
     }
+}
+
+//Composition based approach. See notebook pages 61-62
+struct CompositionInput<InputType> {
+    input: InputType,
 }
