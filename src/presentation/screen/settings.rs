@@ -12,9 +12,9 @@ use crate::{
         quantity::UnitSystem,
     },
     presentation::{
+        Composition,
         application::{self, Command},
         constants,
-        screen::Composition,
         widget::{footer::footer, header::header, text_style::title},
     },
 };

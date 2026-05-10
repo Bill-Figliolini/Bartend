@@ -11,8 +11,7 @@ use crate::{
         config::Config,
     },
     presentation::{
-        application,
-        screen::Composition,
+        Composition, application,
         widget::{
             self,
             input::{Error, Input, InputString, name_input::NameInput},

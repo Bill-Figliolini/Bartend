@@ -8,8 +8,7 @@ use iced::{
 use crate::{
     logic::{category::Category, config::Config, quantity::UnitSystem},
     presentation::{
-        application,
-        screen::Composition,
+        Composition, application,
         widget::{
             header::header,
             input::{Error, Input, InputString, name_input::NameInput},

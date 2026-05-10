@@ -8,6 +8,7 @@ use iced::Element;
 use crate::{
     logic::{config::Config, item::Item},
     presentation::{
+        Composition,
         application::{Command, Message},
         screen::recipes::Recipes,
     },
@@ -60,10 +61,4 @@ impl Screen {
     pub fn recipes(config: &Config) -> Self {
         Screen::Recipes(Recipes::new(config))
     }
-}
-
-trait Composition<T: Clone> {
-    fn new(config: &Config) -> Self;
-    fn view(&self) -> Element<'_, Message>;
-    fn update(&mut self, message: T) -> Option<Command>;
 }
