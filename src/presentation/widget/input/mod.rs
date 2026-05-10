@@ -56,6 +56,7 @@ impl Display for Error {
 }
 
 //Composition based approach. See notebook pages 61-62
+// After more thought, probably a bad idea. Would not scale well with more functions, and would require more heap allocations.
 struct CompositionInput<InputType> {
     input: InputType,
 }
