@@ -12,7 +12,7 @@ use crate::{
         quantity::UnitSystem,
     },
     presentation::{
-        Composition,
+        Updateable, Viewable,
         application::{self, Command},
         constants,
         widget::{footer::footer, header::header, text_style::title},
@@ -31,11 +31,15 @@ pub enum Message {
     UpdateUnitSystem(UnitSystem),
     ResetConfig(Config),
 }
-impl Composition<Message> for Settings {
+
+impl Settings {
     fn new(current_config: &Config) -> Self {
         let config = current_config.editable();
         Self { config }
     }
+}
+
+impl Viewable<Message> for Settings {
     fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
 
@@ -77,7 +81,8 @@ impl Composition<Message> for Settings {
 
         column![header, body, footer].into()
     }
-
+}
+impl Updateable<Message> for Settings {
     fn update(&mut self, message: Message) -> Option<Command> {
         match message {
             Message::Save => Some(Command::UpdateConfig(self.config.commit())),

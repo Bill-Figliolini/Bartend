@@ -11,10 +11,10 @@ use crate::{
         config::Config,
     },
     presentation::{
-        Composition, application,
+        Updateable, Viewable, application,
         widget::{
             self,
-            input::{Error, Input, InputString, name_input::NameInput},
+            input::{Error, Input, InputString, string_input::NameInput},
             text_style,
         },
     },
@@ -43,6 +43,16 @@ enum EditState {
     None,
 }
 impl Categories {
+    pub fn new(_config: &Config) -> Self {
+        Self {
+            input_name: NameInput::new("name-input", |str: String| {
+                application::Message::Categories(Message::NameUpdate(str))
+            }),
+            edit_state: EditState::None,
+            errors: HashSet::new(),
+            contents: Vec::new(),
+        }
+    }
     fn save(&mut self, name: String) -> application::Command {
         match self.edit_state {
             EditState::Editing(id) => application::Command::UpdateCategory(Category { id, name }),
@@ -100,18 +110,7 @@ impl Categories {
     }
 }
 
-impl Composition<Message> for Categories {
-    fn new(_config: &Config) -> Self {
-        Self {
-            input_name: NameInput::new("name-input", |str: String| {
-                application::Message::Categories(Message::NameUpdate(str))
-            }),
-            edit_state: EditState::None,
-            errors: HashSet::new(),
-            contents: Vec::new(),
-        }
-    }
-
+impl Viewable<Message> for Categories {
     fn view(&self) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
@@ -119,7 +118,8 @@ impl Composition<Message> for Categories {
         let body = column![category_entry, categories];
         column![header, body].into()
     }
-
+}
+impl Updateable<Message> for Categories {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::CategoryListUpdate(list) => {

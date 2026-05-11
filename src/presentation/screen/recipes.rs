@@ -8,10 +8,10 @@ use iced::{
 use crate::{
     logic::{category::Category, config::Config, quantity::UnitSystem},
     presentation::{
-        Composition, application,
+        Updateable, Viewable, application,
         widget::{
             header::header,
-            input::{Error, Input, InputString, name_input::NameInput},
+            input::{Error, Input, InputString, string_input::NameInput},
             text_style::title,
         },
     },
@@ -33,6 +33,18 @@ struct IngredientRow {
     input_quantity: String,
 }
 impl Recipes {
+    fn new(config: &Config) -> Self {
+        let unit_system = config.default_units();
+        Self {
+            input_name: NameInput::new("name-input", |str: String| {
+                application::Message::Recipes(Message::NameUpdate(str))
+            }),
+            input_ingredients: Vec::new(),
+            unit_system,
+            errors: HashSet::new(),
+            categories: Vec::new(),
+        }
+    }
     fn build_input(&self) -> Element<'_, application::Message> {
         let name_input = self.input_name.display();
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
@@ -58,27 +70,15 @@ pub enum Message {
 
     InitializeCategoryList(Vec<Category>),
 }
-impl Composition<Message> for Recipes {
-    fn new(config: &Config) -> Self {
-        let unit_system = config.default_units();
-        Self {
-            input_name: NameInput::new("name-input", |str: String| {
-                application::Message::Recipes(Message::NameUpdate(str))
-            }),
-            input_ingredients: Vec::new(),
-            unit_system,
-            errors: HashSet::new(),
-            categories: Vec::new(),
-        }
-    }
-
+impl Viewable<Message> for Recipes {
     fn view(&self) -> Element<'_, application::Message> {
         let header = header(title("Recipes"));
         let input_row = self.build_input();
         let body = column![input_row];
         column![header, body].into()
     }
-
+}
+impl Updateable<Message> for Recipes {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::NameUpdate(new_name) => {

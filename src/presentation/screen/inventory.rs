@@ -17,11 +17,11 @@ use crate::{
         quantity::{Quantity, Unit, UnitSystem},
     },
     presentation::{
-        Composition, application, constants,
+        Composition, Updateable, Viewable, application, constants,
         widget::{
             footer::footer,
             header::header,
-            input::{Error, Input, InputString, name_input::NameInput, quantity_unload},
+            input::{Error, Input, InputString, quantity_unload, string_input::NameInput},
             text_style::title,
         },
     },
@@ -64,6 +64,32 @@ pub enum Message {
     CategoryListInitialization(Vec<Category>),
 }
 impl Inventory {
+    pub fn new(config: &Config) -> Self {
+        let unit_system = config.default_units();
+        let input_unit = match &unit_system {
+            UnitSystem::Metric => Unit::Milliliter,
+            UnitSystem::Imperial => Unit::FluidOunce,
+        };
+        Self {
+            // Input Handlers
+            input_name: NameInput::new("name-input", |str: String| {
+                application::Message::Inventory(Message::NameUpdate(str))
+            }),
+            input_quantity: String::new(),
+            input_unit,
+            input_category: None,
+
+            // Display Managers
+            contents: Vec::new(),
+            categories: Vec::new(),
+            item_category_mapping: HashMap::new(),
+            unit_system,
+
+            // Input State
+            edit_state: EditState::None,
+            errors: HashSet::new(),
+        }
+    }
     fn save(&mut self, name: String, quantity: Quantity) -> application::Command {
         let category_id = match take(&mut self.input_category) {
             Some(category) => Some(category.id),
@@ -205,34 +231,28 @@ impl Inventory {
     }
 }
 
-impl Composition<Message> for Inventory {
-    fn new(config: &Config) -> Self {
-        let unit_system = config.default_units();
-        let input_unit = match &unit_system {
-            UnitSystem::Metric => Unit::Milliliter,
-            UnitSystem::Imperial => Unit::FluidOunce,
-        };
-        Self {
-            // Input Handlers
-            input_name: NameInput::new("name-input", |str: String| {
-                application::Message::Inventory(Message::NameUpdate(str))
-            }),
-            input_quantity: String::new(),
-            input_unit,
-            input_category: None,
+impl Viewable<Message> for Inventory {
+    fn view(&self) -> Element<'_, application::Message> {
+        let title_text = title("Inventory");
+        let header = header(title_text);
 
-            // Display Managers
-            contents: Vec::new(),
-            categories: Vec::new(),
-            item_category_mapping: HashMap::new(),
-            unit_system,
+        let entry_section = self.build_item_entry_section();
 
-            // Input State
-            edit_state: EditState::None,
-            errors: HashSet::new(),
-        }
+        let inventory = self.build_inventory_display();
+
+        let body_contents = column![entry_section, inventory];
+        let body = container(body_contents).align_top(Fill);
+
+        let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
+            .on_press(application::Message::Inventory(Message::SwapUnits));
+        let footer_contents = row![unit_swap_button];
+        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
+        let footer = footer(footer_container);
+
+        column![header, body, footer].into()
     }
-
+}
+impl Updateable<Message> for Inventory {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::SwapUnits => {
@@ -310,25 +330,5 @@ impl Composition<Message> for Inventory {
                 None
             }
         }
-    }
-
-    fn view(&self) -> Element<'_, application::Message> {
-        let title_text = title("Inventory");
-        let header = header(title_text);
-
-        let entry_section = self.build_item_entry_section();
-
-        let inventory = self.build_inventory_display();
-
-        let body_contents = column![entry_section, inventory];
-        let body = container(body_contents).align_top(Fill);
-
-        let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
-            .on_press(application::Message::Inventory(Message::SwapUnits));
-        let footer_contents = row![unit_swap_button];
-        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
-        let footer = footer(footer_container);
-
-        column![header, body, footer].into()
     }
 }
