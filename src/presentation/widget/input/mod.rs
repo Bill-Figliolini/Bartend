@@ -22,17 +22,18 @@ pub fn quantity_unload(value: &String, unit: &Unit) -> Result<Quantity, Error> {
 pub enum Error {
     StringEmpty,
     QuantityInvalid,
+    MustChooseValue,
 }
 
-pub trait Input<InputType, OutputType, Message>: Viewable<Message>
+pub trait Input<InternalType, OutputType, Message>: Viewable<Message>
 where
-    InputType: Display + Clone,
+    InternalType: Clone,
     Message: Clone,
 {
-    fn new<F: Fn(Id, InputType) -> Message + 'static>(msg: F) -> Self;
-    fn update(&mut self, input: InputType);
+    fn update(&mut self, input: InternalType);
     fn get_output(&self) -> Result<OutputType, Error>;
     fn clear(&mut self) {}
+    fn id(&self) -> &Id;
 }
 
 impl Display for Error {
@@ -40,6 +41,7 @@ impl Display for Error {
         let text = match self {
             Self::StringEmpty => "String Must Not Be Empty".to_string(),
             Self::QuantityInvalid => "Quantity must be a non-zero positive number".to_string(),
+            Self::MustChooseValue => todo!(),
         };
         write!(f, "{text}")
     }

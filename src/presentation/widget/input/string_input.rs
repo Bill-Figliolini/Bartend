@@ -14,7 +14,15 @@ pub struct NumberInput {
     input_number: String,
     message: Rc<dyn Fn(Id, String) -> Message>,
 }
-
+impl NameInput {
+    pub fn new<F: Fn(Id, String) -> Message + 'static>(msg: F, initial_value: String) -> Self {
+        Self {
+            id: Id::unique(),
+            name: initial_value,
+            message: Rc::new(msg),
+        }
+    }
+}
 impl Viewable<Message> for NameInput {
     fn view(&self) -> iced::Element<'_, Message> {
         let message = self.message.clone();
@@ -26,14 +34,6 @@ impl Viewable<Message> for NameInput {
 }
 
 impl Input<String, String, Message> for NameInput {
-    fn new<F: Fn(Id, String) -> Message + 'static>(msg: F) -> Self {
-        Self {
-            id: Id::unique(),
-            name: String::new(),
-            message: Rc::new(msg),
-        }
-    }
-
     fn update(&mut self, input: String) {
         self.name = input;
     }
@@ -47,8 +47,19 @@ impl Input<String, String, Message> for NameInput {
     fn clear(&mut self) {
         self.name.clear();
     }
+    fn id(&self) -> &Id {
+        &self.id
+    }
 }
-
+impl NumberInput {
+    pub fn new<F: Fn(Id, String) -> Message + 'static>(msg: F, initial_value: String) -> Self {
+        Self {
+            id: Id::unique(),
+            input_number: initial_value,
+            message: Rc::new(msg),
+        }
+    }
+}
 impl Viewable<Message> for NumberInput {
     fn view(&self) -> iced::Element<'_, Message> {
         let message = self.message.clone();
@@ -59,13 +70,6 @@ impl Viewable<Message> for NumberInput {
     }
 }
 impl Input<String, f32, Message> for NumberInput {
-    fn new<F: Fn(Id, String) -> Message + 'static>(msg: F) -> Self {
-        Self {
-            id: Id::unique(),
-            input_number: String::new(),
-            message: Rc::new(msg),
-        }
-    }
     fn update(&mut self, input: String) {
         self.input_number = input;
     }
@@ -79,6 +83,9 @@ impl Input<String, f32, Message> for NumberInput {
 
     fn clear(&mut self) {
         self.input_number.clear();
+    }
+    fn id(&self) -> &Id {
+        &self.id
     }
 }
 

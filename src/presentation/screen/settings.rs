@@ -33,7 +33,7 @@ pub enum Message {
 }
 
 impl Settings {
-    fn new(current_config: &Config) -> Self {
+    pub fn new(current_config: &Config) -> Self {
         let config = current_config.editable();
         Self { config }
     }
