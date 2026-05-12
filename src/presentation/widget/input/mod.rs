@@ -1,12 +1,13 @@
-pub mod name_input;
-pub mod quantity_input;
+pub mod pick_input;
+pub mod string_input;
 use std::fmt::Display;
+
+use iced::widget::Id;
 
 use crate::{
     logic::quantity::{Quantity, Unit},
-    presentation::application::Message,
+    presentation::Viewable,
 };
-use iced::Element;
 
 pub fn quantity_unload(value: &String, unit: &Unit) -> Result<Quantity, Error> {
     let unvalidated_quantity = value.trim().parse::<f32>();
@@ -23,26 +24,15 @@ pub enum Error {
     QuantityInvalid,
 }
 
-pub trait Input<'a, InputType, OutputType>
+pub trait Input<InputType, OutputType, Message>: Viewable<Message>
 where
-    InputType: Display,
+    InputType: Display + Clone,
+    Message: Clone,
 {
-    fn new<F: Fn(InputType) -> Message + 'static>(id: &str, on_input: F) -> Self;
+    fn new<F: Fn(Id, InputType) -> Message + 'static>(msg: F) -> Self;
+    fn update(&mut self, input: InputType);
     fn get_output(&self) -> Result<OutputType, Error>;
-    fn clear(&mut self);
-}
-
-pub trait InputString<'a> {
-    fn display(&self) -> Element<'a, Message>;
-    fn update(&mut self, input: String);
-}
-
-pub trait InputPick<'a, T>
-where
-    T: Display,
-{
-    fn display(&self) -> Element<'a, Message>;
-    fn update(&mut self, input: Option<T>);
+    fn clear(&mut self) {}
 }
 
 impl Display for Error {
