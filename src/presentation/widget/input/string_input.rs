@@ -92,7 +92,17 @@ impl Input<String, f32, Message> for NumberInput {
 impl Debug for NameInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NameInput")
+            .field("id", &self.id)
             .field("name", &self.name)
+            .finish()
+    }
+}
+
+impl Debug for NumberInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NumberInput")
+            .field("id", &self.id)
+            .field("input_number", &self.input_number)
             .finish()
     }
 }

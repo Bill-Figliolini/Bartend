@@ -31,7 +31,12 @@ where
     Message: Clone,
 {
     fn update(&mut self, input: InternalType);
-    fn get_output(&self) -> Result<OutputType, Error>;
+    fn get_output(&self) -> Result<OutputType, Error> {
+        unreachable!()
+    }
+    fn get_optional_output(&self) -> Result<Option<OutputType>, Error> {
+        unreachable!()
+    }
     fn clear(&mut self) {}
     fn id(&self) -> &Id;
 }
@@ -40,8 +45,8 @@ impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
             Self::StringEmpty => "String Must Not Be Empty".to_string(),
-            Self::QuantityInvalid => "Quantity must be a non-zero positive number".to_string(),
-            Self::MustChooseValue => todo!(),
+            Self::QuantityInvalid => "Must be a non-zero positive number".to_string(),
+            Self::MustChooseValue => "A value must be selected".to_string(),
         };
         write!(f, "{text}")
     }
