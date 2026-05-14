@@ -142,11 +142,16 @@ where
 
 impl<T, Message> Input<T, T, Message> for OptionalPickInput<T, Message>
 where
-    T: Debug + Clone + Display,
+    T: Debug + Clone + Display + Eq,
     Message: Clone,
 {
     fn update(&mut self, input: T) {
-        self.inner.update(input);
+        let next = Some(input);
+        if self.inner.input == next {
+            self.inner.input = None;
+        } else {
+            self.inner.input = next
+        }
     }
 
     fn id(&self) -> &Id {

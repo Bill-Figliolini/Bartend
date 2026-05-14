@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use iced::{
     Element,
-    widget::{button, column, row, text},
+    widget::{Id, button, column, row, text},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
         Updateable, Viewable, application,
         widget::{
             header::header,
-            input::{Error, Input, InputString, string_input::NameInput},
+            input::{Error, Input, string_input::NameInput},
             text_style::title,
         },
     },
@@ -33,12 +33,13 @@ struct IngredientRow {
     input_quantity: String,
 }
 impl Recipes {
-    fn new(config: &Config) -> Self {
+    pub fn new(config: &Config) -> Self {
         let unit_system = config.default_units();
         Self {
-            input_name: NameInput::new("name-input", |str: String| {
-                application::Message::Recipes(Message::NameUpdate(str))
-            }),
+            input_name: NameInput::new(
+                |id, str: String| application::Message::Recipes(Message::NameUpdate(id, str)),
+                String::new(),
+            ),
             input_ingredients: Vec::new(),
             unit_system,
             errors: HashSet::new(),
@@ -46,7 +47,7 @@ impl Recipes {
         }
     }
     fn build_input(&self) -> Element<'_, application::Message> {
-        let name_input = self.input_name.display();
+        let name_input = self.input_name.view();
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
         let input_row = row![name_input, save_button];
 
@@ -65,12 +66,12 @@ impl Recipes {
 }
 #[derive(Debug, Clone)]
 pub enum Message {
-    NameUpdate(String),
+    NameUpdate(Id, String),
     Save,
 
     InitializeCategoryList(Vec<Category>),
 }
-impl Viewable<Message> for Recipes {
+impl Viewable<application::Message> for Recipes {
     fn view(&self) -> Element<'_, application::Message> {
         let header = header(title("Recipes"));
         let input_row = self.build_input();
@@ -81,20 +82,8 @@ impl Viewable<Message> for Recipes {
 impl Updateable<Message> for Recipes {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
-            Message::NameUpdate(new_name) => {
-                self.input_name.update(new_name);
-                None
-            }
-            Message::Save => match self.input_name.get_output() {
-                Ok(name) => {
-                    self.input_name.clear();
-                    Some(self.save(name))
-                }
-                Err(e) => {
-                    self.errors.insert(e);
-                    None
-                }
-            },
+            Message::NameUpdate(_id, _name) => None,
+            Message::Save => None,
             Message::InitializeCategoryList(categories) => {
                 self.categories = categories;
                 None

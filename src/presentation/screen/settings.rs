@@ -39,7 +39,7 @@ impl Settings {
     }
 }
 
-impl Viewable<Message> for Settings {
+impl Viewable<application::Message> for Settings {
     fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
 

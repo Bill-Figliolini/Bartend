@@ -6,13 +6,35 @@ pub mod settings;
 use iced::Element;
 
 use crate::{
-    logic::{config::Config, item::Item},
+    logic::{
+        category::Category,
+        config::{self, Config},
+        item::Item,
+        quantity::Unit,
+    },
     presentation::{
-        Composition,
+        Updateable, Viewable,
         application::{Command, Message},
         screen::recipes::Recipes,
+        widget::input::{
+            pick_input::{OptionalPickInput, RequiredPickInput},
+            string_input::{NameInput, NumberInput},
+        },
     },
 };
+#[derive(Debug)]
+struct ItemInput {
+    name_input: NameInput,
+    quantity_input: NumberInput,
+    unit_input: RequiredPickInput<Unit, Message>,
+    category_input: OptionalPickInput<Category, Message>,
+}
+#[derive(Debug)]
+struct IngredientInput {
+    category_input: RequiredPickInput<Category, Message>,
+    quantity_input: NumberInput,
+    unit_input: RequiredPickInput<Unit, Message>,
+}
 
 #[derive(Debug)]
 pub enum Screen {
@@ -21,7 +43,6 @@ pub enum Screen {
     Categories(categories::Categories),
     Recipes(recipes::Recipes),
 }
-
 impl Screen {
     pub fn start(config: &Config, items: Vec<Item>) -> Self {
         let mut inventory = inventory::Inventory::new(config);
@@ -60,5 +81,16 @@ impl Screen {
     }
     pub fn recipes(config: &Config) -> Self {
         Screen::Recipes(Recipes::new(config))
+    }
+}
+
+impl ItemInput {
+    pub fn new(config: &Config) -> Self {
+        todo!()
+    }
+}
+impl IngredientInput {
+    pub fn new(config: &Config) -> Self {
+        todo!()
     }
 }

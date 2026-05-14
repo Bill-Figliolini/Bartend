@@ -7,8 +7,8 @@ mod screen;
 mod widget;
 
 trait Viewable<MessageOut: Clone> {
-    fn view(&self) -> Element<'_, Message>;
+    fn view(&self) -> Element<'_, MessageOut>;
 }
 trait Updateable<MessageIn: Clone> {
-    fn update(&mut self, message: T) -> Option<Command>;
+    fn update(&mut self, message: MessageIn) -> Option<Command>;
 }

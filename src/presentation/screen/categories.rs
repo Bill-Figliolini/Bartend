@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use iced::{
     Element,
-    widget::{column, row, table, text},
+    widget::{Id, column, row, table, text},
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
         Updateable, Viewable, application,
         widget::{
             self,
-            input::{Error, Input, InputString, string_input::NameInput},
+            input::{Error, Input, InputContents, string_input::NameInput},
             text_style,
         },
     },
@@ -33,7 +33,7 @@ pub struct Categories {
 #[derive(Debug, Clone)]
 pub enum Message {
     CategoryListUpdate(Vec<Category>),
-    NameUpdate(String),
+    InputUpdate(Id, String),
     BeginEdit(Category),
     Save,
 }
@@ -45,9 +45,10 @@ enum EditState {
 impl Categories {
     pub fn new(_config: &Config) -> Self {
         Self {
-            input_name: NameInput::new("name-input", |str: String| {
-                application::Message::Categories(Message::NameUpdate(str))
-            }),
+            input_name: NameInput::new(
+                |id, str: String| application::Message::Categories(Message::InputUpdate(id, str)),
+                String::new(),
+            ),
             edit_state: EditState::None,
             errors: HashSet::new(),
             contents: Vec::new(),
@@ -64,7 +65,7 @@ impl Categories {
             EditState::None => iced::widget::text("New Category:"),
             EditState::Editing(_) => iced::widget::text("Edit Category:"),
         };
-        let name_input = self.input_name.display();
+        let name_input = self.input_name.view();
         let confirm_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));
         let entry_row = row![name_input, confirm_button];
@@ -110,7 +111,7 @@ impl Categories {
     }
 }
 
-impl Viewable<Message> for Categories {
+impl Viewable<application::Message> for Categories {
     fn view(&self) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
@@ -128,8 +129,10 @@ impl Updateable<Message> for Categories {
                 self.input_name.clear();
                 None
             }
-            Message::NameUpdate(name) => {
-                self.input_name.update(name);
+            Message::InputUpdate(id, name) => {
+                if *self.input_name.id() == id {
+                    self.input_name.update(name);
+                }
                 None
             }
             Message::BeginEdit(category) => {
