@@ -4,19 +4,7 @@ use std::fmt::Display;
 
 use iced::widget::Id;
 
-use crate::{
-    logic::quantity::{Quantity, Unit},
-    presentation::Viewable,
-};
-
-pub fn quantity_unload(value: &String, unit: &Unit) -> Result<Quantity, Error> {
-    let unvalidated_quantity = value.trim().parse::<f32>();
-    let quantity = match unvalidated_quantity {
-        Ok(quantity) if quantity > 0.0 => quantity,
-        _ => return Err(Error::QuantityInvalid),
-    };
-    Ok(Quantity::new(quantity, *unit))
-}
+use crate::presentation::Viewable;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum Error {
@@ -25,7 +13,7 @@ pub enum Error {
     MustChooseValue,
 }
 
-pub trait Input<InternalType, OutputType, Message>: Viewable<Message>
+pub trait Input<InternalType, Message>: Viewable<Message>
 where
     InternalType: Clone,
     Message: Clone,

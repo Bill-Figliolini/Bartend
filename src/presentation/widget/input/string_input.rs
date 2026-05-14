@@ -1,118 +1,134 @@
-use std::{fmt::Debug, rc::Rc};
+use std::fmt::Debug;
 
 use iced::widget::{Id, text_input};
 
 use super::Error;
 use crate::presentation::{
     Viewable,
-    application::Message,
     widget::input::{Input, InputContents},
 };
-pub struct StringInput {
+struct TextInput<Message>
+where
+    Message: Clone,
+{
     id: Id,
-    name: String,
-    message: Rc<dyn Fn(Id, String) -> Message>,
+    text: String,
+    placeholder: String,
+    message: fn(Id, String) -> Message,
 }
-pub struct NumberInput {
-    id: Id,
-    input_number: String,
-    message: Rc<dyn Fn(Id, String) -> Message>,
+#[derive(Debug)]
+pub struct StringInput<Message>
+where
+    Message: Clone,
+{
+    inner: TextInput<Message>,
 }
-impl StringInput {
-    pub fn new<F: Fn(Id, String) -> Message + 'static>(msg: F, initial_value: String) -> Self {
+#[derive(Debug)]
+pub struct NumberInput<Message>
+where
+    Message: Clone,
+{
+    inner: TextInput<Message>,
+}
+impl<Message> TextInput<Message>
+where
+    Message: Clone,
+{
+    pub fn new(msg: fn(Id, String) -> Message, placeholder: String, initial_value: String) -> Self {
         Self {
             id: Id::unique(),
-            name: initial_value,
-            message: Rc::new(msg),
+            text: initial_value,
+            message: msg,
+            placeholder,
         }
     }
 }
-impl Viewable<Message> for StringInput {
+impl<Message> Viewable<Message> for TextInput<Message>
+where
+    Message: Clone,
+{
     fn view(&self) -> iced::Element<'_, Message> {
         let message = self.message.clone();
-        text_input("Quantity", &self.name)
+        text_input(&self.placeholder, &self.text)
             .id(self.id.clone())
-            .on_input(move |str: String| message(self.id.clone(), str))
+            .on_input(move |str: String| message(self.id().clone(), str))
             .into()
     }
 }
 
-impl Input<String, String, Message> for StringInput {
+impl<Message> Input<String, Message> for TextInput<Message>
+where
+    Message: Clone,
+{
     fn update(&mut self, input: String) {
-        self.name = input;
+        self.text = input;
     }
 
     fn clear(&mut self) {
-        self.name.clear();
+        self.text.clear();
     }
     fn id(&self) -> &Id {
         &self.id
     }
 }
-impl InputContents<String> for StringInput {
+impl<Message> InputContents<String> for StringInput<Message>
+where
+    Message: Clone,
+{
     fn get_output(&self) -> Result<String, Error> {
-        if self.name.is_empty() {
+        if self.inner.text.is_empty() {
             Err(Error::StringEmpty)
         } else {
-            Ok(self.name.clone())
+            Ok(self.inner.text.clone())
         }
     }
 }
-impl NumberInput {
-    pub fn new<F: Fn(Id, String) -> Message + 'static>(msg: F, initial_value: String) -> Self {
-        Self {
-            id: Id::unique(),
-            input_number: initial_value,
-            message: Rc::new(msg),
-        }
-    }
-}
-impl Viewable<Message> for NumberInput {
-    fn view(&self) -> iced::Element<'_, Message> {
-        let message = self.message.clone();
-        text_input("Quantity", &self.input_number)
-            .id(self.id.clone())
-            .on_input(move |str: String| message(self.id.clone(), str))
-            .into()
-    }
-}
-impl Input<String, f32, Message> for NumberInput {
-    fn update(&mut self, input: String) {
-        self.input_number = input;
-    }
 
-    fn clear(&mut self) {
-        self.input_number.clear();
-    }
-    fn id(&self) -> &Id {
-        &self.id
-    }
-}
-
-impl InputContents<f32> for NumberInput {
+impl<Message> InputContents<f32> for NumberInput<Message>
+where
+    Message: Clone,
+{
     fn get_output(&self) -> Result<f32, Error> {
-        let unvalidated_quantity = self.input_number.trim().parse::<f32>();
+        let unvalidated_quantity = self.inner.text.trim().parse::<f32>();
         match unvalidated_quantity {
             Ok(quantity) => Ok(quantity),
             _ => return Err(Error::QuantityInvalid),
         }
     }
 }
+impl<Message> Viewable<Message> for NumberInput<Message>
+where
+    Message: Clone,
+{
+    fn view(&self) -> iced::Element<'_, Message> {
+        self.inner.view()
+    }
+}
+impl<Message> Input<String, Message> for NumberInput<Message>
+where
+    Message: Clone,
+{
+    fn update(&mut self, input: String) {
+        self.inner.update(input);
+    }
 
-impl Debug for StringInput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NameInput")
-            .field("id", &self.id)
-            .field("name", &self.name)
-            .finish()
+    fn clear(&mut self) {
+        self.inner.clear();
+    }
+    fn id(&self) -> &Id {
+        self.inner.id()
     }
 }
 
-impl Debug for NumberInput {
+impl<Message> Debug for TextInput<Message>
+where
+    Message: Clone,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NumberInput")
+        f.debug_struct("NameInput")
             .field("id", &self.id)
-            .field("input_number", &self.input_number)
+            .field("placeholder", &self.placeholder)
+            .field("text", &self.text)
             .finish()
     }
 }

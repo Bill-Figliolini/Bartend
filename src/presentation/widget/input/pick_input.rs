@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Debug, Display},
-    rc::Rc,
-};
+use std::fmt::{Debug, Display};
 
 use iced::widget::Id;
 
@@ -20,7 +17,7 @@ where
     id: Id,
     input: Option<T>,
     options: Vec<T>,
-    message: Rc<dyn Fn(Id, Option<T>) -> Message>,
+    message: fn(Id, Option<T>) -> Message,
 }
 #[derive(Debug)]
 pub struct RequiredPickInput<T, Message>
@@ -45,8 +42,8 @@ where
     T: Debug + Clone + Display,
     Message: Clone,
 {
-    pub fn new<F: Fn(Id, Option<T>) -> Message + 'static>(
-        msg: F,
+    pub fn new(
+        msg: fn(Id, Option<T>) -> Message,
         initial_value: Option<T>,
         options: Vec<T>,
     ) -> Self {
@@ -54,7 +51,7 @@ where
             id: Id::unique(),
             input: initial_value,
             options,
-            message: Rc::new(msg),
+            message: msg,
         }
     }
 }
@@ -69,7 +66,7 @@ where
     }
 }
 
-impl<T, Message> Input<T, T, Message> for PickInput<T, Message>
+impl<T, Message> Input<T, Message> for PickInput<T, Message>
 where
     T: Debug + Clone + Display,
     Message: Clone,
@@ -114,7 +111,7 @@ where
         self.inner.view()
     }
 }
-impl<T, Message> Input<T, T, Message> for RequiredPickInput<T, Message>
+impl<T, Message> Input<T, Message> for RequiredPickInput<T, Message>
 where
     T: Debug + Clone + Display,
     Message: Clone,
@@ -140,7 +137,7 @@ where
     }
 }
 
-impl<T, Message> Input<T, T, Message> for OptionalPickInput<T, Message>
+impl<T, Message> Input<T, Message> for OptionalPickInput<T, Message>
 where
     T: Debug + Clone + Display + Eq,
     Message: Clone,
