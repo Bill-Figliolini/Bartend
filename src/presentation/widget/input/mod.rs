@@ -31,14 +31,15 @@ where
     Message: Clone,
 {
     fn update(&mut self, input: InternalType);
-    fn get_output(&self) -> Result<OutputType, Error> {
-        unreachable!()
-    }
-    fn get_optional_output(&self) -> Result<Option<OutputType>, Error> {
-        unreachable!()
-    }
     fn clear(&mut self) {}
     fn id(&self) -> &Id;
+}
+pub trait InputContents<T> {
+    fn get_output(&self) -> Result<T, Error>;
+}
+
+pub trait InputOptionalContents<T> {
+    fn get_output(&self) -> Result<Option<T>, Error>;
 }
 
 impl Display for Error {

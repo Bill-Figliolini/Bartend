@@ -5,23 +5,45 @@ use std::{
 
 use iced::widget::Id;
 
-use crate::presentation::{Viewable, application::Message, widget::input::Input};
+use crate::presentation::{
+    Viewable,
+    widget::input::{Input, InputContents, InputOptionalContents},
+};
 
 use super::Error;
 
-pub struct PickInput<T>
+struct PickInput<T, Message>
 where
     T: Debug + Clone + Display,
+    Message: Clone,
 {
     id: Id,
     input: Option<T>,
     options: Vec<T>,
     message: Rc<dyn Fn(Id, Option<T>) -> Message>,
 }
-
-impl<T> PickInput<T>
+#[derive(Debug)]
+pub struct RequiredPickInput<T, Message>
 where
     T: Debug + Clone + Display,
+    Message: Clone,
+{
+    inner: PickInput<T, Message>,
+}
+
+#[derive(Debug)]
+pub struct OptionalPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    inner: PickInput<T, Message>,
+}
+
+impl<T, Message> PickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
 {
     pub fn new<F: Fn(Id, Option<T>) -> Message + 'static>(
         msg: F,
@@ -37,39 +59,33 @@ where
     }
 }
 
-impl<T> Viewable<Message> for PickInput<T>
+impl<T, Message> Viewable<Message> for PickInput<T, Message>
 where
     T: Debug + Clone + Display,
+    Message: Clone,
 {
     fn view(&self) -> iced::Element<'_, Message> {
         todo!()
     }
 }
 
-impl<T> Input<T, T, Message> for PickInput<T>
+impl<T, Message> Input<T, T, Message> for PickInput<T, Message>
 where
     T: Debug + Clone + Display,
+    Message: Clone,
 {
     fn update(&mut self, input: T) {
         self.input = Some(input);
-    }
-    fn get_output(&self) -> Result<T, Error> {
-        match self.input {
-            Some(ref value) => Ok(value.clone()),
-            None => Err(Error::MustChooseValue),
-        }
-    }
-    fn get_optional_output(&self) -> Result<Option<T>, Error> {
-        return Ok(self.input.clone());
     }
     fn id(&self) -> &Id {
         &self.id
     }
 }
 
-impl<T> Debug for PickInput<T>
+impl<T, Message> Debug for PickInput<T, Message>
 where
     T: Debug + Clone + Display,
+    Message: Clone,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PickInput")
@@ -77,5 +93,72 @@ where
             .field("input", &self.input)
             .field("options", &self.options)
             .finish()
+    }
+}
+
+impl<T, Message> Viewable<Message> for RequiredPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    fn view(&self) -> iced::Element<'_, Message> {
+        self.inner.view()
+    }
+}
+impl<T, Message> Viewable<Message> for OptionalPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    fn view(&self) -> iced::Element<'_, Message> {
+        self.inner.view()
+    }
+}
+impl<T, Message> Input<T, T, Message> for RequiredPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    fn update(&mut self, input: T) {
+        self.inner.update(input);
+    }
+
+    fn id(&self) -> &Id {
+        self.inner.id()
+    }
+}
+impl<T, Message> InputContents<T> for RequiredPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    fn get_output(&self) -> Result<T, Error> {
+        match self.inner.input {
+            Some(ref value) => Ok(value.clone()),
+            None => Err(Error::MustChooseValue),
+        }
+    }
+}
+
+impl<T, Message> Input<T, T, Message> for OptionalPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    fn update(&mut self, input: T) {
+        self.inner.update(input);
+    }
+
+    fn id(&self) -> &Id {
+        self.inner.id()
+    }
+}
+impl<T, Message> InputOptionalContents<T> for OptionalPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    fn get_output(&self) -> Result<Option<T>, Error> {
+        Ok(self.inner.input.clone())
     }
 }

@@ -3,7 +3,11 @@ use std::{fmt::Debug, rc::Rc};
 use iced::widget::{Id, text_input};
 
 use super::Error;
-use crate::presentation::{Viewable, application::Message, widget::input::Input};
+use crate::presentation::{
+    Viewable,
+    application::Message,
+    widget::input::{Input, InputContents},
+};
 pub struct NameInput {
     id: Id,
     name: String,
@@ -37,18 +41,21 @@ impl Input<String, String, Message> for NameInput {
     fn update(&mut self, input: String) {
         self.name = input;
     }
+
+    fn clear(&mut self) {
+        self.name.clear();
+    }
+    fn id(&self) -> &Id {
+        &self.id
+    }
+}
+impl InputContents<String> for NameInput {
     fn get_output(&self) -> Result<String, Error> {
         if self.name.is_empty() {
             Err(Error::StringEmpty)
         } else {
             Ok(self.name.clone())
         }
-    }
-    fn clear(&mut self) {
-        self.name.clear();
-    }
-    fn id(&self) -> &Id {
-        &self.id
     }
 }
 impl NumberInput {
@@ -73,19 +80,22 @@ impl Input<String, f32, Message> for NumberInput {
     fn update(&mut self, input: String) {
         self.input_number = input;
     }
-    fn get_output(&self) -> Result<f32, Error> {
-        let unvalidated_quantity = self.input_number.trim().parse::<f32>();
-        match unvalidated_quantity {
-            Ok(quantity) => Ok(quantity),
-            _ => return Err(Error::QuantityInvalid),
-        }
-    }
 
     fn clear(&mut self) {
         self.input_number.clear();
     }
     fn id(&self) -> &Id {
         &self.id
+    }
+}
+
+impl InputContents<f32> for NumberInput {
+    fn get_output(&self) -> Result<f32, Error> {
+        let unvalidated_quantity = self.input_number.trim().parse::<f32>();
+        match unvalidated_quantity {
+            Ok(quantity) => Ok(quantity),
+            _ => return Err(Error::QuantityInvalid),
+        }
     }
 }
 
