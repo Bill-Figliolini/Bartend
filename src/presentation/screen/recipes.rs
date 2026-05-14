@@ -11,7 +11,7 @@ use crate::{
         Updateable, Viewable, application,
         widget::{
             header::header,
-            input::{Error, Input, string_input::NameInput},
+            input::{Error, Input, string_input::StringInput},
             text_style::title,
         },
     },
@@ -19,7 +19,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Recipes {
-    input_name: NameInput,
+    input_name: StringInput,
     input_ingredients: Vec<IngredientRow>,
     unit_system: UnitSystem,
 
@@ -36,7 +36,7 @@ impl Recipes {
     pub fn new(config: &Config) -> Self {
         let unit_system = config.default_units();
         Self {
-            input_name: NameInput::new(
+            input_name: StringInput::new(
                 |id, str: String| application::Message::Recipes(Message::NameUpdate(id, str)),
                 String::new(),
             ),

@@ -18,13 +18,13 @@ use crate::{
         screen::recipes::Recipes,
         widget::input::{
             pick_input::{OptionalPickInput, RequiredPickInput},
-            string_input::{NameInput, NumberInput},
+            string_input::{StringInput, NumberInput},
         },
     },
 };
 #[derive(Debug)]
 struct ItemInput {
-    name_input: NameInput,
+    name_input: StringInput,
     quantity_input: NumberInput,
     unit_input: RequiredPickInput<Unit, Message>,
     category_input: OptionalPickInput<Category, Message>,
@@ -35,6 +35,8 @@ struct IngredientInput {
     quantity_input: NumberInput,
     unit_input: RequiredPickInput<Unit, Message>,
 }
+#[derive(Debug)]
+struct
 
 #[derive(Debug)]
 pub enum Screen {

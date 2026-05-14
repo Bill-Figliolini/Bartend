@@ -8,7 +8,7 @@ use crate::presentation::{
     application::Message,
     widget::input::{Input, InputContents},
 };
-pub struct NameInput {
+pub struct StringInput {
     id: Id,
     name: String,
     message: Rc<dyn Fn(Id, String) -> Message>,
@@ -18,7 +18,7 @@ pub struct NumberInput {
     input_number: String,
     message: Rc<dyn Fn(Id, String) -> Message>,
 }
-impl NameInput {
+impl StringInput {
     pub fn new<F: Fn(Id, String) -> Message + 'static>(msg: F, initial_value: String) -> Self {
         Self {
             id: Id::unique(),
@@ -27,7 +27,7 @@ impl NameInput {
         }
     }
 }
-impl Viewable<Message> for NameInput {
+impl Viewable<Message> for StringInput {
     fn view(&self) -> iced::Element<'_, Message> {
         let message = self.message.clone();
         text_input("Quantity", &self.name)
@@ -37,7 +37,7 @@ impl Viewable<Message> for NameInput {
     }
 }
 
-impl Input<String, String, Message> for NameInput {
+impl Input<String, String, Message> for StringInput {
     fn update(&mut self, input: String) {
         self.name = input;
     }
@@ -49,7 +49,7 @@ impl Input<String, String, Message> for NameInput {
         &self.id
     }
 }
-impl InputContents<String> for NameInput {
+impl InputContents<String> for StringInput {
     fn get_output(&self) -> Result<String, Error> {
         if self.name.is_empty() {
             Err(Error::StringEmpty)
@@ -99,7 +99,7 @@ impl InputContents<f32> for NumberInput {
     }
 }
 
-impl Debug for NameInput {
+impl Debug for StringInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NameInput")
             .field("id", &self.id)

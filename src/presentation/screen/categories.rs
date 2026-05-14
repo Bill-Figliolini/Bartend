@@ -14,7 +14,7 @@ use crate::{
         Updateable, Viewable, application,
         widget::{
             self,
-            input::{Error, Input, InputContents, string_input::NameInput},
+            input::{Error, Input, InputContents, string_input::StringInput},
             text_style,
         },
     },
@@ -22,7 +22,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Categories {
-    input_name: NameInput,
+    input_name: StringInput,
 
     edit_state: EditState,
     errors: HashSet<Error>,
@@ -45,7 +45,7 @@ enum EditState {
 impl Categories {
     pub fn new(_config: &Config) -> Self {
         Self {
-            input_name: NameInput::new(
+            input_name: StringInput::new(
                 |id, str: String| application::Message::Categories(Message::InputUpdate(id, str)),
                 String::new(),
             ),
