@@ -1,9 +1,9 @@
-use std::{collections::HashMap, mem::take};
+use std::collections::HashMap;
 
 use iced::{
     Element,
     Length::Fill,
-    widget::{Id, column, container, row, rule, table, text},
+    widget::{Id, column, container, row, table, text},
 };
 
 use crate::{
@@ -14,14 +14,9 @@ use crate::{
         quantity::{Quantity, Unit, UnitSystem},
     },
     presentation::{
-        Updateable, Viewable, application, constants,
-        screen::ItemInput,
-        widget::{
-            footer::footer,
-            header::header,
-            input::{Input, quantity_unload},
-            text_style::title,
-        },
+        Updateable, Viewable, application,
+        input_handling::{InputCollection, InputMessage, ItemInput},
+        widget::{footer::footer, header::header, text_style::title},
     },
 };
 
@@ -47,25 +42,23 @@ pub enum Message {
     Save,
     SwapUnits,
     BeginEdit(Item, Option<Category>),
-    StringUpdate(Id, String),
-    UnitUpdate(Id, Unit),
-    CategoryUpdate(Id, Option<Category>),
+    Input(InputMessage),
 
     //Variants for Application's use
     InventoryUpdate(Vec<Item>),
     CategoryMappingUpdate(HashMap<ItemID, CategoryID>),
     CategoryListInitialization(Vec<Category>),
 }
+
+pub struct PreCommitItem {}
+
 impl Inventory {
     pub fn new(config: &Config) -> Self {
         let unit_system = config.default_units();
-        let input_unit = match &unit_system {
-            UnitSystem::Metric => Unit::Milliliter,
-            UnitSystem::Imperial => Unit::FluidOunce,
-        };
+
         Self {
             // Input Handlers
-            input: ItemInput::new(config),
+            input: ItemInput::new(config, input_msg),
 
             // Display Managers
             contents: Vec::new(),
@@ -193,9 +186,7 @@ impl Updateable<Message> for Inventory {
                 self.unit_system.swap();
                 None
             }
-            Message::StringUpdate(id, new) => None,
-            Message::UnitUpdate(id, new) => None,
-            Message::CategoryUpdate(id, new) => None,
+            Message::Input(msg) => None,
             Message::BeginEdit(item, category_id) => None,
             Message::Save => None,
             Message::InventoryUpdate(items) => {
@@ -213,4 +204,7 @@ impl Updateable<Message> for Inventory {
             }
         }
     }
+}
+fn input_msg(msg: InputMessage) -> application::Message {
+    application::Message::Inventory(Message::Input(msg))
 }

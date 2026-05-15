@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    rc::Rc,
+};
 
 use iced::widget::Id;
 
@@ -17,7 +20,7 @@ where
     id: Id,
     input: Option<T>,
     options: Vec<T>,
-    message: fn(Id, Option<T>) -> Message,
+    message: Rc<dyn Fn(Id, Option<T>) -> Message>,
 }
 #[derive(Debug)]
 pub struct RequiredPickInput<T, Message>
@@ -37,13 +40,34 @@ where
     inner: PickInput<T, Message>,
 }
 
+impl<T, Message> RequiredPickInput<T, Message>
+where
+    T: Debug + Clone + Display,
+    Message: Clone,
+{
+    pub fn new<F: Fn(Id, Option<T>) -> Message + 'static>(
+        msg: F,
+        options: Vec<T>,
+        initial_value: Option<T>,
+    ) -> Self {
+        Self {
+            inner: PickInput {
+                id: Id::unique(),
+                message: Rc::new(msg),
+                input: initial_value,
+                options,
+            },
+        }
+    }
+}
+
 impl<T, Message> PickInput<T, Message>
 where
     T: Debug + Clone + Display,
     Message: Clone,
 {
-    pub fn new(
-        msg: fn(Id, Option<T>) -> Message,
+    pub fn new<F: Fn(Id, Option<T>) -> Message + 'static>(
+        msg: F,
         initial_value: Option<T>,
         options: Vec<T>,
     ) -> Self {
@@ -51,7 +75,7 @@ where
             id: Id::unique(),
             input: initial_value,
             options,
-            message: msg,
+            message: Rc::new(msg),
         }
     }
 }
@@ -71,8 +95,8 @@ where
     T: Debug + Clone + Display,
     Message: Clone,
 {
-    fn update(&mut self, input: T) {
-        self.input = Some(input);
+    fn update(&mut self, _input: T) {
+        unreachable!()
     }
     fn id(&self) -> &Id {
         &self.id
@@ -117,7 +141,7 @@ where
     Message: Clone,
 {
     fn update(&mut self, input: T) {
-        self.inner.update(input);
+        self.inner.input = Some(input);
     }
 
     fn id(&self) -> &Id {

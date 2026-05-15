@@ -12,6 +12,7 @@ use crate::{
     },
     presentation::{
         Updateable, Viewable, application,
+        input_handling::{CategoryInput, InputCollection, InputMessage},
         widget::{
             self,
             input::{Error, Input, InputContents, string_input::StringInput},
@@ -22,7 +23,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Categories {
-    input_name: StringInput,
+    input: CategoryInput,
 
     edit_state: EditState,
     errors: HashSet<Error>,
@@ -33,7 +34,7 @@ pub struct Categories {
 #[derive(Debug, Clone)]
 pub enum Message {
     CategoryListUpdate(Vec<Category>),
-    InputUpdate(Id, String),
+    Input(InputMessage),
     BeginEdit(Category),
     Save,
 }
@@ -43,12 +44,9 @@ enum EditState {
     None,
 }
 impl Categories {
-    pub fn new(_config: &Config) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
-            input_name: StringInput::new(
-                |id, str: String| application::Message::Categories(Message::InputUpdate(id, str)),
-                String::new(),
-            ),
+            input: CategoryInput::new(config, input_msg),
             edit_state: EditState::None,
             errors: HashSet::new(),
             contents: Vec::new(),
@@ -65,10 +63,10 @@ impl Categories {
             EditState::None => iced::widget::text("New Category:"),
             EditState::Editing(_) => iced::widget::text("Edit Category:"),
         };
-        let name_input = self.input_name.view();
+        let input = self.input.view();
         let confirm_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));
-        let entry_row = row![name_input, confirm_button];
+        let entry_row = row![input, confirm_button];
         let error_row = row(self
             .errors
             .iter()
@@ -123,33 +121,16 @@ impl Viewable<application::Message> for Categories {
 impl Updateable<Message> for Categories {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
-            Message::CategoryListUpdate(list) => {
-                self.contents = list;
-                self.edit_state = EditState::None;
-                self.input_name.clear();
-                None
-            }
-            Message::InputUpdate(id, name) => {
-                if *self.input_name.id() == id {
-                    self.input_name.update(name);
-                }
-                None
-            }
+            Message::CategoryListUpdate(list) => None,
+            Message::Input(msg) => None,
             Message::BeginEdit(category) => {
-                self.input_name.update(category.name);
                 self.edit_state = EditState::Editing(category.id);
                 None
             }
-            Message::Save => match self.input_name.get_output() {
-                Ok(name) => {
-                    self.input_name.clear();
-                    Some(self.save(name))
-                }
-                Err(e) => {
-                    self.errors.insert(e);
-                    None
-                }
-            },
+            Message::Save => None,
         }
     }
+}
+fn input_msg(msg: InputMessage) -> application::Message {
+    application::Message::Categories(Message::Input(msg))
 }

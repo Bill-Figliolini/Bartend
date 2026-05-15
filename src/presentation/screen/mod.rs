@@ -6,37 +6,13 @@ pub mod settings;
 use iced::Element;
 
 use crate::{
-    logic::{
-        category::Category,
-        config::{self, Config},
-        item::Item,
-        quantity::Unit,
-    },
+    logic::{config::Config, item::Item},
     presentation::{
         Updateable, Viewable,
         application::{Command, Message},
         screen::recipes::Recipes,
-        widget::input::{
-            pick_input::{OptionalPickInput, RequiredPickInput},
-            string_input::{StringInput, NumberInput},
-        },
     },
 };
-#[derive(Debug)]
-struct ItemInput {
-    name_input: StringInput,
-    quantity_input: NumberInput,
-    unit_input: RequiredPickInput<Unit, Message>,
-    category_input: OptionalPickInput<Category, Message>,
-}
-#[derive(Debug)]
-struct IngredientInput {
-    category_input: RequiredPickInput<Category, Message>,
-    quantity_input: NumberInput,
-    unit_input: RequiredPickInput<Unit, Message>,
-}
-#[derive(Debug)]
-struct
 
 #[derive(Debug)]
 pub enum Screen {
@@ -83,16 +59,5 @@ impl Screen {
     }
     pub fn recipes(config: &Config) -> Self {
         Screen::Recipes(Recipes::new(config))
-    }
-}
-
-impl ItemInput {
-    pub fn new(config: &Config) -> Self {
-        todo!()
-    }
-}
-impl IngredientInput {
-    pub fn new(config: &Config) -> Self {
-        todo!()
     }
 }

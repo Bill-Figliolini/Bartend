@@ -2,25 +2,21 @@ use std::collections::HashSet;
 
 use iced::{
     Element,
-    widget::{Id, button, column, row, text},
+    widget::{button, column, row, text},
 };
 
 use crate::{
     logic::{category::Category, config::Config, quantity::UnitSystem},
     presentation::{
         Updateable, Viewable, application,
-        widget::{
-            header::header,
-            input::{Error, Input, string_input::StringInput},
-            text_style::title,
-        },
+        input_handling::{InputCollection, InputMessage, RecipeInput},
+        widget::{header::header, input::Error, text_style::title},
     },
 };
 
 #[derive(Debug)]
 pub struct Recipes {
-    input_name: StringInput,
-    input_ingredients: Vec<IngredientRow>,
+    input: RecipeInput,
     unit_system: UnitSystem,
 
     errors: HashSet<Error>,
@@ -36,18 +32,14 @@ impl Recipes {
     pub fn new(config: &Config) -> Self {
         let unit_system = config.default_units();
         Self {
-            input_name: StringInput::new(
-                |id, str: String| application::Message::Recipes(Message::NameUpdate(id, str)),
-                String::new(),
-            ),
-            input_ingredients: Vec::new(),
+            input: RecipeInput::new(config, input_msg),
             unit_system,
             errors: HashSet::new(),
             categories: Vec::new(),
         }
     }
     fn build_input(&self) -> Element<'_, application::Message> {
-        let name_input = self.input_name.view();
+        let name_input = self.input.view();
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
         let input_row = row![name_input, save_button];
 
@@ -66,7 +58,7 @@ impl Recipes {
 }
 #[derive(Debug, Clone)]
 pub enum Message {
-    NameUpdate(Id, String),
+    Input(InputMessage),
     Save,
 
     InitializeCategoryList(Vec<Category>),
@@ -82,7 +74,7 @@ impl Viewable<application::Message> for Recipes {
 impl Updateable<Message> for Recipes {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
-            Message::NameUpdate(_id, _name) => None,
+            Message::Input(msg) => None,
             Message::Save => None,
             Message::InitializeCategoryList(categories) => {
                 self.categories = categories;
@@ -90,4 +82,7 @@ impl Updateable<Message> for Recipes {
             }
         }
     }
+}
+fn input_msg(msg: InputMessage) -> application::Message {
+    application::Message::Recipes(Message::Input(msg))
 }

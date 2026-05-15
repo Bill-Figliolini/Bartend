@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, rc::Rc};
 
 use iced::widget::{Id, text_input};
 
@@ -14,7 +14,7 @@ where
     id: Id,
     text: String,
     placeholder: String,
-    message: fn(Id, String) -> Message,
+    message: Rc<dyn Fn(Id, String) -> Message>,
 }
 #[derive(Debug)]
 pub struct StringInput<Message>
@@ -30,16 +30,41 @@ where
 {
     inner: TextInput<Message>,
 }
-impl<Message> TextInput<Message>
+impl<Message> StringInput<Message>
 where
     Message: Clone,
 {
-    pub fn new(msg: fn(Id, String) -> Message, placeholder: String, initial_value: String) -> Self {
+    pub fn new<F: Fn(Id, String) -> Message + 'static>(
+        msg: F,
+        placeholder: String,
+        initial_value: String,
+    ) -> Self {
         Self {
-            id: Id::unique(),
-            text: initial_value,
-            message: msg,
-            placeholder,
+            inner: TextInput {
+                id: Id::unique(),
+                text: initial_value,
+                message: Rc::new(msg),
+                placeholder,
+            },
+        }
+    }
+}
+impl<Message> NumberInput<Message>
+where
+    Message: Clone,
+{
+    pub fn new<F: Fn(Id, String) -> Message + 'static>(
+        msg: F,
+        placeholder: String,
+        initial_value: String,
+    ) -> Self {
+        Self {
+            inner: TextInput {
+                id: Id::unique(),
+                text: initial_value,
+                message: Rc::new(msg),
+                placeholder,
+            },
         }
     }
 }
