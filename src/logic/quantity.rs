@@ -26,11 +26,11 @@ impl Quantity {
         match unit {
             Unit::Milliliter => Self::Volume { quantity },
             Unit::FluidOunce => Self::Volume {
-                quantity: quantity * 29.57,
+                quantity: quantity * IMPERIAL_CONVERSION_VOLUME,
             },
             Unit::Gram => Self::Mass { quantity },
             Unit::MassOunce => Self::Mass {
-                quantity: quantity * 28.35,
+                quantity: quantity * IMPERIAL_CONVERSION_MASS,
             },
             Unit::Dash => Self::Count {
                 quantity,
