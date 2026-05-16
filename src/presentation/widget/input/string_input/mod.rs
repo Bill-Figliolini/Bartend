@@ -1,3 +1,6 @@
+mod name_input;
+mod number_input;
+
 use std::{fmt::Debug, rc::Rc};
 
 use iced::widget::{Id, text_input};
