@@ -2,22 +2,18 @@ use std::collections::HashSet;
 
 use iced::{
     Element,
-    widget::{Id, column, row, table, text},
+    widget::{column, row, table, text},
 };
 
 use crate::{
     logic::{
-        category::{Category, CategoryID},
+        category::{Category, CategoryBody, CategoryID},
         config::Config,
     },
     presentation::{
         Updateable, Viewable, application,
         input_handling::{CategoryInput, InputCollection, InputMessage},
-        widget::{
-            self,
-            input::{Error, Input, InputContents, string_input::StringInput},
-            text_style,
-        },
+        widget::{self, input::Error, text_style},
     },
 };
 
@@ -54,7 +50,10 @@ impl Categories {
     }
     fn save(&mut self, name: String) -> application::Command {
         match self.edit_state {
-            EditState::Editing(id) => application::Command::UpdateCategory(Category { id, name }),
+            EditState::Editing(id) => application::Command::UpdateCategory(Category {
+                id,
+                body: CategoryBody { name },
+            }),
             EditState::None => application::Command::AddCategory(name),
         }
     }
@@ -75,7 +74,7 @@ impl Categories {
     }
     fn build_category_display(&self) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |category: &Category| {
-            text(&category.name)
+            text(&category.body.name)
         });
         let edit_column_width = 70;
         let edit_column = table::column(

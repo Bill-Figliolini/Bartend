@@ -50,8 +50,6 @@ pub enum Message {
     CategoryListInitialization(Vec<Category>),
 }
 
-pub struct PreCommitItem {}
-
 impl Inventory {
     pub fn new(config: &Config) -> Self {
         let unit_system = config.default_units();
@@ -70,9 +68,6 @@ impl Inventory {
             edit_state: EditState::None,
         }
     }
-    fn save(&mut self, name: String, quantity: Quantity) -> application::Command {
-        application::Command::AddItem(name, quantity, None)
-    }
 
     fn build_item_entry_section(&self) -> Element<'_, application::Message> {
         let entry_header = match self.edit_state {
@@ -83,12 +78,14 @@ impl Inventory {
     }
 
     fn build_inventory_display(&self) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(Fill), |item: &Item| text(&item.name));
+        let name_column = table::column(text("Name").width(Fill), |item: &Item| {
+            text(&item.body.name)
+        });
         let quantity_column = table::column(text("Quantity"), |item: &Item| {
             text!(
                 "{:.0} {}",
-                item.quantity.value(self.unit_system),
-                item.quantity.unit(self.unit_system).to_string()
+                item.body.quantity.value(self.unit_system),
+                item.body.quantity.unit(self.unit_system).to_string()
             )
         });
         let category_column = table::column(text("Category").width(200), |item: &Item| match self
@@ -100,6 +97,7 @@ impl Inventory {
                     .iter()
                     .find(|category| category.id == *cat_id)
                     .unwrap()
+                    .body
                     .name
                     .clone(),
             ),

@@ -8,7 +8,10 @@
 
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::{logic::quantity::Quantity, persistence::Database};
+use crate::{
+    logic::{Editable, quantity::Quantity},
+    persistence::Database,
+};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ItemID(i64);
@@ -16,6 +19,11 @@ pub struct ItemID(i64);
 #[derive(Debug, Clone)]
 pub struct Item {
     pub id: ItemID,
+    pub body: ItemBody,
+}
+
+#[derive(Debug, Clone)]
+pub struct ItemBody {
     pub name: String,
     pub quantity: Quantity,
 }
@@ -44,14 +52,14 @@ impl Item {
 
     pub fn update(&self, db: &Database) {
         let id = self.id.0;
-        let (quantity, unit) = self.quantity.db_format();
+        let (quantity, unit) = self.body.quantity.db_format();
         if let Err(e) = db.connection.execute(
             "UPDATE items SET
             name = ?2,
             quantity = ?3,
             unit = ?4
             WHERE id = ?1",
-            (id, self.name.clone(), quantity, unit),
+            (id, self.body.name.clone(), quantity, unit),
         ) {
             panic!("Error while updating item: {e}");
         }
@@ -75,7 +83,10 @@ impl Item {
                 let id = row.get(0).unwrap();
                 let name = row.get(1).unwrap();
                 let quantity = Quantity::from_db(row.get(3).unwrap(), row.get(2).unwrap());
-                Ok(Item { id, name, quantity })
+                Ok(Item {
+                    id,
+                    body: ItemBody { name, quantity },
+                })
             })
             .unwrap();
         rows.into_iter()
@@ -101,3 +112,5 @@ impl FromSql for ItemID {
         Ok(Self(value))
     }
 }
+
+impl Editable for ItemBody {}

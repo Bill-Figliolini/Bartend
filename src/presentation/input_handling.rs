@@ -1,11 +1,17 @@
 use iced::widget::Id;
 
 use crate::{
-    logic::{category::Category, config::Config, quantity::Unit},
+    logic::{
+        Editable,
+        category::{Category, CategoryBody},
+        config::Config,
+        item::ItemBody,
+        quantity::{Quantity, Unit},
+        recipe::RecipeBody,
+    },
     presentation::{
         Viewable,
         application::Message,
-        screen::inventory::PreCommitItem,
         widget::input::{
             pick_input::{OptionalPickInput, RequiredPickInput},
             string_input::{NumberInput, StringInput},
@@ -40,63 +46,71 @@ pub(super) struct CategoryInput {
 pub(super) struct RecipeInput {
     name_input: StringInput<Message>,
 }
-pub trait InputCollection<T>: Viewable<Message> {
+pub trait InputCollection<T>: Viewable<Message>
+where
+    T: Editable,
+{
     fn new(config: &Config, msg: fn(InputMessage) -> Message) -> Self;
     fn update(&mut self, msg: InputMessage);
     fn output(&mut self) -> T;
 }
 impl Viewable<Message> for CategoryInput {
     fn view(&self) -> iced::Element<'_, Message> {
-        todo!()
+        self.name_input.view()
     }
 }
 
-impl<T> InputCollection<T> for CategoryInput {
+impl InputCollection<CategoryBody> for CategoryInput {
+    fn new(_config: &Config, msg: fn(InputMessage) -> Message) -> Self {
+        Self {
+            name_input: StringInput::new(
+                move |id, str| msg(InputMessage::String(id, str)),
+                "name".to_string(),
+                String::new(),
+            ),
+        }
+    }
     fn update(&mut self, msg: InputMessage) {
         todo!()
     }
 
-    fn new(config: &Config, msg: fn(InputMessage) -> Message) -> Self {
-        todo!()
-    }
-
-    fn output(&mut self) -> T {
+    fn output(&mut self) -> CategoryBody {
         todo!()
     }
 }
+
 impl Viewable<Message> for ItemInput {
     fn view(&self) -> iced::Element<'_, Message> {
         todo!()
     }
 }
-
-impl InputCollection<PreCommitItem> for ItemInput {
-    fn update(&mut self, msg: InputMessage) {
-        todo!()
-    }
-
+impl InputCollection<ItemBody> for ItemInput {
     fn new(config: &Config, msg: fn(InputMessage) -> Message) -> Self {
         todo!()
     }
-
-    fn output(&mut self) -> PreCommitItem {
+    fn update(&mut self, msg: InputMessage) {
+        todo!()
+    }
+    fn output(&mut self) -> ItemBody {
         todo!()
     }
 }
+
 impl Viewable<Message> for RecipeInput {
     fn view(&self) -> iced::Element<'_, Message> {
         todo!()
     }
 }
 
-impl<T> InputCollection<PreCommitRecipe> for RecipeInput {
+impl InputCollection<RecipeBody> for RecipeInput {
     fn new(config: &Config, msg: fn(InputMessage) -> Message) -> Self {
         todo!()
     }
     fn update(&mut self, msg: InputMessage) {
         todo!()
     }
-    fn output(&mut self) -> PreCommitRecipe {
+
+    fn output(&mut self) -> RecipeBody {
         todo!()
     }
 }

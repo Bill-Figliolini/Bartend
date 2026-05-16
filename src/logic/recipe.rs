@@ -1,21 +1,24 @@
 use rusqlite::{ToSql, types::FromSql};
 
 use crate::{
-    logic::{category::CategoryID, quantity::Quantity},
+    logic::{Editable, category::CategoryID, quantity::Quantity},
     persistence::Database,
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct RecipeID(i64);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Recipe {
     id: RecipeID,
+    body: RecipeBody,
+}
+#[derive(Debug, Clone)]
+pub struct RecipeBody {
     name: String,
     ingredients: Vec<Ingredient>,
 }
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ingredient {
     category: CategoryID,
     quantity: Quantity,
@@ -49,8 +52,7 @@ impl Recipe {
                 let ingredients = Ingredient::get_for_recipe(db, &id);
                 Ok(Recipe {
                     id,
-                    name,
-                    ingredients,
+                    body: RecipeBody { name, ingredients },
                 })
             })
             .unwrap();
@@ -121,3 +123,4 @@ impl FromSql for RecipeID {
         Ok(Self(value))
     }
 }
+impl Editable for RecipeBody {}

@@ -17,6 +17,8 @@ use crate::{
     persistence::Database,
 };
 
+pub trait Editable {}
+
 ///Boundary with presentation module.
 ///Must be able to:
 ///     Retrive Items, preferably in a collection

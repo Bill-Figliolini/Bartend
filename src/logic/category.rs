@@ -2,13 +2,17 @@ use std::fmt::Display;
 
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::persistence::Database;
+use crate::{logic::Editable, persistence::Database};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CategoryID(i64);
 #[derive(Debug, Clone)]
 pub struct Category {
     pub id: CategoryID,
+    pub body: CategoryBody,
+}
+#[derive(Debug, Clone)]
+pub struct CategoryBody {
     pub name: String,
 }
 impl Category {
@@ -36,7 +40,7 @@ impl Category {
             name = ?2
             WHERE id = ?1
         ",
-            (self.id.0, self.name.clone()),
+            (self.id.0, self.body.name.clone()),
         ) {
             panic!("Error Updating Category: {e}");
         };
@@ -56,7 +60,10 @@ impl Category {
             .query_map([], |row| {
                 let id = row.get(0).unwrap();
                 let name = row.get(1).unwrap();
-                Ok(Self { id, name })
+                Ok(Self {
+                    id,
+                    body: CategoryBody { name },
+                })
             })
             .unwrap();
         rows.into_iter()
@@ -72,7 +79,7 @@ impl Category {
 
 impl Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "{}", self.body.name)
     }
 }
 
@@ -100,3 +107,5 @@ impl FromSql for CategoryID {
         Ok(Self(value))
     }
 }
+
+impl Editable for CategoryBody {}
