@@ -1,5 +1,10 @@
 use crate::{
-    logic::{category::Category, config::Config, quantity::Unit, recipe::RecipeBody},
+    logic::{
+        category::Category,
+        config::Config,
+        quantity::{Unit, UnitSystem},
+        recipe::RecipeBody,
+    },
     presentation::{
         Viewable,
         application::Message,
@@ -22,16 +27,23 @@ pub struct IngredientInput {
     unit_input: RequiredPickInput<Unit, Message>,
 }
 
-impl InputCollection<RecipeBody> for RecipeInput {
-    fn new(config: &Config, msg: fn(InputMessage) -> Message) -> Self {
+impl RecipeInput {
+    pub fn new(config: &Config, msg: fn(InputMessage) -> Message) -> Self {
         todo!()
     }
+}
+
+impl InputCollection<RecipeBody> for RecipeInput {
     fn update(&mut self, msg: InputMessage) {
         todo!()
     }
 
     fn output(&mut self) -> Result<RecipeBody, ()> {
         Ok(todo!())
+    }
+
+    fn begin_edit(&mut self, edit: RecipeBody, unit_system: UnitSystem) {
+        todo!()
     }
 }
 
