@@ -62,15 +62,7 @@ impl Categories {
             EditState::None => iced::widget::text("New Category:"),
             EditState::Editing(_) => iced::widget::text("Edit Category:"),
         };
-        let input = self.input.view();
-        let confirm_button = iced::widget::Button::new("Save")
-            .on_press(application::Message::Categories(Message::Save));
-        let entry_row = row![input, confirm_button];
-        let error_row = row(self
-            .errors
-            .iter()
-            .map(|error| text!("{} ", error.to_string()).into()));
-        column![entry_header, entry_row, error_row].into()
+        column![entry_header, self.input.view()].into()
     }
     fn build_category_display(&self) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |category: &Category| {
