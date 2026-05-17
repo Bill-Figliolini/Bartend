@@ -11,9 +11,9 @@ use rfd::AsyncFileDialog;
 use crate::{
     logic::{
         BarCollection,
-        category::{Category, CategoryID},
+        category::{Category, CategoryBody, CategoryID},
         config::Config,
-        item::Item,
+        item::{Item, ItemBody},
         quantity::Quantity,
         recipe::{Ingredient, Recipe},
     },
@@ -62,12 +62,12 @@ pub enum Message {
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
-    AddItem(String, Quantity, Option<CategoryID>),
+    AddItem(ItemBody, Option<CategoryID>),
     UpdateItem(Item, Option<CategoryID>),
 
     UpdateConfig(Config),
 
-    AddCategory(String),
+    AddCategory(CategoryBody),
     UpdateCategory(Category),
 
     AddRecipe(String, Vec<Ingredient>),
@@ -194,8 +194,10 @@ impl Bartend {
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
-                        Command::AddItem(name, quantity, category_id) => {
-                            let item_id = self.bar_collection.add_item(&name, quantity);
+                        Command::AddItem(item_body, category_id) => {
+                            let item_id = self
+                                .bar_collection
+                                .add_item(&item_body.name, item_body.quantity);
                             if let Some(category_id) = category_id {
                                 self.bar_collection
                                     .add_item_category_mapping(item_id, category_id);
@@ -239,8 +241,8 @@ impl Bartend {
             Message::Categories(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
-                        Command::AddCategory(name) => {
-                            self.bar_collection.add_category(name);
+                        Command::AddCategory(body) => {
+                            self.bar_collection.add_category(body.name);
                             Task::done(Message::UpdateCategories)
                         }
                         Command::UpdateCategory(category) => {
