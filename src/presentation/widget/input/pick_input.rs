@@ -60,7 +60,26 @@ where
         }
     }
 }
-
+impl<T, Message> OptionalPickInput<T, Message>
+where
+    T: Debug + Clone + Display + PartialEq,
+    Message: Clone,
+{
+    pub fn new<F: Fn(Id, T) -> Message + 'static>(
+        msg: F,
+        options: Vec<T>,
+        initial_value: Option<T>,
+    ) -> Self {
+        Self {
+            inner: PickInput {
+                id: Id::unique(),
+                message: Rc::new(msg),
+                input: initial_value,
+                options,
+            },
+        }
+    }
+}
 impl<T, Message> PickInput<T, Message>
 where
     T: Debug + Clone + Display + PartialEq,
