@@ -47,21 +47,25 @@ pub enum Message {
     //Variants for Application's use
     InventoryUpdate(Vec<Item>),
     CategoryMappingUpdate(HashMap<ItemID, CategoryID>),
-    CategoryListInitialization(Vec<Category>),
 }
 
 impl Inventory {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(
+        config: &Config,
+        items: Vec<Item>,
+        categories: Vec<Category>,
+        mapping: HashMap<ItemID, CategoryID>,
+    ) -> Self {
         let unit_system = config.default_units();
 
         Self {
             // Input Handlers
-            input: ItemInput::new(config, input_msg),
+            input: ItemInput::new(config, input_msg, categories.clone()),
 
             // Display Managers
-            contents: Vec::new(),
-            categories: Vec::new(),
-            item_category_mapping: HashMap::new(),
+            contents: items,
+            categories: categories,
+            item_category_mapping: mapping,
             unit_system,
 
             // Input State
@@ -194,10 +198,6 @@ impl Updateable<Message> for Inventory {
             }
             Message::CategoryMappingUpdate(mapping) => {
                 self.item_category_mapping = mapping;
-                None
-            }
-            Message::CategoryListInitialization(categories) => {
-                self.categories = categories;
                 None
             }
         }
