@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use iced::widget::row;
+use iced::widget::{column, row, text};
 
 use crate::{
     logic::{
@@ -32,11 +32,17 @@ pub struct ItemInput {
 }
 impl Viewable<Message> for ItemInput {
     fn view(&self) -> iced::Element<'_, Message> {
-        row![
-            self.name_input.view(),
-            self.quantity_input.view(),
-            self.unit_input.view(),
-            self.category_input.view()
+        column![
+            row![
+                self.name_input.view(),
+                self.quantity_input.view(),
+                self.unit_input.view(),
+                self.category_input.view()
+            ],
+            row(self
+                .errors
+                .iter()
+                .map(|e| text!("{} ", e.to_string()).into()))
         ]
         .into()
     }
