@@ -86,15 +86,10 @@ impl Bartend {
 
         let bar_collection = BarCollection::new(config.db_path());
         let items = bar_collection.get_items();
-        let mapping = bar_collection.get_item_mapping(&items);
-        let mut screen = Screen::start(&config, items);
         let categories = bar_collection.get_categories();
-        _ = screen.update(Message::Inventory(
-            inventory::Message::CategoryListInitialization(categories),
-        ));
-        screen.update(Message::Inventory(
-            inventory::Message::CategoryMappingUpdate(mapping),
-        ));
+        let mapping = bar_collection.get_item_mapping(&items);
+        let screen = Screen::start(&config, items, categories, mapping);
+
         Self {
             screen,
             config,
@@ -114,11 +109,10 @@ impl Bartend {
                 if let Screen::Inventory(_) = self.screen {
                     Task::none()
                 } else {
-                    self.screen = Screen::inventory(&self.config);
+                    let items = self.bar_collection.get_items();
                     let categories = self.bar_collection.get_categories();
-                    _ = self.screen.update(Message::Inventory(
-                        inventory::Message::CategoryListInitialization(categories),
-                    ));
+                    let mapping = self.bar_collection.get_item_mapping(&items);
+                    self.screen = Screen::inventory(&self.config, items, categories, mapping);
                     Task::done(Message::UpdateInventory)
                 }
             }

@@ -5,7 +5,10 @@ pub mod recipe_input;
 use iced::widget::Id;
 
 use crate::{
-    logic::{Editable, category::Category, config::Config, quantity::Unit},
+    logic::{
+        category::Category,
+        quantity::{Unit, UnitSystem},
+    },
     presentation::{Viewable, application::Message},
 };
 #[derive(Clone, Debug)]
@@ -16,11 +19,8 @@ pub enum InputMessage {
     OptionalCategory(Id, Option<Category>),
 }
 
-pub trait InputCollection<T>: Viewable<Message>
-where
-    T: Editable,
-{
-    fn new(config: &Config, msg: fn(InputMessage) -> Message) -> Self;
+pub trait InputCollection<T>: Viewable<Message> {
     fn update(&mut self, msg: InputMessage);
     fn output(&mut self) -> Result<T, ()>;
+    fn begin_edit(&mut self, edit: T, unit_system: UnitSystem);
 }
