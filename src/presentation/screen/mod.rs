@@ -3,14 +3,20 @@ pub mod inventory;
 pub mod recipes;
 pub mod settings;
 
+use std::collections::HashMap;
+
 use iced::Element;
 
 use crate::{
-    logic::{config::Config, item::Item},
+    logic::{
+        category::{Category, CategoryID},
+        config::Config,
+        item::{Item, ItemID},
+    },
     presentation::{
         Updateable, Viewable,
         application::{Command, Message},
-        screen::recipes::Recipes,
+        screen::{categories::Categories, recipes::Recipes},
     },
 };
 
@@ -22,9 +28,13 @@ pub enum Screen {
     Recipes(recipes::Recipes),
 }
 impl Screen {
-    pub fn start(config: &Config, items: Vec<Item>) -> Self {
-        let mut inventory = inventory::Inventory::new(config);
-        inventory.update(inventory::Message::InventoryUpdate(items));
+    pub fn start(
+        config: &Config,
+        items: Vec<Item>,
+        categories: Vec<Category>,
+        mapping: HashMap<ItemID, CategoryID>,
+    ) -> Self {
+        let inventory = inventory::Inventory::new(config, items, categories, mapping);
         Self::Inventory(inventory)
     }
     pub fn view(&self) -> Element<'_, Message> {
@@ -46,8 +56,13 @@ impl Screen {
             _ => unreachable!(),
         }
     }
-    pub fn inventory(config: &Config) -> Self {
-        let inventory = inventory::Inventory::new(config);
+    pub fn inventory(
+        config: &Config,
+        items: Vec<Item>,
+        categories: Vec<Category>,
+        mapping: HashMap<ItemID, CategoryID>,
+    ) -> Self {
+        let inventory = inventory::Inventory::new(config, items, categories, mapping);
         Self::Inventory(inventory)
     }
 
