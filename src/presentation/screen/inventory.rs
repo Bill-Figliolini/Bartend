@@ -15,7 +15,7 @@ use crate::{
     },
     presentation::{
         Updateable, Viewable, application,
-        input_handling::{InputCollection, InputMessage, ItemInput},
+        input_handling::{InputCollection, InputMessage, item_input::ItemInput},
         widget::{footer::footer, header::header, text_style::title},
     },
 };

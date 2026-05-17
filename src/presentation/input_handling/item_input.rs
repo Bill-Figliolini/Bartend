@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(super) struct ItemInput {
+pub struct ItemInput {
     name_input: StringInput<Message>,
     quantity_input: NumberInput<Message>,
     unit_input: RequiredPickInput<Unit, Message>,

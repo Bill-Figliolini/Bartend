@@ -12,7 +12,7 @@ use crate::{
     },
     presentation::{
         Updateable, Viewable, application,
-        input_handling::{CategoryInput, InputCollection, InputMessage},
+        input_handling::{InputCollection, InputMessage, category_input::CategoryInput},
         widget::{self, input::Error, text_style},
     },
 };

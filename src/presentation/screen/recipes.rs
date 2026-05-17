@@ -9,7 +9,7 @@ use crate::{
     logic::{category::Category, config::Config, quantity::UnitSystem},
     presentation::{
         Updateable, Viewable, application,
-        input_handling::{InputCollection, InputMessage, RecipeInput},
+        input_handling::{InputCollection, InputMessage, recipe_input::RecipeInput},
         widget::{header::header, input::Error, text_style::title},
     },
 };
@@ -23,11 +23,7 @@ pub struct Recipes {
 
     categories: Vec<Category>,
 }
-#[derive(Debug)]
-struct IngredientRow {
-    input_name: String,
-    input_quantity: String,
-}
+
 impl Recipes {
     pub fn new(config: &Config) -> Self {
         let unit_system = config.default_units();

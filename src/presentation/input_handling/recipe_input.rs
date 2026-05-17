@@ -12,11 +12,11 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(super) struct RecipeInput {
+pub struct RecipeInput {
     name_input: StringInput<Message>,
 }
 #[derive(Debug)]
-pub(super) struct IngredientInput {
+pub struct IngredientInput {
     category_input: RequiredPickInput<Category, Message>,
     quantity_input: NumberInput<Message>,
     unit_input: RequiredPickInput<Unit, Message>,
