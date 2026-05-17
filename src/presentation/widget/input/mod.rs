@@ -1,5 +1,5 @@
 pub mod pick_input;
-pub mod string_input;
+pub mod text_input;
 use std::fmt::Display;
 
 use iced::widget::Id;
