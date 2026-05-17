@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use iced::widget::row;
+
 use crate::{
     logic::{
         category::Category,
@@ -13,7 +15,7 @@ use crate::{
         input_handling::{InputCollection, InputMessage},
         widget::input::{
             Error, Input, InputContents, InputOptionalContents,
-            pick_input::{OptionalPickInput, RequiredPickInput},
+            pick_input::{optional::OptionalPickInput, required::RequiredPickInput},
             text_input::{number_input::NumberInput, string_input::StringInput},
         },
     },
@@ -30,7 +32,13 @@ pub struct ItemInput {
 }
 impl Viewable<Message> for ItemInput {
     fn view(&self) -> iced::Element<'_, Message> {
-        todo!()
+        row![
+            self.name_input.view(),
+            self.quantity_input.view(),
+            self.unit_input.view(),
+            self.category_input.view()
+        ]
+        .into()
     }
 }
 impl ItemInput {
@@ -46,7 +54,7 @@ impl ItemInput {
         );
         let quantity_input = NumberInput::new(
             move |id, str| msg(InputMessage::String(id, str)),
-            "Name".to_string(),
+            "Quantity".to_string(),
             String::new(),
         );
         let units = match config.default_units() {
@@ -70,11 +78,6 @@ impl ItemInput {
             category_input,
             errors: HashSet::new(),
         }
-    }
-    fn clear(&mut self) {
-        self.name_input.clear();
-        self.quantity_input.clear();
-        self.category_input.clear();
     }
 }
 
@@ -116,6 +119,7 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
         if self.errors.is_empty() {
             let name = name_result.unwrap();
             let quantity = Quantity::new(quantity_result.unwrap(), units);
+            self.clear();
             Ok((ItemBody { name, quantity }, category))
         } else {
             Err(())
@@ -132,5 +136,10 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
         let units = edit.0.quantity.unit(unit_system);
         self.quantity_input.update(quantity.to_string());
         self.unit_input.update(units);
+    }
+    fn clear(&mut self) {
+        self.name_input.clear();
+        self.quantity_input.clear();
+        self.category_input.clear();
     }
 }

@@ -1,20 +1,17 @@
-use std::collections::HashSet;
-
-use iced::{
-    Element,
-    widget::{column, row, table, text},
-};
-
 use crate::{
     logic::{
-        category::{Category, CategoryBody, CategoryID},
+        category::{Category, CategoryID},
         config::Config,
     },
     presentation::{
         Updateable, Viewable, application,
         input_handling::{InputCollection, InputMessage, category_input::CategoryInput},
-        widget::{self, input::Error, text_style},
+        widget::{self, text_style},
     },
+};
+use iced::{
+    Element,
+    widget::{column, row, table, text},
 };
 
 #[derive(Debug)]
@@ -22,7 +19,6 @@ pub struct Categories {
     input: CategoryInput,
 
     edit_state: EditState,
-    errors: HashSet<Error>,
 
     contents: Vec<Category>,
 }
@@ -44,17 +40,7 @@ impl Categories {
         Self {
             input: CategoryInput::new(config, input_msg),
             edit_state: EditState::None,
-            errors: HashSet::new(),
             contents: Vec::new(),
-        }
-    }
-    fn save(&mut self, name: String) -> application::Command {
-        match self.edit_state {
-            EditState::Editing(id) => application::Command::UpdateCategory(Category {
-                id,
-                body: CategoryBody { name },
-            }),
-            EditState::None => application::Command::AddCategory(name),
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
@@ -62,7 +48,10 @@ impl Categories {
             EditState::None => iced::widget::text("New Category:"),
             EditState::Editing(_) => iced::widget::text("Edit Category:"),
         };
-        column![entry_header, self.input.view()].into()
+        let save_button = iced::widget::Button::new("Save")
+            .on_press(application::Message::Categories(Message::Save));
+        let header = row![entry_header, save_button];
+        column![header, self.input.view()].into()
     }
     fn build_category_display(&self) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |category: &Category| {
@@ -112,13 +101,40 @@ impl Viewable<application::Message> for Categories {
 impl Updateable<Message> for Categories {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
-            Message::CategoryListUpdate(list) => None,
-            Message::Input(msg) => None,
-            Message::BeginEdit(category) => {
-                self.edit_state = EditState::Editing(category.id);
+            Message::CategoryListUpdate(list) => {
+                self.contents = list;
                 None
             }
-            Message::Save => None,
+            Message::Input(msg) => {
+                self.input.update(msg);
+                None
+            }
+            Message::BeginEdit(category) => {
+                match self.edit_state {
+                    EditState::None => {
+                        self.edit_state = EditState::Editing(category.id);
+                        self.input
+                            .begin_edit(category.body, crate::logic::quantity::UnitSystem::Metric);
+                    }
+                    EditState::Editing(category_id) if category_id == category.id => {
+                        self.input.clear();
+                        self.edit_state = EditState::None;
+                    }
+                    _ => unreachable!(
+                        "Edit buttons to items not currently under edit should not be accesable"
+                    ),
+                }
+                None
+            }
+            Message::Save => match self.input.output() {
+                Ok(body) => match self.edit_state {
+                    EditState::Editing(id) => {
+                        Some(application::Command::UpdateCategory(Category { id, body }))
+                    }
+                    EditState::None => Some(application::Command::AddCategory(body)),
+                },
+                Err(()) => None,
+            },
         }
     }
 }

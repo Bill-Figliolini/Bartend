@@ -31,14 +31,11 @@ impl CategoryInput {
         Self {
             name_input: StringInput::new(
                 move |id, str| msg(InputMessage::String(id, str)),
-                "name".to_string(),
+                "Name".to_string(),
                 String::new(),
             ),
             errors: HashSet::new(),
         }
-    }
-    fn clear(&mut self) {
-        self.name_input.clear();
     }
 }
 
@@ -69,6 +66,10 @@ impl InputCollection<CategoryBody> for CategoryInput {
     }
 
     fn begin_edit(&mut self, edit: CategoryBody, _unit_system: UnitSystem) {
-        todo!()
+        self.clear();
+        self.name_input.update(edit.name);
+    }
+    fn clear(&mut self) {
+        self.name_input.clear();
     }
 }

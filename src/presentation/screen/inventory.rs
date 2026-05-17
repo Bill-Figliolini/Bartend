@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use iced::{
     Element,
     Length::Fill,
-    widget::{Id, column, container, row, table, text},
+    widget::{column, container, row, table, text},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
         category::{Category, CategoryID},
         config::Config,
         item::{Item, ItemID},
-        quantity::{Quantity, Unit, UnitSystem},
+        quantity::UnitSystem,
     },
     presentation::{
         Updateable, Viewable, application,
@@ -78,7 +78,10 @@ impl Inventory {
             EditState::None => text("New Item:"),
             EditState::Editing(_) => text("Edit Item:"),
         };
-        entry_header.into()
+        let save_button = iced::widget::Button::new(text("save"))
+            .on_press(application::Message::Inventory(Message::Save));
+        let top_row = row![entry_header, save_button];
+        column![top_row, self.input.view()].into()
     }
 
     fn build_inventory_display(&self) -> Element<'_, application::Message> {
@@ -188,9 +191,45 @@ impl Updateable<Message> for Inventory {
                 self.unit_system.swap();
                 None
             }
-            Message::Input(msg) => None,
-            Message::BeginEdit(item, category_id) => None,
-            Message::Save => None,
+            Message::Input(msg) => {
+                self.input.update(msg);
+                None
+            }
+            Message::BeginEdit(item, category) => match self.edit_state {
+                EditState::None => {
+                    self.edit_state = EditState::Editing(item.id);
+                    self.input
+                        .begin_edit((item.body, category), self.unit_system);
+                    None
+                }
+                EditState::Editing(item_id) if item.id == item_id => {
+                    self.input.clear();
+                    self.edit_state = EditState::None;
+                    None
+                }
+                _ => unreachable!(
+                    "Edit buttons to items not currently under edit should not be accesable"
+                ),
+            },
+            Message::Save => {
+                if let Ok(result) = self.input.output() {
+                    match self.edit_state {
+                        EditState::None => Some(application::Command::AddItem(
+                            result.0,
+                            result.1.map(|cat| cat.id),
+                        )),
+                        EditState::Editing(item_id) => Some(application::Command::UpdateItem(
+                            Item {
+                                id: item_id,
+                                body: result.0,
+                            },
+                            result.1.map(|cat| cat.id),
+                        )),
+                    }
+                } else {
+                    None
+                }
+            }
             Message::InventoryUpdate(items) => {
                 self.contents = items;
                 self.edit_state = EditState::None;
