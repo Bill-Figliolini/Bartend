@@ -19,8 +19,6 @@ pub struct Recipes {
     input: RecipeInput,
     unit_system: UnitSystem,
 
-    errors: HashSet<Error>,
-
     categories: Vec<Category>,
 }
 
@@ -30,7 +28,6 @@ impl Recipes {
         Self {
             input: RecipeInput::new(config, input_msg),
             unit_system,
-            errors: HashSet::new(),
             categories: Vec::new(),
         }
     }
@@ -38,17 +35,9 @@ impl Recipes {
         let name_input = self.input.view();
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
         let input_row = row![name_input, save_button];
-
-        let error_row = row(self
-            .errors
-            .iter()
-            .map(|error| text!("{} ", error.to_string()).into()));
-
-        column![input_row, error_row].into()
+        column![input_row].into()
     }
     fn save(&mut self, name: String) -> application::Command {
-        self.errors.clear();
-
         application::Command::AddRecipe(name, Vec::new())
     }
 }
@@ -70,8 +59,14 @@ impl Viewable<application::Message> for Recipes {
 impl Updateable<Message> for Recipes {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
-            Message::Input(msg) => None,
-            Message::Save => None,
+            Message::Input(msg) => {
+                self.input.update(msg);
+                None
+            }
+            Message::Save => match self.input.output() {
+                Ok(_) => todo!(),
+                Err(()) => None,
+            },
             Message::InitializeCategoryList(categories) => {
                 self.categories = categories;
                 None

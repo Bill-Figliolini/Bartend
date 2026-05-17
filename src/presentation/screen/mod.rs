@@ -16,7 +16,7 @@ use crate::{
     presentation::{
         Updateable, Viewable,
         application::{Command, Message},
-        screen::{categories::Categories, recipes::Recipes},
+        screen::recipes::Recipes,
     },
 };
 

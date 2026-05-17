@@ -16,11 +16,11 @@ pub enum InputMessage {
     String(Id, String),
     Unit(Id, Unit),
     Category(Id, Category),
-    OptionalCategory(Id, Option<Category>),
 }
 
 pub trait InputCollection<T>: Viewable<Message> {
     fn update(&mut self, msg: InputMessage);
     fn output(&mut self) -> Result<T, ()>;
     fn begin_edit(&mut self, edit: T, unit_system: UnitSystem);
+    fn clear(&mut self);
 }

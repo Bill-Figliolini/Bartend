@@ -10,7 +10,7 @@ use crate::{
         application::Message,
         input_handling::{InputCollection, InputMessage},
         widget::input::{
-            pick_input::RequiredPickInput,
+            pick_input::required::RequiredPickInput,
             text_input::{number_input::NumberInput, string_input::StringInput},
         },
     },
@@ -43,6 +43,9 @@ impl InputCollection<RecipeBody> for RecipeInput {
     }
 
     fn begin_edit(&mut self, edit: RecipeBody, unit_system: UnitSystem) {
+        todo!()
+    }
+    fn clear(&mut self) {
         todo!()
     }
 }
