@@ -1,8 +1,21 @@
 pub mod repositories;
 
-use std::path::Path;
+use std::{error::Error, fmt::Display, path::Path};
 
 use rusqlite::Connection;
+
+use crate::persistence::repositories::{CategoryDB, CategoryRepository, ItemDB, ItemRepository};
+
+#[derive(Debug)]
+pub enum DBError {
+    External(rusqlite::Error),
+}
+
+impl From<rusqlite::Error> for DBError {
+    fn from(value: rusqlite::Error) -> Self {
+        DBError::External(value)
+    }
+}
 
 #[derive(Debug)]
 pub struct Database {
@@ -10,13 +23,33 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        let connection = match Connection::open(path) {
-            Ok(connection) => connection,
-            Err(e) => {
-                panic!("DB could not be opened! {e}")
-            }
-        };
-        Self { connection }
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, DBError> {
+        let connection = Connection::open(path)?;
+        connection.pragma_update(None, "foreign_keys", "ON")?;
+        let db = Self { connection };
+        db.item_db().create_table()?;
+        db.category_db().create_table()?;
+        Ok(db)
+    }
+    #[must_use]
+    pub fn item_db(&self) -> ItemDB {
+        ItemDB {
+            connection: &self.connection,
+        }
+    }
+    #[must_use]
+    pub fn category_db(&self) -> CategoryDB {
+        CategoryDB {
+            connection: &self.connection,
+        }
     }
 }
+
+impl Display for DBError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DBError::External(error) => write!(f, "External DB Error: {error}"),
+        }
+    }
+}
+impl Error for DBError {}

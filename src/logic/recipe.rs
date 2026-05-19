@@ -1,7 +1,7 @@
 use rusqlite::{ToSql, types::FromSql};
 
 use crate::{
-    logic::{Editable, category::CategoryID, quantity::Quantity},
+    logic::{category::CategoryID, quantity::Quantity},
     persistence::Database,
 };
 
@@ -123,4 +123,3 @@ impl FromSql for RecipeID {
         Ok(Self(value))
     }
 }
-impl Editable for RecipeBody {}

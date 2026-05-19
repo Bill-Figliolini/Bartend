@@ -194,9 +194,7 @@ impl Bartend {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddItem(item_body, category_id) => {
-                            let item_id = self
-                                .bar_collection
-                                .add_item(&item_body.name, item_body.quantity);
+                            let item_id = self.bar_collection.add_item(&item_body);
                             if let Some(category_id) = category_id {
                                 self.bar_collection
                                     .add_item_category_mapping(item_id, category_id);
@@ -241,11 +239,11 @@ impl Bartend {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddCategory(body) => {
-                            self.bar_collection.add_category(body.name);
+                            self.bar_collection.add_category(&body);
                             Task::done(Message::UpdateCategories)
                         }
                         Command::UpdateCategory(category) => {
-                            self.bar_collection.update_category(category);
+                            self.bar_collection.update_category(&category);
                             Task::done(Message::UpdateCategories)
                         }
                         _ => unreachable!(),

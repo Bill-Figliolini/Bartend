@@ -8,13 +8,10 @@
 
 use rusqlite::{ToSql, types::FromSql};
 
-use crate::{
-    logic::{Editable, quantity::Quantity},
-    persistence::Database,
-};
+use crate::logic::quantity::Quantity;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct ItemID(i64);
+pub struct ItemID(pub i64);
 
 #[derive(Debug, Clone)]
 pub struct Item {
@@ -28,77 +25,7 @@ pub struct ItemBody {
     pub quantity: Quantity,
 }
 
-impl Item {
-    #[must_use]
-    pub fn create() -> String {
-        "CREATE TABLE IF NOT EXISTS items(
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            quantity REAL NOT NULL,
-            unit INTEGER NOT NULL
-        );"
-        .to_string()
-    }
-    pub fn insert(db: &Database, name: &str, quantity: Quantity) -> ItemID {
-        let (quantity, unit) = quantity.db_format();
-        if let Err(e) = db.connection.execute(
-            "INSERT INTO items(name, quantity, unit) VALUES (?1, ?2, ?3)",
-            (name, quantity, unit),
-        ) {
-            panic!("Error inserting Item: {e}");
-        }
-        ItemID(db.connection.last_insert_rowid())
-    }
-
-    pub fn update(&self, db: &Database) {
-        let id = self.id.0;
-        let (quantity, unit) = self.body.quantity.db_format();
-        if let Err(e) = db.connection.execute(
-            "UPDATE items SET
-            name = ?2,
-            quantity = ?3,
-            unit = ?4
-            WHERE id = ?1",
-            (id, self.body.name.clone(), quantity, unit),
-        ) {
-            panic!("Error while updating item: {e}");
-        }
-    }
-
-    pub fn delete(self, db: &Database) {
-        if let Err(e) = db
-            .connection
-            .execute("DELETE FROM items WHERE id = ?1", (self.id.0,))
-        {
-            panic!("Error Deleting Item: {e}");
-        }
-    }
-
-    //TODO: refactor this; take in a query and a fn(&row) -> T
-    pub fn get_range(db: &Database, offset: usize, quantity: usize) -> Vec<Item> {
-        let query = format!("SELECT * FROM items LIMIT {quantity} OFFSET {offset}");
-        let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
-        let rows = stmt
-            .query_map([], |row| {
-                let id = row.get(0).unwrap();
-                let name = row.get(1).unwrap();
-                let quantity = Quantity::from_db(row.get(3).unwrap(), row.get(2).unwrap());
-                Ok(Item {
-                    id,
-                    body: ItemBody { name, quantity },
-                })
-            })
-            .unwrap();
-        rows.into_iter()
-            .fold(Vec::with_capacity(quantity), |mut acc, row| {
-                match row {
-                    Ok(item) => acc.push(item),
-                    Err(e) => panic!("Retrieving Items failled with error: {e}"),
-                }
-                acc
-            })
-    }
-}
+impl Item {}
 
 impl ToSql for ItemID {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
@@ -112,5 +39,3 @@ impl FromSql for ItemID {
         Ok(Self(value))
     }
 }
-
-impl Editable for ItemBody {}
