@@ -22,7 +22,7 @@ pub struct Database {
     pub connection: Connection,
 }
 
-impl Database {
+impl<'a> Database {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, DBError> {
         let connection = Connection::open(path)?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -32,13 +32,13 @@ impl Database {
         Ok(db)
     }
     #[must_use]
-    pub fn item_db(&self) -> ItemDB {
+    pub fn item_db(&'a self) -> ItemDB<'a> {
         ItemDB {
             connection: &self.connection,
         }
     }
     #[must_use]
-    pub fn category_db(&self) -> CategoryDB {
+    pub fn category_db(&'a self) -> CategoryDB<'a> {
         CategoryDB {
             connection: &self.connection,
         }
