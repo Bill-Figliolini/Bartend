@@ -8,7 +8,7 @@ use std::{
 
 use iced::widget::{Id, pick_list};
 
-use crate::presentation::{Viewable, widget::input::Input};
+use crate::presentation::Viewable;
 
 struct PickInput<T, Message>
 where
@@ -35,15 +35,12 @@ where
     }
 }
 
-impl<T, Message> Input<T, Message> for PickInput<T, Message>
+impl<T, Message> PickInput<T, Message>
 where
     T: Debug + Clone + Display + PartialEq,
     Message: Clone,
 {
-    fn update(&mut self, _input: T) {
-        unreachable!()
-    }
-    fn id(&self) -> &Id {
+    pub(super) fn id(&self) -> &Id {
         &self.id
     }
 }
