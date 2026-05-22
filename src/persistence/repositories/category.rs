@@ -2,11 +2,11 @@ use crate::{
     logic::category::{Category, CategoryBody, CategoryID},
     persistence::{
         DBError,
-        repositories::{CategoryDB, CategoryRepository},
+        repositories::{CategoryDB, CategoryRepository, Repository},
     },
 };
 
-impl<'a> CategoryRepository for CategoryDB<'a> {
+impl<'a> Repository for CategoryDB<'a> {
     fn create_table(&self) -> Result<(), DBError> {
         let query = "CREATE TABLE IF NOT EXISTS category(
                 id INTEGER PRIMARY KEY,
@@ -15,6 +15,8 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         self.connection.execute(query, ())?;
         Ok(())
     }
+}
+impl<'a> CategoryRepository for CategoryDB<'a> {
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError> {
         self.connection
             .execute("INSERT INTO category(name) VALUES(?1)", (&body.name,))?;

@@ -3,20 +3,26 @@ use crate::{
         item::{Item, ItemBody, ItemID},
         quantity::Quantity,
     },
-    persistence::{DBError, ItemDB, repositories::ItemRepository},
+    persistence::{
+        DBError, ItemDB,
+        repositories::{ItemRepository, Repository},
+    },
 };
 
-impl<'a> ItemRepository for ItemDB<'a> {
+impl<'a> Repository for ItemDB<'a> {
     fn create_table(&self) -> Result<(), DBError> {
         let query = "CREATE TABLE IF NOT EXISTS items(
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                quantity REAL NOT NULL,
-                unit INTEGER NOT NULL
-            );";
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    quantity REAL NOT NULL,
+                    unit INTEGER NOT NULL
+                );";
         self.connection.execute(query, ())?;
         Ok(())
     }
+}
+
+impl<'a> ItemRepository for ItemDB<'a> {
     fn insert(&self, item: &ItemBody) -> Result<ItemID, DBError> {
         let (quantity, unit) = item.quantity.db_format();
         self.connection.execute(

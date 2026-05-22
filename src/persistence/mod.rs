@@ -4,7 +4,9 @@ use std::{error::Error, fmt::Display, path::Path};
 
 use rusqlite::Connection;
 
-use crate::persistence::repositories::{CategoryDB, CategoryRepository, ItemDB, ItemRepository};
+use crate::persistence::repositories::{
+    CategoryDB, CategoryRepository, ItemDB, ItemRepository, RecipeDB, RecipeRepository, Repository,
+};
 
 #[derive(Debug)]
 pub enum DBError {
@@ -29,6 +31,7 @@ impl<'a> Database {
         let db = Self { connection };
         db.item_db().create_table()?;
         db.category_db().create_table()?;
+        db.recipe_db().create_table()?;
         Ok(db)
     }
     #[must_use]
@@ -42,6 +45,16 @@ impl<'a> Database {
         CategoryDB {
             connection: &self.connection,
         }
+    }
+    #[must_use]
+    pub fn recipe_db(&'a self) -> RecipeDB<'a> {
+        RecipeDB {
+            connection: &self.connection,
+        }
+    }
+    #[must_use]
+    pub fn item_category_db(&'a self) {
+        todo!()
     }
 }
 

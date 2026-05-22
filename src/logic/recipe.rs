@@ -6,7 +6,7 @@ use crate::{
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub struct RecipeID(i64);
+pub struct RecipeID(pub i64);
 
 #[derive(Debug, Clone)]
 pub struct Recipe {
@@ -15,8 +15,8 @@ pub struct Recipe {
 }
 #[derive(Debug, Clone)]
 pub struct RecipeBody {
-    name: String,
-    ingredients: Vec<Ingredient>,
+    pub name: String,
+    pub ingredients: Vec<Ingredient>,
 }
 #[derive(Debug, Clone)]
 pub struct Ingredient {
@@ -25,23 +25,6 @@ pub struct Ingredient {
 }
 
 impl Recipe {
-    pub fn create() -> String {
-        "CREATE TABLE IF NOT EXISTS recipes(
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL
-        )"
-        .to_string()
-    }
-    pub fn insert(db: &Database, name: String, ingredients: Vec<Ingredient>) {
-        let query = "INSERT INTO recipes(name) VALUES (?1)";
-        if let Err(e) = db.connection.execute(query, (name,)) {
-            panic!("Recipe insertion failure with {e}");
-        }
-        let recipe_id = RecipeID(db.connection.last_insert_rowid());
-        for (idx, ingredient) in ingredients.into_iter().enumerate() {
-            ingredient.insert(db, &recipe_id, idx);
-        }
-    }
     pub fn get_range(db: &Database, offset: usize, quantity: usize) -> Vec<Recipe> {
         let query = format!("SELECT * FROM recipes LIMIT {quantity} OFFSET {offset}");
         let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
