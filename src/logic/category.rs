@@ -1,7 +1,5 @@
 use std::fmt::Display;
 
-use rusqlite::{ToSql, types::FromSql};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CategoryID(pub i64);
 #[derive(Debug, Clone)]
@@ -30,18 +28,5 @@ impl PartialEq for Category {
 impl Display for CategoryID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl ToSql for CategoryID {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        self.0.to_sql()
-    }
-}
-
-impl FromSql for CategoryID {
-    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        let value = value.as_i64()?;
-        Ok(Self(value))
     }
 }

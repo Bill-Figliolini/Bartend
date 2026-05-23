@@ -1,5 +1,3 @@
-use rusqlite::{ToSql, types::FromSql};
-
 use crate::{
     logic::{category::CategoryID, quantity::Quantity},
     persistence::Database,
@@ -10,8 +8,8 @@ pub struct RecipeID(pub i64);
 
 #[derive(Debug, Clone)]
 pub struct Recipe {
-    id: RecipeID,
-    body: RecipeBody,
+    pub id: RecipeID,
+    pub body: RecipeBody,
 }
 #[derive(Debug, Clone)]
 pub struct RecipeBody {
@@ -24,31 +22,7 @@ pub struct Ingredient {
     quantity: Quantity,
 }
 
-impl Recipe {
-    pub fn get_range(db: &Database, offset: usize, quantity: usize) -> Vec<Recipe> {
-        let query = format!("SELECT * FROM recipes LIMIT {quantity} OFFSET {offset}");
-        let mut stmt = db.connection.prepare(&query).expect("Query must be valid");
-        let rows = stmt
-            .query_map([], |row| {
-                let id = row.get(0).unwrap();
-                let name = row.get(1).unwrap();
-                let ingredients = Ingredient::get_for_recipe(db, &id);
-                Ok(Recipe {
-                    id,
-                    body: RecipeBody { name, ingredients },
-                })
-            })
-            .unwrap();
-        rows.into_iter()
-            .fold(Vec::with_capacity(quantity), |mut acc, row| {
-                match row {
-                    Ok(recipe) => acc.push(recipe),
-                    Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
-                }
-                acc
-            })
-    }
-}
+impl Recipe {}
 impl Ingredient {
     pub fn create() -> String {
         "CREATE TABLE IF NOT EXISTS recipe_ingredients(
@@ -92,17 +66,5 @@ impl Ingredient {
             acc.push(ingredient.unwrap());
             acc
         })
-    }
-}
-
-impl ToSql for RecipeID {
-    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        self.0.to_sql()
-    }
-}
-impl FromSql for RecipeID {
-    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        let value = value.as_i64()?;
-        Ok(Self(value))
     }
 }

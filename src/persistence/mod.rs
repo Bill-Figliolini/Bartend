@@ -2,10 +2,11 @@ pub mod repositories;
 
 use std::{error::Error, fmt::Display, path::Path};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, ToSql, types::FromSql};
 
-use crate::persistence::repositories::{
-    CategoryDB, CategoryRepository, ItemDB, ItemRepository, RecipeDB, RecipeRepository, Repository,
+use crate::{
+    logic::{category::CategoryID, item::ItemID, recipe::RecipeID},
+    persistence::repositories::{CategoryDB, ItemDB, ItemMappingDB, RecipeDB, Repository},
 };
 
 #[derive(Debug)]
@@ -30,6 +31,7 @@ impl<'a> Database {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         let db = Self { connection };
         db.item_db().create_table()?;
+        db.mapping_db().create_table()?;
         db.category_db().create_table()?;
         db.recipe_db().create_table()?;
         Ok(db)
@@ -37,6 +39,12 @@ impl<'a> Database {
     #[must_use]
     pub fn item_db(&'a self) -> ItemDB<'a> {
         ItemDB {
+            connection: &self.connection,
+        }
+    }
+    #[must_use]
+    pub fn mapping_db(&'a self) -> ItemMappingDB<'a> {
+        ItemMappingDB {
             connection: &self.connection,
         }
     }
@@ -66,3 +74,41 @@ impl Display for DBError {
     }
 }
 impl Error for DBError {}
+
+impl ToSql for RecipeID {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
+    }
+}
+impl FromSql for RecipeID {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let value = value.as_i64()?;
+        Ok(Self(value))
+    }
+}
+
+impl ToSql for ItemID {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
+    }
+}
+
+impl FromSql for ItemID {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let value = value.as_i64()?;
+        Ok(Self(value))
+    }
+}
+
+impl ToSql for CategoryID {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
+    }
+}
+
+impl FromSql for CategoryID {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let value = value.as_i64()?;
+        Ok(Self(value))
+    }
+}
