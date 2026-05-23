@@ -7,7 +7,6 @@ use crate::{
     logic::{
         category::Category,
         config::Config,
-        quantity::UnitSystem,
         recipe::{RecipeBody, RecipeID},
     },
     presentation::{
@@ -26,7 +25,6 @@ enum EditState {
 pub struct Recipes {
     input: RecipeInput,
     edit_state: EditState,
-    unit_system: UnitSystem,
 }
 
 impl Recipes {
@@ -35,14 +33,15 @@ impl Recipes {
         Self {
             input: RecipeInput::new(config, input_msg, categories),
             edit_state: EditState::None,
-            unit_system,
         }
     }
     fn build_input(&self) -> Element<'_, application::Message> {
         let name_input = self.input.view();
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
         let input_row = row![name_input, save_button];
-        column![input_row].into()
+        let add_ingredient_button = button("Add Ingredient")
+            .on_press(application::Message::Recipes(Message::AddIngredient));
+        column![input_row, add_ingredient_button].into()
     }
     fn save(&mut self, body: RecipeBody) -> application::Command {
         application::Command::AddRecipe(body)
@@ -52,6 +51,7 @@ impl Recipes {
 pub enum Message {
     Input(InputMessage),
     Save,
+    AddIngredient,
 }
 impl Viewable<application::Message> for Recipes {
     fn view(&self) -> Element<'_, application::Message> {
@@ -72,6 +72,10 @@ impl Updateable<Message> for Recipes {
                 Ok(body) => Some(self.save(body)),
                 Err(()) => None,
             },
+            Message::AddIngredient => {
+                self.input.add_ingredient();
+                None
+            }
         }
     }
 }
