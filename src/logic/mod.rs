@@ -67,7 +67,7 @@ impl BarCollection {
             }
         }
         if let Some(category) = category {
-            if let Err(e) = self.db.mapping_db().delete(item, category) {
+            if let Err(e) = self.db.mapping_db().insert(item, category) {
                 panic!("{e}");
             }
         }
