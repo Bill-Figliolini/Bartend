@@ -66,6 +66,9 @@ where
     fn id(&self) -> &Id {
         self.inner.id()
     }
+    fn clear(&mut self) {
+        self.inner.input = None;
+    }
 }
 impl<T, Message> InputOptionalContents<T> for OptionalPickInput<T, Message>
 where
