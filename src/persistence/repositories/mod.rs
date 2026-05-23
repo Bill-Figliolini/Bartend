@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rusqlite::Connection;
 
 use crate::{
@@ -10,7 +12,9 @@ use crate::{
 };
 
 pub mod category;
+pub mod ingredients;
 pub mod item;
+pub mod mapping;
 pub mod recipe;
 
 pub struct ItemDB<'a> {
@@ -20,6 +24,9 @@ pub struct CategoryDB<'a> {
     pub(super) connection: &'a Connection,
 }
 pub struct RecipeDB<'a> {
+    pub(super) connection: &'a Connection,
+}
+pub struct ItemMappingDB<'a> {
     pub(super) connection: &'a Connection,
 }
 
@@ -33,6 +40,12 @@ pub trait ItemRepository: Repository {
     fn delete(&self, item: Item) -> Result<(), DBError>;
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Item>, DBError>;
 }
+pub trait ItemMappingRepository: Repository {
+    fn get_map(&self, ids: &Vec<ItemID>) -> Result<HashMap<ItemID, CategoryID>, DBError>;
+    fn get_single(&self, id: &ItemID) -> Result<Option<CategoryID>, DBError>;
+    fn insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
+    fn delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
+}
 pub trait CategoryRepository: Repository {
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError>;
     fn update(&self, category: &Category) -> Result<(), DBError>;
@@ -45,4 +58,6 @@ pub trait RecipeRepository: Repository {
     fn delete(&self, item: Recipe) -> Result<(), DBError>;
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError>;
 }
-pub trait IngredientRepository: Repository {}
+pub trait IngredientRepository: Repository {
+    
+}

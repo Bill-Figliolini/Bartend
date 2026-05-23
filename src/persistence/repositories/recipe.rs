@@ -1,5 +1,5 @@
 use crate::{
-    logic::recipe::{Recipe, RecipeBody, RecipeID},
+    logic::recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
     persistence::{
         DBError,
         repositories::{RecipeDB, RecipeRepository, Repository},
@@ -36,6 +36,30 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
     }
 
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError> {
-        todo!()
+        let query = format!("SELECT * FROM recipes LIMIT {limit} OFFSET {offset}");
+        let mut stmt = self
+            .connection
+            .prepare(&query)
+            .expect("Query must be valid");
+        let rows = stmt
+            .query_map([], |row| {
+                let id = row.get(0)?;
+                let name = row.get(1)?;
+                let ingredients = Vec::new();
+                Ok(Recipe {
+                    id,
+                    body: RecipeBody { name, ingredients },
+                })
+            })
+            .unwrap();
+        Ok(rows
+            .into_iter()
+            .fold(Vec::with_capacity(limit), |mut acc, row| {
+                match row {
+                    Ok(recipe) => acc.push(recipe),
+                    Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
+                }
+                acc
+            }))
     }
 }

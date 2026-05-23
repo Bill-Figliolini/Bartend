@@ -14,7 +14,7 @@ use crate::{
     },
     persistence::{
         Database,
-        repositories::{CategoryRepository, ItemRepository},
+        repositories::{CategoryRepository, ItemMappingRepository, ItemRepository},
     },
 };
 
@@ -45,10 +45,39 @@ impl BarCollection {
     }
     #[must_use]
     pub fn get_item_mapping(&self, items: &Vec<Item>) -> HashMap<ItemID, CategoryID> {
-        let ids = items.iter().map(|item| item.id);
-        self.db.category_db();
-        todo!()
+        let ids: Vec<ItemID> = items.iter().map(|item| item.id.clone()).collect();
+        match self.db.mapping_db().get_map(&ids) {
+            Ok(output) => output,
+            Err(e) => panic!("{e}"),
+        }
     }
+    pub fn add_item_mapping(&self, item: &ItemID, category: &CategoryID) {
+        if let Err(e) = self.db.mapping_db().insert(item, category) {
+            panic!("{e}");
+        }
+    }
+    pub fn update_item_mapping(&self, item: &ItemID, category: &Option<CategoryID>) {
+        let old_category = match self.db.mapping_db().get_single(item) {
+            Ok(category_id) => category_id,
+            Err(e) => panic!("{e}"),
+        };
+        if let Some(old_category) = old_category {
+            if let Err(e) = self.db.mapping_db().delete(item, &old_category) {
+                panic!("{e}");
+            }
+        }
+        if let Some(category) = category {
+            if let Err(e) = self.db.mapping_db().delete(item, category) {
+                panic!("{e}");
+            }
+        }
+    }
+    pub fn delete_item_mapping(&self, item: &ItemID, category: &CategoryID) {
+        if let Err(e) = self.db.mapping_db().delete(item, category) {
+            panic!("{e}");
+        }
+    }
+
     pub fn add_item(&self, item: &ItemBody) -> ItemID {
         match self.db.item_db().insert(&item) {
             Ok(id) => id,
