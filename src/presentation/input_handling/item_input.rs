@@ -107,13 +107,7 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
     }
     fn output(&mut self) -> Result<(ItemBody, Option<Category>), ()> {
         let name_result = self.name_input.get_output();
-        if let Err(ref e) = name_result {
-            self.errors.insert(e.clone());
-        }
         let quantity_result = self.quantity_input.get_output();
-        if let Err(ref e) = quantity_result {
-            self.errors.insert(e.clone());
-        }
         let units = self
             .unit_input
             .get_output()
@@ -122,7 +116,7 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
             .category_input
             .get_output()
             .expect("Optional Pickers are infalible");
-        if self.errors.is_empty() {
+        if !self.name_input.has_error() && !self.quantity_input.has_error() {
             let name = name_result.unwrap();
             let quantity = Quantity::new(quantity_result.unwrap(), units);
             self.clear();

@@ -18,8 +18,8 @@ pub struct RecipeBody {
 }
 #[derive(Debug, Clone)]
 pub struct Ingredient {
-    category: CategoryID,
-    quantity: Quantity,
+    pub category: CategoryID,
+    pub quantity: Quantity,
 }
 
 impl Recipe {}

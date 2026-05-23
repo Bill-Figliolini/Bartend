@@ -50,12 +50,8 @@ impl InputCollection<CategoryBody> for CategoryInput {
     }
 
     fn output(&mut self) -> Result<CategoryBody, ()> {
-        self.errors.clear();
         let name_result = self.name_input.get_output();
-        if let Err(ref e) = name_result {
-            self.errors.insert(e.clone());
-        }
-        if self.errors.is_empty() {
+        if self.name_input.has_error() {
             self.clear();
             Ok(CategoryBody {
                 name: name_result.unwrap(),

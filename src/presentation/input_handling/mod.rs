@@ -18,6 +18,16 @@ pub enum InputMessage {
     Category(Id, Category),
 }
 
+impl InputMessage {
+    fn id(&self) -> Id {
+        match self {
+            InputMessage::String(id, _) => id.clone(),
+            InputMessage::Unit(id, _) => id.clone(),
+            InputMessage::Category(id, _) => id.clone(),
+        }
+    }
+}
+
 pub trait InputCollection<T>: Viewable<Message> {
     fn update(&mut self, msg: InputMessage);
     fn output(&mut self) -> Result<T, ()>;

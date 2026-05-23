@@ -21,13 +21,16 @@ where
     fn update(&mut self, input: InternalType);
     fn clear(&mut self) {}
     fn id(&self) -> &Id;
+    fn has_error(&self) -> bool {
+        false
+    }
 }
 pub trait InputContents<T> {
-    fn get_output(&self) -> Result<T, Error>;
+    fn get_output(&mut self) -> Result<T, ()>;
 }
 
 pub trait InputOptionalContents<T> {
-    fn get_output(&self) -> Result<Option<T>, Error>;
+    fn get_output(&mut self) -> Result<Option<T>, ()>;
 }
 
 impl Display for Error {

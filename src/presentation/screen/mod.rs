@@ -69,10 +69,10 @@ impl Screen {
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
-    pub fn categories(config: &Config) -> Self {
-        Self::Categories(categories::Categories::new(config))
+    pub fn categories(config: &Config, categories: Vec<Category>) -> Self {
+        Self::Categories(categories::Categories::new(config, categories))
     }
-    pub fn recipes(config: &Config) -> Self {
-        Screen::Recipes(Recipes::new(config))
+    pub fn recipes(config: &Config, categories: Vec<Category>) -> Self {
+        Screen::Recipes(Recipes::new(config, categories))
     }
 }

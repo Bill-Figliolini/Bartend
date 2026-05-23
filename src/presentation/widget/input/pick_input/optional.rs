@@ -3,11 +3,11 @@ use std::{
     rc::Rc,
 };
 
-use iced::widget::Id;
+use iced::widget::{Id, column, row};
 
 use crate::presentation::{
     Viewable,
-    widget::input::{Error, Input, InputOptionalContents, pick_input::PickInput},
+    widget::input::{Input, InputOptionalContents, pick_input::PickInput},
 };
 
 #[derive(Debug)]
@@ -46,7 +46,8 @@ where
     Message: Clone,
 {
     fn view(&self) -> iced::Element<'_, Message> {
-        self.inner.view()
+        let error_row = row![];
+        column![self.inner.view(), error_row].into()
     }
 }
 impl<T, Message> Input<T, Message> for OptionalPickInput<T, Message>
@@ -75,7 +76,7 @@ where
     T: Debug + Clone + Display + PartialEq,
     Message: Clone,
 {
-    fn get_output(&self) -> Result<Option<T>, Error> {
+    fn get_output(&mut self) -> Result<Option<T>, ()> {
         Ok(self.inner.input.clone())
     }
 }

@@ -36,11 +36,11 @@ enum EditState {
     None,
 }
 impl Categories {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &Config, categories: Vec<Category>) -> Self {
         Self {
             input: CategoryInput::new(config, input_msg),
             edit_state: EditState::None,
-            contents: Vec::new(),
+            contents: categories,
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {

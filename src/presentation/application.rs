@@ -14,7 +14,7 @@ use crate::{
         category::{Category, CategoryBody, CategoryID},
         config::Config,
         item::{Item, ItemBody},
-        recipe::{Ingredient, Recipe},
+        recipe::{Recipe, RecipeBody},
     },
     presentation::{
         screen::{self, Screen, categories, inventory, recipes, settings},
@@ -69,7 +69,7 @@ pub enum Command {
     AddCategory(CategoryBody),
     UpdateCategory(Category),
 
-    AddRecipe(String, Vec<Ingredient>),
+    AddRecipe(RecipeBody),
     UpdateRecipe(Recipe),
 }
 
@@ -161,9 +161,10 @@ impl Bartend {
             Message::OpenCategories => {
                 if let Screen::Categories(_) = self.screen {
                 } else {
-                    self.screen = Screen::categories(&self.config);
+                    let categories = self.bar_collection.get_categories();
+                    self.screen = Screen::categories(&self.config, categories);
                 }
-                Task::done(Message::UpdateCategories)
+                Task::none()
             }
             Message::UpdateCategories => {
                 let categories = self.bar_collection.get_categories();
@@ -180,13 +181,10 @@ impl Bartend {
             Message::OpenRecipes => {
                 if let Screen::Recipes(_) = self.screen {
                 } else {
-                    self.screen = Screen::recipes(&self.config);
                     let categories = self.bar_collection.get_categories();
-                    _ = self.screen.update(Message::Recipes(
-                        recipes::Message::InitializeCategoryList(categories),
-                    ));
+                    self.screen = Screen::recipes(&self.config, categories);
                 }
-                Task::done(Message::UpdateRecipes)
+                Task::none()
             }
             Message::UpdateRecipes => Task::none(),
 
@@ -255,7 +253,7 @@ impl Bartend {
             Message::Recipes(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
-                        Command::AddRecipe(name, ingredients) => todo!(),
+                        Command::AddRecipe(body) => todo!(),
                         Command::UpdateRecipe(recipe) => todo!(),
                         _ => unreachable!(),
                     }

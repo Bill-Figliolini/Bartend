@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 use iced::widget::Id;
 
@@ -13,6 +13,7 @@ where
     Message: Clone,
 {
     inner: TextInput<Message>,
+    errors: HashSet<Error>,
 }
 impl<Message> NumberInput<Message>
 where
@@ -30,6 +31,7 @@ where
                 message: Rc::new(msg),
                 placeholder,
             },
+            errors: HashSet::new(),
         }
     }
 }
@@ -37,11 +39,15 @@ impl<Message> InputContents<f32> for NumberInput<Message>
 where
     Message: Clone,
 {
-    fn get_output(&self) -> Result<f32, Error> {
+    fn get_output(&mut self) -> Result<f32, ()> {
+        self.errors.clear();
         let unvalidated_quantity = self.inner.text.trim().parse::<f32>();
         match unvalidated_quantity {
             Ok(quantity) => Ok(quantity),
-            _ => return Err(Error::QuantityInvalid),
+            _ => {
+                self.errors.insert(Error::QuantityInvalid);
+                Err(())
+            }
         }
     }
 }
@@ -66,5 +72,8 @@ where
     }
     fn id(&self) -> &Id {
         self.inner.id()
+    }
+    fn has_error(&self) -> bool {
+        !self.errors.is_empty()
     }
 }

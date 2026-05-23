@@ -1,34 +1,41 @@
-use std::collections::HashSet;
-
 use iced::{
     Element,
-    widget::{button, column, row, text},
+    widget::{button, column, row},
 };
 
 use crate::{
-    logic::{category::Category, config::Config, quantity::UnitSystem},
+    logic::{
+        category::Category,
+        config::Config,
+        quantity::UnitSystem,
+        recipe::{RecipeBody, RecipeID},
+    },
     presentation::{
         Updateable, Viewable, application,
         input_handling::{InputCollection, InputMessage, recipe_input::RecipeInput},
-        widget::{header::header, input::Error, text_style::title},
+        widget::{header::header, text_style::title},
     },
 };
+#[derive(Debug)]
+enum EditState {
+    Editing(RecipeID),
+    None,
+}
 
 #[derive(Debug)]
 pub struct Recipes {
     input: RecipeInput,
+    edit_state: EditState,
     unit_system: UnitSystem,
-
-    categories: Vec<Category>,
 }
 
 impl Recipes {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &Config, categories: Vec<Category>) -> Self {
         let unit_system = config.default_units();
         Self {
-            input: RecipeInput::new(config, input_msg),
+            input: RecipeInput::new(config, input_msg, categories),
+            edit_state: EditState::None,
             unit_system,
-            categories: Vec::new(),
         }
     }
     fn build_input(&self) -> Element<'_, application::Message> {
@@ -37,16 +44,14 @@ impl Recipes {
         let input_row = row![name_input, save_button];
         column![input_row].into()
     }
-    fn save(&mut self, name: String) -> application::Command {
-        application::Command::AddRecipe(name, Vec::new())
+    fn save(&mut self, body: RecipeBody) -> application::Command {
+        application::Command::AddRecipe(body)
     }
 }
 #[derive(Debug, Clone)]
 pub enum Message {
     Input(InputMessage),
     Save,
-
-    InitializeCategoryList(Vec<Category>),
 }
 impl Viewable<application::Message> for Recipes {
     fn view(&self) -> Element<'_, application::Message> {
@@ -64,13 +69,9 @@ impl Updateable<Message> for Recipes {
                 None
             }
             Message::Save => match self.input.output() {
-                Ok(_) => todo!(),
+                Ok(body) => Some(self.save(body)),
                 Err(()) => None,
             },
-            Message::InitializeCategoryList(categories) => {
-                self.categories = categories;
-                None
-            }
         }
     }
 }

@@ -6,7 +6,8 @@ use crate::{
     logic::{
         category::{Category, CategoryBody, CategoryID},
         item::{Item, ItemBody, ItemID},
-        recipe::{Recipe, RecipeBody, RecipeID},
+        quantity::Quantity,
+        recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
     },
     persistence::DBError,
 };
@@ -59,5 +60,8 @@ pub trait RecipeRepository: Repository {
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError>;
 }
 pub trait IngredientRepository: Repository {
-    
+    fn insert(&self, recipe: &RecipeID, index: &usize, quantity: &Quantity) -> Result<(), DBError>;
+    fn update(&self, recipe: &RecipeID, index: &usize, quantity: &Quantity) -> Result<(), DBError>;
+    fn delete(&self, recipe: &RecipeID, index: &usize) -> Result<(), DBError>;
+    fn get(&self, recipe: &RecipeID) -> Vec<Ingredient>;
 }

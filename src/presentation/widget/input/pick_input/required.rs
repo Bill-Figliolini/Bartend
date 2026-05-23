@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::{Debug, Display},
     rc::Rc,
 };
@@ -17,6 +18,7 @@ where
     Message: Clone,
 {
     inner: PickInput<T, Message>,
+    errors: HashSet<Error>,
 }
 impl<T, Message> RequiredPickInput<T, Message>
 where
@@ -35,6 +37,7 @@ where
                 input: initial_value,
                 options,
             },
+            errors: HashSet::new(),
         }
     }
 }
@@ -60,16 +63,23 @@ where
     fn id(&self) -> &Id {
         self.inner.id()
     }
+    fn has_error(&self) -> bool {
+        !self.errors.is_empty()
+    }
 }
 impl<T, Message> InputContents<T> for RequiredPickInput<T, Message>
 where
     T: Debug + Clone + Display + PartialEq,
     Message: Clone,
 {
-    fn get_output(&self) -> Result<T, Error> {
+    fn get_output(&mut self) -> Result<T, ()> {
+        self.errors.clear();
         match self.inner.input {
             Some(ref value) => Ok(value.clone()),
-            None => Err(Error::MustChooseValue),
+            None => {
+                self.errors.insert(Error::MustChooseValue);
+                Err(())
+            }
         }
     }
 }

@@ -187,6 +187,12 @@ impl UnitSystem {
             Self::Imperial => Self::Metric,
         };
     }
+    pub const fn default_units(&self) -> Unit {
+        match self {
+            UnitSystem::Metric => Unit::Milliliter,
+            UnitSystem::Imperial => Unit::FluidOunce,
+        }
+    }
 }
 
 impl Display for UnitSystem {
