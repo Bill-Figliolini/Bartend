@@ -80,8 +80,7 @@ impl Inventory {
         };
         let save_button = iced::widget::Button::new(text("save"))
             .on_press(application::Message::Inventory(Message::Save));
-        let top_row = row![entry_header, save_button];
-        column![top_row, self.input.view()].into()
+        column![entry_header, row![self.input.view(), save_button]].into()
     }
 
     fn build_inventory_display(&self) -> Element<'_, application::Message> {
