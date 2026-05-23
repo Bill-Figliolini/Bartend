@@ -43,7 +43,7 @@ impl<'a> ItemMappingRepository for ItemMappingDB<'a> {
         let mut stmt = self
             .connection
             .prepare("SELECT category_id FROM category_item WHERE item_id = ?1;")?;
-        let result = stmt.query_row((id,), |row| Ok(row.get(0)?)).optional()?;
+        let result = stmt.query_row((id,), |row| row.get(0)).optional()?;
         Ok(result)
     }
     fn insert(&self, item_id: &ItemID, category_id: &CategoryID) -> Result<(), DBError> {

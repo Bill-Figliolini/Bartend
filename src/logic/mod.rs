@@ -44,8 +44,8 @@ impl BarCollection {
         }
     }
     #[must_use]
-    pub fn get_item_mapping(&self, items: &Vec<Item>) -> HashMap<ItemID, CategoryID> {
-        let ids: Vec<ItemID> = items.iter().map(|item| item.id.clone()).collect();
+    pub fn get_item_mapping(&self, items: &[Item]) -> HashMap<ItemID, CategoryID> {
+        let ids: Vec<ItemID> = items.iter().map(|item| item.id).collect();
         match self.db.mapping_db().get_map(&ids) {
             Ok(output) => output,
             Err(e) => panic!("{e}"),
@@ -61,15 +61,15 @@ impl BarCollection {
             Ok(category_id) => category_id,
             Err(e) => panic!("{e}"),
         };
-        if let Some(old_category) = old_category {
-            if let Err(e) = self.db.mapping_db().delete(item, &old_category) {
-                panic!("{e}");
-            }
+        if let Some(old_category) = old_category
+            && let Err(e) = self.db.mapping_db().delete(item, &old_category)
+        {
+            panic!("{e}");
         }
-        if let Some(category) = category {
-            if let Err(e) = self.db.mapping_db().insert(item, category) {
-                panic!("{e}");
-            }
+        if let Some(category) = category
+            && let Err(e) = self.db.mapping_db().insert(item, category)
+        {
+            panic!("{e}");
         }
     }
     pub fn delete_item_mapping(&self, item: &ItemID, category: &CategoryID) {

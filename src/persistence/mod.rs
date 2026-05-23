@@ -60,10 +60,6 @@ impl<'a> Database {
             connection: &self.connection,
         }
     }
-    #[must_use]
-    pub fn item_category_db(&'a self) {
-        todo!()
-    }
 }
 
 impl Display for DBError {

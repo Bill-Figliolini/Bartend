@@ -22,7 +22,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum Screen {
-    Inventory(inventory::Inventory),
+    Inventory(Box<inventory::Inventory>),
     Settings(settings::Settings),
     Categories(categories::Categories),
     Recipes(recipes::Recipes),
@@ -35,7 +35,7 @@ impl Screen {
         mapping: HashMap<ItemID, CategoryID>,
     ) -> Self {
         let inventory = inventory::Inventory::new(config, items, categories, mapping);
-        Self::Inventory(inventory)
+        Self::Inventory(Box::new(inventory))
     }
     pub fn view(&self) -> Element<'_, Message> {
         match self {
@@ -63,7 +63,7 @@ impl Screen {
         mapping: HashMap<ItemID, CategoryID>,
     ) -> Self {
         let inventory = inventory::Inventory::new(config, items, categories, mapping);
-        Self::Inventory(inventory)
+        Self::Inventory(Box::new(inventory))
     }
 
     pub fn settings(current_config: &Config) -> Self {
