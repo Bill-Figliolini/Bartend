@@ -24,7 +24,7 @@ impl<'a> Repository for ItemMappingDB<'a> {
 }
 
 impl<'a> ItemMappingRepository for ItemMappingDB<'a> {
-    fn get_map(&self, ids: &Vec<ItemID>) -> Result<HashMap<ItemID, CategoryID>, DBError> {
+    fn get_map(&self, ids: &[ItemID]) -> Result<HashMap<ItemID, CategoryID>, DBError> {
         let mut stmt = self
             .connection
             .prepare("SELECT item_id, category_id FROM category_item WHERE item_id = ?1;")?;

@@ -42,7 +42,7 @@ pub trait ItemRepository: Repository {
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Item>, DBError>;
 }
 pub trait ItemMappingRepository: Repository {
-    fn get_map(&self, ids: &Vec<ItemID>) -> Result<HashMap<ItemID, CategoryID>, DBError>;
+    fn get_map(&self, ids: &[ItemID]) -> Result<HashMap<ItemID, CategoryID>, DBError>;
     fn get_single(&self, id: &ItemID) -> Result<Option<CategoryID>, DBError>;
     fn insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
     fn delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;

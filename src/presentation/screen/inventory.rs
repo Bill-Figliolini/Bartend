@@ -64,7 +64,7 @@ impl Inventory {
 
             // Display Managers
             contents: items,
-            categories: categories,
+            categories,
             item_category_mapping: mapping,
             unit_system,
 
