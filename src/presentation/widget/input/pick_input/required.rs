@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use iced::widget::Id;
+use iced::widget::{Id, column, row, text};
 
 use crate::presentation::{
     Viewable,
@@ -47,7 +47,14 @@ where
     Message: Clone,
 {
     fn view(&self) -> iced::Element<'_, Message> {
-        self.inner.view()
+        column![
+            self.inner.view(),
+            row(self
+                .errors
+                .iter()
+                .map(|error| text(error.to_string()).into()))
+        ]
+        .into()
     }
 }
 
