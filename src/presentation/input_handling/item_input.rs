@@ -126,12 +126,12 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
         }
     }
 
-    fn begin_edit(&mut self, edit: (ItemBody, Option<Category>), unit_system: UnitSystem) {
+    fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
         self.clear();
-        if let Some(category) = edit.1 {
-            self.category_input.update(category);
+        if let Some(ref category) = edit.1 {
+            self.category_input.update(category.clone());
         }
-        self.name_input.update(edit.0.name);
+        self.name_input.update(edit.0.name.clone());
         let quantity = edit.0.quantity.value(unit_system);
         let units = edit.0.quantity.unit(unit_system);
         self.quantity_input.update(quantity.to_string());

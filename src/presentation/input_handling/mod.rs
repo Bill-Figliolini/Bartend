@@ -31,6 +31,6 @@ impl InputMessage {
 pub trait InputCollection<T>: Viewable<Message> {
     fn update(&mut self, msg: InputMessage);
     fn output(&mut self) -> Result<T, ()>;
-    fn begin_edit(&mut self, edit: T, unit_system: UnitSystem);
+    fn begin_edit(&mut self, edit: &T, unit_system: UnitSystem);
     fn clear(&mut self);
 }

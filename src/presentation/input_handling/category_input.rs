@@ -51,7 +51,7 @@ impl InputCollection<CategoryBody> for CategoryInput {
 
     fn output(&mut self) -> Result<CategoryBody, ()> {
         let name_result = self.name_input.get_output();
-        if self.name_input.has_error() {
+        if !self.name_input.has_error() {
             self.clear();
             Ok(CategoryBody {
                 name: name_result.unwrap(),
@@ -61,9 +61,9 @@ impl InputCollection<CategoryBody> for CategoryInput {
         }
     }
 
-    fn begin_edit(&mut self, edit: CategoryBody, _unit_system: UnitSystem) {
+    fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
         self.clear();
-        self.name_input.update(edit.name);
+        self.name_input.update(edit.name.clone());
     }
     fn clear(&mut self) {
         self.name_input.clear();
