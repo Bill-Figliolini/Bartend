@@ -6,7 +6,6 @@ use crate::{
     logic::{
         category::{Category, CategoryBody, CategoryID},
         item::{Item, ItemBody, ItemID},
-        quantity::Quantity,
         recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
     },
     persistence::DBError,
@@ -30,7 +29,9 @@ pub struct RecipeDB<'a> {
 pub struct ItemMappingDB<'a> {
     pub(super) connection: &'a Connection,
 }
-
+struct IngredientDB<'a> {
+    connection: &'a Connection,
+}
 pub trait Repository {
     fn create_table(&self) -> Result<(), DBError>;
 }
@@ -60,8 +61,12 @@ pub trait RecipeRepository: Repository {
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError>;
 }
 pub trait IngredientRepository: Repository {
-    fn insert(&self, recipe: &RecipeID, index: &usize, quantity: &Quantity) -> Result<(), DBError>;
-    fn update(&self, recipe: &RecipeID, index: &usize, quantity: &Quantity) -> Result<(), DBError>;
-    fn delete(&self, recipe: &RecipeID, index: &usize) -> Result<(), DBError>;
-    fn get(&self, recipe: &RecipeID) -> Vec<Ingredient>;
+    fn insert(
+        &self,
+        recipe: &RecipeID,
+        index: &usize,
+        ingredient: &Ingredient,
+    ) -> Result<(), DBError>;
+    fn delete(&self, recipe: &RecipeID) -> Result<(), DBError>;
+    fn get(&self, recipe: &RecipeID) -> Result<Vec<Ingredient>, rusqlite::Error>;
 }

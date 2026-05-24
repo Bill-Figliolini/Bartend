@@ -1,10 +1,20 @@
 use crate::{
-    logic::recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
+    logic::recipe::{Recipe, RecipeBody, RecipeID},
     persistence::{
         DBError,
-        repositories::{RecipeDB, RecipeRepository, Repository},
+        repositories::{
+            IngredientDB, IngredientRepository, RecipeDB, RecipeRepository, Repository,
+        },
     },
 };
+
+impl<'a> RecipeDB<'a> {
+    fn ingredient(&'a self) -> IngredientDB<'a> {
+        IngredientDB {
+            connection: self.connection,
+        }
+    }
+}
 
 impl<'a> Repository for RecipeDB<'a> {
     fn create_table(&self) -> Result<(), DBError> {
@@ -13,6 +23,7 @@ impl<'a> Repository for RecipeDB<'a> {
                     name TEXT NOT NULL
                 )";
         self.connection.execute(query, ())?;
+        self.ingredient().create_table()?;
         Ok(())
     }
 }
@@ -21,18 +32,28 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
         let query = "INSERT INTO recipes(name) VALUES (?1)";
         self.connection.execute(query, (&body.name,))?;
         let recipe_id = RecipeID(self.connection.last_insert_rowid());
+        let ingredient_db = self.ingredient();
         for (idx, ingredient) in body.ingredients.iter().enumerate() {
-            todo!()
+            ingredient_db.insert(&recipe_id, &idx, ingredient)?;
         }
         Ok(recipe_id)
     }
 
     fn update(&self, item: &Recipe) -> Result<(), DBError> {
-        todo!()
+        let query = "UPDATE recipes SET name=?2 WHERE id=?1";
+        self.connection.execute(query, (item.id, &item.body.name))?;
+        let ingredients_db = self.ingredient();
+        ingredients_db.delete(&item.id)?;
+        for (idx, ingredient) in item.body.ingredients.iter().enumerate() {
+            ingredients_db.insert(&item.id, &idx, ingredient)?;
+        }
+        Ok(())
     }
 
     fn delete(&self, item: Recipe) -> Result<(), DBError> {
-        todo!()
+        let query = "DELETE FROM recipes WHERE id=?1";
+        self.connection.execute(query, (item.id,))?;
+        Ok(())
     }
 
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError> {
@@ -45,7 +66,7 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
             .query_map([], |row| {
                 let id = row.get(0)?;
                 let name = row.get(1)?;
-                let ingredients = Vec::new();
+                let ingredients = self.ingredient().get(&id)?;
                 Ok(Recipe {
                     id,
                     body: RecipeBody { name, ingredients },
