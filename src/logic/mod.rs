@@ -11,10 +11,13 @@ use crate::{
     logic::{
         category::{Category, CategoryBody, CategoryID},
         item::{Item, ItemBody, ItemID},
+        recipe::{Recipe, RecipeBody, RecipeID},
     },
     persistence::{
         Database,
-        repositories::{CategoryRepository, ItemMappingRepository, ItemRepository},
+        repositories::{
+            CategoryRepository, ItemMappingRepository, ItemRepository, RecipeRepository,
+        },
     },
 };
 
@@ -115,6 +118,28 @@ impl BarCollection {
     pub fn update_category(&self, category: &Category) {
         if let Err(e) = self.db.category_db().update(category) {
             panic!("{e}")
+        }
+    }
+    pub fn get_recipes(&self) -> Vec<Recipe> {
+        match self.db.recipe_db().get_range(0, 100) {
+            Ok(recipes) => recipes,
+            Err(e) => panic!("{e}"),
+        }
+    }
+    pub fn add_recipe(&self, body: &RecipeBody) -> RecipeID {
+        match self.db.recipe_db().insert(body) {
+            Ok(id) => id,
+            Err(e) => panic!("{e}"),
+        }
+    }
+    pub fn delete_recipe(&self, recipe: Recipe) {
+        if let Err(e) = self.db.recipe_db().delete(recipe) {
+            panic!("{e}");
+        }
+    }
+    pub fn update_recipe(&self, recipe: &Recipe) {
+        if let Err(e) = self.db.recipe_db().update(recipe) {
+            panic!("{e}");
         }
     }
 }
