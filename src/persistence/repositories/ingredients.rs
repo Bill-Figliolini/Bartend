@@ -13,13 +13,13 @@ impl<'a> Repository for IngredientDB<'a> {
     fn create_table(&self) -> Result<(), DBError> {
         let query = "CREATE TABLE IF NOT EXISTS ingredients(
             recipe_id INTEGER,
-            index INTEGER NOT NULL,
-            category_id INTEGER NOT NULL,
+            ingredient_index INTEGER,
+            category_id INTEGER,
             quantity REAL NOT NULL,
             unit INTEGER NOT NULL,
             FOREIGN KEY (recipe_id) REFERENCES recipe(id) ON DELETE CASCADE,
             FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE RESTRICT,
-            UNIQUE(recipe_id, index)
+            UNIQUE(recipe_id, ingredient_index)
         )";
         self.connection.execute(query, ())?;
         Ok(())
@@ -32,9 +32,8 @@ impl<'a> IngredientRepository for IngredientDB<'a> {
         index: &usize,
         ingredient: &Ingredient,
     ) -> Result<(), DBError> {
-        let query = "INSERT INTO ingredients(recipe_id, index, category_id, quantity, unit) VALUES (?1, ?2, ?3, ?4)";
+        let query = "INSERT INTO ingredients(recipe_id, ingredient_index, category_id, quantity, unit) VALUES (?1, ?2, ?3, ?4, ?5)";
         let (quantity, unit) = ingredient.quantity.db_format();
-
         self.connection.execute(
             query,
             (recipe, *index as i64, ingredient.category, quantity, unit),
@@ -52,7 +51,7 @@ impl<'a> IngredientRepository for IngredientDB<'a> {
         let mut stmt = self
             .connection
             .prepare(
-                "SELECT category_id, quantity, unit FROM ingredients WHERE recipe_id = ?1 ORDER BY idx;",
+                "SELECT category_id, quantity, unit FROM ingredients WHERE recipe_id = ?1 ORDER BY ingredient_index;",
             )
             .unwrap();
         let rows = stmt
