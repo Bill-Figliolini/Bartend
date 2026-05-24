@@ -2,6 +2,7 @@ use crate::{
     logic::{
         category::{Category, CategoryID},
         config::Config,
+        quantity::UnitSystem,
     },
     presentation::{
         Updateable, Viewable, application,
@@ -44,14 +45,14 @@ impl Categories {
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
-        let entry_header = match self.edit_state {
+        let header = match self.edit_state {
             EditState::None => iced::widget::text("New Category:"),
             EditState::Editing(_) => iced::widget::text("Edit Category:"),
         };
         let save_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));
-        let header = row![entry_header, save_button];
-        column![header, self.input.view()].into()
+        let body = row![self.input.view(), save_button];
+        column![header, body].into()
     }
     fn build_category_display(&self) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |category: &Category| {
@@ -113,8 +114,7 @@ impl Updateable<Message> for Categories {
                 match self.edit_state {
                     EditState::None => {
                         self.edit_state = EditState::Editing(category.id);
-                        self.input
-                            .begin_edit(category.body, crate::logic::quantity::UnitSystem::Metric);
+                        self.input.begin_edit(&category.body, UnitSystem::Metric);
                     }
                     EditState::Editing(category_id) if category_id == category.id => {
                         self.input.clear();
