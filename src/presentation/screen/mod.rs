@@ -12,6 +12,7 @@ use crate::{
         category::{Category, CategoryID},
         config::Config,
         item::{Item, ItemID},
+        recipe::Recipe,
     },
     presentation::{
         Updateable, Viewable,
@@ -72,7 +73,7 @@ impl Screen {
     pub fn categories(config: &Config, categories: Vec<Category>) -> Self {
         Self::Categories(categories::Categories::new(config, categories))
     }
-    pub fn recipes(config: &Config, categories: Vec<Category>) -> Self {
-        Screen::Recipes(Recipes::new(config, categories))
+    pub fn recipes(config: &Config, categories: Vec<Category>, recipes: Vec<Recipe>) -> Self {
+        Screen::Recipes(Recipes::new(config, categories, recipes))
     }
 }

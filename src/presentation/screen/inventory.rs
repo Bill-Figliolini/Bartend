@@ -198,7 +198,7 @@ impl Updateable<Message> for Inventory {
                 EditState::None => {
                     self.edit_state = EditState::Editing(item.id);
                     self.input
-                        .begin_edit((item.body, category), self.unit_system);
+                        .begin_edit(&(item.body, category), self.unit_system);
                     None
                 }
                 EditState::Editing(item_id) if item.id == item_id => {
