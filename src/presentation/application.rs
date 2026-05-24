@@ -182,11 +182,17 @@ impl Bartend {
                 if let Screen::Recipes(_) = self.screen {
                 } else {
                     let categories = self.bar_collection.get_categories();
-                    self.screen = Screen::recipes(&self.config, categories);
+                    let recipes = self.bar_collection.get_recipes();
+                    self.screen = Screen::recipes(&self.config, categories, recipes);
                 }
                 Task::none()
             }
-            Message::UpdateRecipes => Task::none(),
+            Message::UpdateRecipes => {
+                let recipes = self.bar_collection.get_recipes();
+                self.screen
+                    .update(Message::Recipes(recipes::Message::Update(recipes)));
+                Task::none()
+            }
 
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
@@ -253,8 +259,14 @@ impl Bartend {
             Message::Recipes(_) => {
                 if let Some(command) = self.screen.update(message) {
                     match command {
-                        Command::AddRecipe(body) => todo!(),
-                        Command::UpdateRecipe(recipe) => todo!(),
+                        Command::AddRecipe(body) => {
+                            self.bar_collection.add_recipe(&body);
+                            Task::done(Message::UpdateRecipes)
+                        }
+                        Command::UpdateRecipe(recipe) => {
+                            self.bar_collection.update_recipe(&recipe);
+                            Task::done(Message::UpdateCategories)
+                        }
                         _ => unreachable!(),
                     }
                 } else {
