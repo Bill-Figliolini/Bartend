@@ -17,7 +17,7 @@ impl<'a> Repository for IngredientDB<'a> {
             category_id INTEGER,
             quantity REAL NOT NULL,
             unit INTEGER NOT NULL,
-            FOREIGN KEY (recipe_id) REFERENCES recipe(id) ON DELETE CASCADE,
+            FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
             FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE RESTRICT,
             UNIQUE(recipe_id, ingredient_index)
         )";
