@@ -1,4 +1,4 @@
-use iced::widget::{Id, column, row};
+use iced::widget::{Id, button, column, row};
 
 use crate::{
     logic::{
@@ -11,6 +11,7 @@ use crate::{
         Viewable,
         application::Message,
         input_handling::{InputCollection, InputMessage},
+        screen::recipes,
         widget::input::{
             Input, InputContents,
             pick_input::required::RequiredPickInput,
@@ -136,6 +137,9 @@ impl RecipeInput {
             self.unit_system,
         ));
     }
+    pub fn remove_ingredient(&mut self, index: usize) {
+        self.ingredient_inputs.remove(index);
+    }
 }
 
 impl InputCollection<RecipeBody> for RecipeInput {
@@ -183,8 +187,25 @@ impl InputCollection<RecipeBody> for RecipeInput {
         }
     }
 
-    fn begin_edit(&mut self, edit: RecipeBody, unit_system: UnitSystem) {
-        todo!()
+    fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
+        self.clear();
+        self.name_input.update(recipe.name.clone());
+        for ingredient in &recipe.ingredients {
+            self.add_ingredient();
+            let last_input = self.ingredient_inputs.last_mut().unwrap();
+            let category = self
+                .categories
+                .iter()
+                .find(|category| category.id == ingredient.category)
+                .expect("Category must be valid");
+            last_input.category_input.update(category.clone());
+            last_input
+                .quantity_input
+                .update(ingredient.quantity.value(unit_system).to_string());
+            last_input
+                .unit_input
+                .update(ingredient.quantity.unit(unit_system));
+        }
     }
     fn clear(&mut self) {
         self.name_input.clear();
@@ -195,11 +216,15 @@ impl InputCollection<RecipeBody> for RecipeInput {
 impl Viewable<Message> for RecipeInput {
     fn view(&self) -> iced::Element<'_, Message> {
         let name = self.name_input.view();
-        let ingredients = column(
-            self.ingredient_inputs
-                .iter()
-                .map(|ingredient| ingredient.view()),
-        );
+        let ingredients = column(self.ingredient_inputs.iter().enumerate().map(
+            |(idx, ingredient)| {
+                row![
+                    ingredient.view(),
+                    button("X").on_press(Message::Recipes(recipes::Message::RemoveIngredient(idx)))
+                ]
+                .into()
+            },
+        ));
         column![name, ingredients].into()
     }
 }
