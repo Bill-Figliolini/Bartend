@@ -1,8 +1,3 @@
-use iced::{
-    Element,
-    widget::{button, column, container, row, rule, space, text},
-};
-
 use crate::{
     logic::{
         category::Category,
@@ -13,8 +8,13 @@ use crate::{
     presentation::{
         Updateable, Viewable, application,
         input_handling::{InputCollection, InputMessage, recipe_input::RecipeInput},
-        widget::{header::header, text_style::title},
+        widget::{footer::footer, header::header, text_style::title},
     },
+};
+use iced::{
+    Element,
+    Length::Fill,
+    widget::{button, column, row, table, text},
 };
 #[derive(Debug)]
 enum EditState {
@@ -37,7 +37,9 @@ pub enum Message {
     Update(Vec<Recipe>),
     Save,
     AddIngredient,
+    SwapUnits,
     RemoveIngredient(usize),
+    BeginEdit(Recipe),
 }
 impl Recipes {
     pub fn new(config: &Config, categories: Vec<Category>, recipes: Vec<Recipe>) -> Self {
@@ -52,45 +54,45 @@ impl Recipes {
         }
     }
     fn build_input(&self) -> Element<'_, application::Message> {
+        let header = match self.edit_state {
+            EditState::Editing(_) => text("Editing: "),
+            EditState::None => text("New Recipe: "),
+        };
         let input = self.input.view();
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
         let input_row = row![input, save_button];
         let add_ingredient_button = button("Add Ingredient")
             .on_press(application::Message::Recipes(Message::AddIngredient));
-        column![input_row, add_ingredient_button].into()
-    }
-    fn build_display(&self) -> Element<'_, application::Message> {
-        column(self.recipes.iter().map(|recipe| self.recipe_view(recipe))).into()
+        column![header, input_row, add_ingredient_button].into()
     }
     fn save(&mut self, body: RecipeBody) -> application::Command {
-        application::Command::AddRecipe(body)
+        match self.edit_state {
+            EditState::Editing(id) => application::Command::UpdateRecipe(Recipe { id, body }),
+            EditState::None => application::Command::AddRecipe(body),
+        }
     }
-    fn recipe_view(&self, recipe: &Recipe) -> Element<'_, application::Message> {
-        let name = column![text(recipe.body.name.clone())];
-        let ingredients = column(
-            recipe
-                .body
-                .ingredients
-                .iter()
-                .map(|ingredient| self.ingredient_view(ingredient)),
-        )
-        .spacing(2);
-        let body = row![name, space().width(5), ingredients];
-        column![body, rule::horizontal(3)].into()
-    }
-    fn ingredient_view(&self, ingredient: &Ingredient) -> Element<'_, application::Message> {
-        let category_name = self
-            .categories
-            .iter()
-            .find(|category| category.id == ingredient.category)
-            .unwrap()
-            .body
-            .name
-            .clone();
-        let category = text!("{category_name}: ");
-        let quantity_value = text(ingredient.quantity.value(self.unit_system));
-        let quantity_unit = text(ingredient.quantity.unit(self.unit_system).to_string());
-        row![category, quantity_value, quantity_unit].into()
+    fn build_display_table(&self) -> Element<'_, application::Message> {
+        let name_column = table::column(text("Name"), |recipe: &Recipe| text(&recipe.body.name));
+        let ingredient_column =
+            table::column(text("Ingredients"), |recipe: &Recipe| {
+                column(recipe.body.ingredients.iter().map(|ingredient| {
+                    view_ingredient(ingredient, &self.categories, &self.unit_system)
+                }))
+            });
+        let edit_column = table::column(text("Edit"), |recipe: &Recipe| match self.edit_state {
+            EditState::Editing(recipe_id) if recipe_id == recipe.id => {
+                button("Cancel").on_press(application::Message::UpdateRecipes)
+            }
+            EditState::Editing(_) => button("Edit"),
+            EditState::None => button("Edit").on_press(application::Message::Recipes(
+                Message::BeginEdit(recipe.clone()),
+            )),
+        });
+        let delete_column = table::column(text("Delete"), |recipe: &Recipe| {
+            button("X").on_press(application::Message::DeleteRecipe(recipe.clone()))
+        });
+        let columns = vec![name_column, ingredient_column, edit_column, delete_column];
+        table(columns, &self.recipes).into()
     }
 }
 
@@ -98,9 +100,15 @@ impl Viewable<application::Message> for Recipes {
     fn view(&self) -> Element<'_, application::Message> {
         let header = header(title("Recipes"));
         let input_row = self.build_input();
-        let recipe_display = self.build_display();
+        let recipe_display = self.build_display_table();
         let body = column![input_row, recipe_display];
-        column![header, body].into()
+
+        let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
+            .on_press(application::Message::Recipes(Message::SwapUnits));
+        let footer_contents = row![unit_swap_button];
+        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
+        let footer = footer(footer_container);
+        column![header, body, footer].into()
     }
 }
 impl Updateable<Message> for Recipes {
@@ -119,6 +127,8 @@ impl Updateable<Message> for Recipes {
                 None
             }
             Message::Update(recipes) => {
+                self.edit_state = EditState::None;
+                self.input.clear();
                 self.recipes = recipes;
                 None
             }
@@ -126,9 +136,35 @@ impl Updateable<Message> for Recipes {
                 self.input.remove_ingredient(index);
                 None
             }
+            Message::BeginEdit(recipe) => {
+                self.edit_state = EditState::Editing(recipe.id);
+                self.input.begin_edit(&recipe.body, self.unit_system);
+                None
+            }
+            Message::SwapUnits => {
+                self.unit_system.swap();
+                None
+            }
         }
     }
 }
 fn input_msg(msg: InputMessage) -> application::Message {
     application::Message::Recipes(Message::Input(msg))
+}
+fn view_ingredient<'a>(
+    ingredient: &'a Ingredient,
+    categories: &'a [Category],
+    unit_system: &'a UnitSystem,
+) -> Element<'a, application::Message> {
+    let category_name = categories
+        .iter()
+        .find(|category| category.id == ingredient.category)
+        .unwrap()
+        .body
+        .name
+        .clone();
+    let category = text!("{category_name}: ");
+    let quantity_value = text(ingredient.quantity.value(*unit_system));
+    let quantity_unit = text(ingredient.quantity.unit(*unit_system).to_string());
+    row![category, quantity_value, quantity_unit].into()
 }

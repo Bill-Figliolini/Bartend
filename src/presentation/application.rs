@@ -53,6 +53,7 @@ pub enum Message {
 
     OpenRecipes,
     UpdateRecipes,
+    DeleteRecipe(Recipe),
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -193,6 +194,10 @@ impl Bartend {
                     .update(Message::Recipes(recipes::Message::Update(recipes)));
                 Task::none()
             }
+            Message::DeleteRecipe(recipe) => {
+                self.bar_collection.delete_recipe(recipe);
+                Task::done(Message::UpdateRecipes)
+            }
 
             Message::Inventory(_) => {
                 if let Some(command) = self.screen.update(message) {
@@ -265,7 +270,7 @@ impl Bartend {
                         }
                         Command::UpdateRecipe(recipe) => {
                             self.bar_collection.update_recipe(&recipe);
-                            Task::done(Message::UpdateCategories)
+                            Task::done(Message::UpdateRecipes)
                         }
                         _ => unreachable!(),
                     }
