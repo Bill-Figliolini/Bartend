@@ -34,12 +34,10 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         Ok(graph)
     }
     pub fn get_vertices(&self) -> Vec<T> {
-        self.graph.keys().copied().into_iter().collect()
+        self.graph.keys().copied().collect()
     }
     pub fn insert_vertex(&mut self, vertex: T) {
-        if !self.graph.contains_key(&vertex) {
-            self.graph.insert(vertex, HashSet::new());
-        }
+        self.graph.entry(vertex).or_insert_with(|| HashSet::new());
     }
     fn contains_vertex(&self, vertex: &T) -> bool {
         self.graph.contains_key(vertex)

@@ -1,32 +1,49 @@
 pub mod categories;
 pub mod inventory;
+pub mod recipes;
 pub mod settings;
+
+use std::collections::HashMap;
 
 use iced::Element;
 
 use crate::{
-    logic::{config::Config, item::Item},
-    presentation::application::{Command, Message},
+    logic::{
+        category::{Category, CategoryID},
+        config::Config,
+        item::{Item, ItemID},
+        recipe::Recipe,
+    },
+    presentation::{
+        Updateable, Viewable,
+        application::{Command, Message},
+        screen::recipes::Recipes,
+    },
 };
 
 #[derive(Debug)]
 pub enum Screen {
-    Inventory(inventory::Inventory),
+    Inventory(Box<inventory::Inventory>),
     Settings(settings::Settings),
     Categories(categories::Categories),
+    Recipes(recipes::Recipes),
 }
-
 impl Screen {
-    pub fn start(config: &Config, items: Vec<Item>) -> Self {
-        let mut inventory = inventory::Inventory::new(config);
-        inventory.update(inventory::Message::InventoryUpdate(items));
-        Self::Inventory(inventory)
+    pub fn start(
+        config: &Config,
+        items: Vec<Item>,
+        categories: Vec<Category>,
+        mapping: HashMap<ItemID, CategoryID>,
+    ) -> Self {
+        let inventory = inventory::Inventory::new(config, items, categories, mapping);
+        Self::Inventory(Box::new(inventory))
     }
     pub fn view(&self) -> Element<'_, Message> {
         match self {
             Self::Inventory(inventory) => inventory.view(),
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(),
+            Self::Recipes(recipes) => recipes.view(),
         }
     }
     pub fn update(&mut self, message: Message) -> Option<Command> {
@@ -36,24 +53,27 @@ impl Screen {
             (Self::Categories(categories), Message::Categories(message)) => {
                 categories.update(message)
             }
+            (Self::Recipes(recipes), Message::Recipes(message)) => recipes.update(message),
             _ => unreachable!(),
         }
     }
-    pub fn inventory(config: &Config) -> Self {
-        let inventory = inventory::Inventory::new(config);
-        Self::Inventory(inventory)
+    pub fn inventory(
+        config: &Config,
+        items: Vec<Item>,
+        categories: Vec<Category>,
+        mapping: HashMap<ItemID, CategoryID>,
+    ) -> Self {
+        let inventory = inventory::Inventory::new(config, items, categories, mapping);
+        Self::Inventory(Box::new(inventory))
     }
 
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
-    pub fn categories(config: &Config) -> Self {
-        Self::Categories(categories::Categories::new(config))
+    pub fn categories(config: &Config, categories: Vec<Category>) -> Self {
+        Self::Categories(categories::Categories::new(config, categories))
     }
-}
-
-trait Composition<T: Clone> {
-    fn new(config: &Config) -> Self;
-    fn view(&self) -> Element<'_, Message>;
-    fn update(&mut self, message: T) -> Option<Command>;
+    pub fn recipes(config: &Config, categories: Vec<Category>, recipes: Vec<Recipe>) -> Self {
+        Screen::Recipes(Recipes::new(config, categories, recipes))
+    }
 }

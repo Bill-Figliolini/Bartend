@@ -26,11 +26,11 @@ impl Quantity {
         match unit {
             Unit::Milliliter => Self::Volume { quantity },
             Unit::FluidOunce => Self::Volume {
-                quantity: quantity * 29.57,
+                quantity: quantity * IMPERIAL_CONVERSION_VOLUME,
             },
             Unit::Gram => Self::Mass { quantity },
             Unit::MassOunce => Self::Mass {
-                quantity: quantity * 28.35,
+                quantity: quantity * IMPERIAL_CONVERSION_MASS,
             },
             Unit::Dash => Self::Count {
                 quantity,
@@ -150,6 +150,18 @@ pub enum Unit {
     Dash,
 }
 
+impl Unit {
+    pub fn get_units() -> Vec<Unit> {
+        vec![
+            Unit::Milliliter,
+            Unit::FluidOunce,
+            Unit::Gram,
+            Unit::MassOunce,
+            Unit::Dash,
+        ]
+    }
+}
+
 impl Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -174,6 +186,12 @@ impl UnitSystem {
             Self::Metric => Self::Imperial,
             Self::Imperial => Self::Metric,
         };
+    }
+    pub const fn default_units(&self) -> Unit {
+        match self {
+            UnitSystem::Metric => Unit::Milliliter,
+            UnitSystem::Imperial => Unit::FluidOunce,
+        }
     }
 }
 

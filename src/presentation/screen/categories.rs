@@ -1,28 +1,25 @@
-use std::{collections::HashSet, fmt::Display, mem::take};
-
-use iced::{
-    Element,
-    widget::{column, row, table, text, text_input},
-};
-
 use crate::{
     logic::{
         category::{Category, CategoryID},
         config::Config,
+        quantity::UnitSystem,
     },
     presentation::{
-        application,
-        screen::Composition,
+        Updateable, Viewable, application,
+        input_handling::{InputCollection, InputMessage, category_input::CategoryInput},
         widget::{self, text_style},
     },
+};
+use iced::{
+    Element,
+    widget::{column, row, table, text},
 };
 
 #[derive(Debug)]
 pub struct Categories {
-    input_name: String,
+    input: CategoryInput,
 
     edit_state: EditState,
-    errors: HashSet<Error>,
 
     contents: Vec<Category>,
 }
@@ -30,7 +27,7 @@ pub struct Categories {
 #[derive(Debug, Clone)]
 pub enum Message {
     CategoryListUpdate(Vec<Category>),
-    NameUpdate(String),
+    Input(InputMessage),
     BeginEdit(Category),
     Save,
 }
@@ -39,52 +36,27 @@ enum EditState {
     Editing(CategoryID),
     None,
 }
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-enum Error {
-    NameEmpty,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let text = match self {
-            Self::NameEmpty => "Name Must Not Be Empty".to_string(),
-        };
-        write!(f, "{text}")
-    }
-}
-
 impl Categories {
-    fn save(&mut self) -> Option<application::Command> {
-        if self.input_name.is_empty() {
-            self.errors.insert(Error::NameEmpty);
-            return None;
-        }
-        let name = take(&mut self.input_name);
-        match self.edit_state {
-            EditState::Editing(id) => {
-                Some(application::Command::UpdateCategory(Category { id, name }))
-            }
-            EditState::None => Some(application::Command::AddCategory(name)),
+    pub fn new(config: &Config, categories: Vec<Category>) -> Self {
+        Self {
+            input: CategoryInput::new(config, input_msg),
+            edit_state: EditState::None,
+            contents: categories,
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
-        let entry_header = iced::widget::text("New Category:");
-        let name_input = text_input("Name", &self.input_name)
-            .id("name-input")
-            .on_input(|str: String| application::Message::Categories(Message::NameUpdate(str)));
-        let confirm_button = iced::widget::Button::new("Save")
+        let header = match self.edit_state {
+            EditState::None => iced::widget::text("New Category:"),
+            EditState::Editing(_) => iced::widget::text("Edit Category:"),
+        };
+        let save_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));
-        let entry_row = row![name_input, confirm_button];
-        let error_row = row(self
-            .errors
-            .iter()
-            .map(|error| text(error.to_string()).into()));
-        column![entry_header, entry_row, error_row].into()
+        let body = row![self.input.view(), save_button];
+        column![header, body].into()
     }
     fn build_category_display(&self) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |category: &Category| {
-            text(&category.name)
+            text(&category.body.name)
         });
         let edit_column_width = 70;
         let edit_column = table::column(
@@ -118,16 +90,7 @@ impl Categories {
     }
 }
 
-impl Composition<Message> for Categories {
-    fn new(_config: &Config) -> Self {
-        Self {
-            input_name: String::new(),
-            edit_state: EditState::None,
-            errors: HashSet::new(),
-            contents: Vec::new(),
-        }
-    }
-
+impl Viewable<application::Message> for Categories {
     fn view(&self) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
@@ -135,28 +98,46 @@ impl Composition<Message> for Categories {
         let body = column![category_entry, categories];
         column![header, body].into()
     }
-
+}
+impl Updateable<Message> for Categories {
     fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::CategoryListUpdate(list) => {
                 self.contents = list;
-                self.edit_state = EditState::None;
-                self.input_name.clear();
                 None
             }
-            Message::NameUpdate(name) => {
-                self.input_name = name;
+            Message::Input(msg) => {
+                self.input.update(msg);
                 None
             }
             Message::BeginEdit(category) => {
-                self.input_name = category.name;
-                self.edit_state = EditState::Editing(category.id);
+                match self.edit_state {
+                    EditState::None => {
+                        self.edit_state = EditState::Editing(category.id);
+                        self.input.begin_edit(&category.body, UnitSystem::Metric);
+                    }
+                    EditState::Editing(category_id) if category_id == category.id => {
+                        self.input.clear();
+                        self.edit_state = EditState::None;
+                    }
+                    _ => unreachable!(
+                        "Edit buttons to items not currently under edit should not be accesable"
+                    ),
+                }
                 None
             }
-            Message::Save => {
-                self.errors.clear();
-                self.save()
-            }
+            Message::Save => match self.input.output() {
+                Ok(body) => match self.edit_state {
+                    EditState::Editing(id) => {
+                        Some(application::Command::UpdateCategory(Category { id, body }))
+                    }
+                    EditState::None => Some(application::Command::AddCategory(body)),
+                },
+                Err(()) => None,
+            },
         }
     }
+}
+fn input_msg(msg: InputMessage) -> application::Message {
+    application::Message::Categories(Message::Input(msg))
 }

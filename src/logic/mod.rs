@@ -5,15 +5,20 @@ pub mod config;
 pub mod graph;
 pub mod item;
 pub mod quantity;
-use rusqlite::OptionalExtension;
+pub mod recipe;
 
 use crate::{
     logic::{
-        category::{Category, CategoryID},
-        item::{Item, ItemID},
-        quantity::Quantity,
+        category::{Category, CategoryBody, CategoryID},
+        item::{Item, ItemBody, ItemID},
+        recipe::{Recipe, RecipeBody, RecipeID},
     },
-    persistence::Database,
+    persistence::{
+        Database,
+        repositories::{
+            CategoryRepository, ItemMappingRepository, ItemRepository, RecipeRepository,
+        },
+    },
 };
 
 ///Boundary with presentation module.
@@ -22,111 +27,119 @@ use crate::{
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    db: Box<Database>,
+    db: Database,
 }
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
-        let db = Box::new(Database::new(path));
-        db.connection
-            .pragma_update(None, "foreign_keys", "ON")
-            .unwrap();
-        let db_initializers = [
-            Item::create(),
-            Category::create(),
-            BarCollection::create_category_item_mapping(),
-        ];
+        let db = match Database::new(path) {
+            Ok(db) => db,
+            Err(e) => panic!("DB Creation Error: {e}"),
+        };
 
-        if let Err(e) = db
-            .connection
-            .execute_batch(db_initializers.join(";\n").as_ref())
-        {
-            panic!("Error initializing DB: {e}");
-        }
         Self { db }
     }
     #[must_use]
     pub fn get_items(&self) -> Vec<Item> {
-        Item::get_range(0, 100, &self.db)
+        match self.db.item_db().get_range(0, 100) {
+            Ok(items) => items,
+            Err(e) => panic!("{e}"),
+        }
     }
     #[must_use]
-    pub fn get_item_mapping(&self, items: &Vec<Item>) -> HashMap<ItemID, CategoryID> {
-        let ids = items.iter().map(|item| item.id);
-        self.get_item_category_map(ids)
+    pub fn get_item_mapping(&self, items: &[Item]) -> HashMap<ItemID, CategoryID> {
+        let ids: Vec<ItemID> = items.iter().map(|item| item.id).collect();
+        match self.db.mapping_db().get_map(&ids) {
+            Ok(output) => output,
+            Err(e) => panic!("{e}"),
+        }
     }
-    pub fn add_item(&self, name: &str, quantity: Quantity) -> ItemID {
-        let item_id = Item::insert(name, quantity, &self.db);
-        item_id
+    pub fn add_item_mapping(&self, item: &ItemID, category: &CategoryID) {
+        if let Err(e) = self.db.mapping_db().insert(item, category) {
+            panic!("{e}");
+        }
+    }
+    pub fn update_item_mapping(&self, item: &ItemID, category: &Option<CategoryID>) {
+        let old_category = match self.db.mapping_db().get_single(item) {
+            Ok(category_id) => category_id,
+            Err(e) => panic!("{e}"),
+        };
+        if let Some(old_category) = old_category
+            && let Err(e) = self.db.mapping_db().delete(item, &old_category)
+        {
+            panic!("{e}");
+        }
+        if let Some(category) = category
+            && let Err(e) = self.db.mapping_db().insert(item, category)
+        {
+            panic!("{e}");
+        }
+    }
+    pub fn delete_item_mapping(&self, item: &ItemID, category: &CategoryID) {
+        if let Err(e) = self.db.mapping_db().delete(item, category) {
+            panic!("{e}");
+        }
+    }
+
+    pub fn add_item(&self, item: &ItemBody) -> ItemID {
+        match self.db.item_db().insert(&item) {
+            Ok(id) => id,
+            Err(e) => panic!("{e}"),
+        }
     }
     pub fn update_item(&self, item: Item) {
-        item.update(&self.db);
+        if let Err(e) = self.db.item_db().update(&item) {
+            panic!("{e}");
+        };
     }
     pub fn delete_item(&self, item: Item) {
-        item.delete(&self.db);
+        if let Err(e) = self.db.item_db().delete(item) {
+            panic!("{e}");
+        };
     }
     #[must_use]
     pub fn get_categories(&self) -> Vec<Category> {
-        Category::get_range(0, 100, &self.db)
-    }
-    pub fn add_category(&mut self, name: String) -> CategoryID {
-        Category::insert(name, &self.db)
-    }
-    pub fn delete_category(&mut self, category: Category) {
-        category.delete(&self.db);
-    }
-    pub fn update_category(&mut self, category: Category) {
-        category.update(&self.db);
-    }
-
-    fn create_category_item_mapping() -> String {
-        "CREATE TABLE IF NOT EXISTS category_item(
-            category_id INTEGER,
-            item_id INTEGER,
-            FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE CASCADE,
-            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
-            UNIQUE(category_id, item_id)
-        )"
-        .to_string()
-    }
-    fn get_item_category_map(
-        &self,
-        ids: impl Iterator<Item = ItemID>,
-    ) -> HashMap<ItemID, CategoryID> {
-        let mut stmt = self
-            .db
-            .connection
-            .prepare("SELECT item_id, category_id FROM category_item WHERE item_id = ?1;")
-            .unwrap();
-        let mut mapping = HashMap::new();
-        for id in ids {
-            if let Some((item_id, category_id)) = stmt
-                .query_row((id,), |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())))
-                .optional()
-                .unwrap()
-            {
-                mapping.insert(item_id, category_id);
-            }
-        }
-        mapping
-    }
-    pub fn add_item_category_mapping(&self, item_id: ItemID, category_id: CategoryID) {
-        if let Err(e) = self.db.connection.execute(
-            "INSERT INTO category_item(category_id, item_id) VALUES (?1, ?2)",
-            (category_id, item_id),
-        ) {
-            panic!("Error inserting Item Mapping: {e}")
+        match self.db.category_db().get_range(0, 100) {
+            Ok(categories) => categories,
+            Err(e) => panic!("{e}"),
         }
     }
-    pub fn update_item_category_mapping(&self, item_id: ItemID, category_id: Option<CategoryID>) {
-        if let Err(e) = self
-            .db
-            .connection
-            .execute("DELETE FROM category_item WHERE item_id = ?1", (item_id,))
-        {
-            panic!("Error deleting item -> category mapping: {e}");
+    pub fn add_category(&self, body: &CategoryBody) -> CategoryID {
+        match self.db.category_db().insert(body) {
+            Ok(id) => id,
+            Err(e) => panic!("{e}"),
         }
-        if let Some(category_id) = category_id {
-            self.add_item_category_mapping(item_id, category_id);
+    }
+    pub fn delete_category(&self, category: Category) {
+        if let Err(e) = self.db.category_db().delete(category) {
+            panic!("{e}")
+        }
+    }
+    pub fn update_category(&self, category: &Category) {
+        if let Err(e) = self.db.category_db().update(category) {
+            panic!("{e}")
+        }
+    }
+    pub fn get_recipes(&self) -> Vec<Recipe> {
+        match self.db.recipe_db().get_range(0, 100) {
+            Ok(recipes) => recipes,
+            Err(e) => panic!("{e}"),
+        }
+    }
+    pub fn add_recipe(&self, body: &RecipeBody) -> RecipeID {
+        match self.db.recipe_db().insert(body) {
+            Ok(id) => id,
+            Err(e) => panic!("{e}"),
+        }
+    }
+    pub fn delete_recipe(&self, recipe: Recipe) {
+        if let Err(e) = self.db.recipe_db().delete(recipe) {
+            panic!("{e}");
+        }
+    }
+    pub fn update_recipe(&self, recipe: &Recipe) {
+        if let Err(e) = self.db.recipe_db().update(recipe) {
+            panic!("{e}");
         }
     }
 }
