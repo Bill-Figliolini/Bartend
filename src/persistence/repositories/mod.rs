@@ -4,9 +4,8 @@ use rusqlite::Connection;
 
 use crate::{
     models::{
-        category::{Category, CategoryBody, CategoryID},
-        item::{Item, ItemBody, ItemID},
-        recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
+        Category, CategoryBody, CategoryID, Ingredient, Item, ItemBody, ItemID, Recipe, RecipeBody,
+        RecipeID,
     },
     persistence::DBError,
 };

@@ -4,9 +4,7 @@ use std::{collections::HashMap, path::Path};
 
 use crate::{
     models::{
-        category::{Category, CategoryBody, CategoryID},
-        item::{Item, ItemBody, ItemID},
-        recipe::{Recipe, RecipeBody, RecipeID},
+        Category, CategoryBody, CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID,
     },
     persistence::{
         Database,

@@ -1,5 +1,5 @@
 use crate::{
-    models::category::{Category, CategoryBody, CategoryID},
+    models::{Category, CategoryBody, CategoryID},
     persistence::{
         DBError,
         repositories::{CategoryDB, CategoryRepository, Repository},

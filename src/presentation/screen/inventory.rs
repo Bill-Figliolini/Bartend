@@ -7,12 +7,7 @@ use iced::{
 };
 
 use crate::{
-    models::{
-        category::{Category, CategoryID},
-        config::Config,
-        item::{Item, ItemID},
-        quantity::UnitSystem,
-    },
+    models::{Category, CategoryID, Config, Item, ItemID, UnitSystem},
     presentation::{
         Updateable, Viewable, application,
         input_handling::{InputCollection, InputMessage, item_input::ItemInput},

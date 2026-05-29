@@ -7,10 +7,7 @@ use iced::{
 };
 
 use crate::{
-    models::{
-        config::{Config, EditableConfig},
-        quantity::UnitSystem,
-    },
+    models::{Config, EditableConfig, UnitSystem},
     presentation::{
         Updateable, Viewable,
         application::{self, Command},

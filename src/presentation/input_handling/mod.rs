@@ -5,10 +5,7 @@ pub mod recipe_input;
 use iced::widget::Id;
 
 use crate::{
-    models::{
-        category::Category,
-        quantity::{Unit, UnitSystem},
-    },
+    models::{Category, Unit, UnitSystem},
     presentation::{Viewable, application::Message},
 };
 #[derive(Clone, Debug)]

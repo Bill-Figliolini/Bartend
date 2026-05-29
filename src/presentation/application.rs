@@ -10,12 +10,7 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::BarCollection,
-    models::{
-        category::{Category, CategoryBody, CategoryID},
-        config::Config,
-        item::{Item, ItemBody},
-        recipe::{Recipe, RecipeBody},
-    },
+    models::{Category, CategoryBody, CategoryID, Config, Item, ItemBody, Recipe, RecipeBody},
     presentation::{
         screen::{self, Screen, categories, inventory, recipes, settings},
         widget::sidebar,

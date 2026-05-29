@@ -1,5 +1,5 @@
 use crate::{
-    models::recipe::{Recipe, RecipeBody, RecipeID},
+    models::{Recipe, RecipeBody, RecipeID},
     persistence::{
         DBError,
         repositories::{

@@ -1,12 +1,7 @@
 use iced::widget::{Id, button, column, row};
 
 use crate::{
-    models::{
-        category::Category,
-        config::Config,
-        quantity::{Quantity, Unit, UnitSystem},
-        recipe::{Ingredient, RecipeBody},
-    },
+    models::{Category, Config, Ingredient, Quantity, RecipeBody, Unit, UnitSystem},
     presentation::{
         Viewable,
         application::Message,

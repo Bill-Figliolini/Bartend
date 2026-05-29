@@ -1,9 +1,5 @@
 use crate::{
-    models::{
-        category::{Category, CategoryID},
-        config::Config,
-        quantity::UnitSystem,
-    },
+    models::{Category, CategoryID, Config, UnitSystem},
     presentation::{
         Updateable, Viewable, application,
         input_handling::{InputCollection, InputMessage, category_input::CategoryInput},

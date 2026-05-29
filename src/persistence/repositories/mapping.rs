@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use rusqlite::OptionalExtension;
 
 use crate::{
-    models::{category::CategoryID, item::ItemID},
+    models::{CategoryID, ItemID},
     persistence::{
         DBError,
         repositories::{ItemMappingDB, ItemMappingRepository, Repository},
