@@ -1,7 +1,7 @@
 use iced::widget::{Id, button, column, row};
 
 use crate::{
-    logic::{
+    models::{
         category::Category,
         config::Config,
         quantity::{Quantity, Unit, UnitSystem},

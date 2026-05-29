@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use iced::widget::{column, row, text};
 
 use crate::{
-    logic::{category::CategoryBody, config::Config, quantity::UnitSystem},
+    models::{category::CategoryBody, config::Config, quantity::UnitSystem},
     presentation::{
         Viewable,
         application::Message,

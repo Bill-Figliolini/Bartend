@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    logic::{
+    models::{
         category::{Category, CategoryID},
         config::Config,
         item::{Item, ItemID},

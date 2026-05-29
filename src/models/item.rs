@@ -6,7 +6,7 @@
 //! ## Potential Future Changes
 //! Variants for mappings of IDs to quantities and names could be useful for Recipes, in a later version.
 
-use crate::logic::quantity::Quantity;
+use crate::models::quantity::Quantity;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ItemID(pub i64);

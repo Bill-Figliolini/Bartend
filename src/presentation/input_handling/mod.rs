@@ -5,7 +5,7 @@ pub mod recipe_input;
 use iced::widget::Id;
 
 use crate::{
-    logic::{
+    models::{
         category::Category,
         quantity::{Unit, UnitSystem},
     },

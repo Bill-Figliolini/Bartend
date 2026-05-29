@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    logic::{
+    models::{
         config::{Config, EditableConfig},
         quantity::UnitSystem,
     },

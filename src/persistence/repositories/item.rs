@@ -1,5 +1,5 @@
 use crate::{
-    logic::{
+    models::{
         item::{Item, ItemBody, ItemID},
         quantity::Quantity,
     },

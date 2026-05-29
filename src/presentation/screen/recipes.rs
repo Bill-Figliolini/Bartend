@@ -1,5 +1,5 @@
 use crate::{
-    logic::{
+    models::{
         category::Category,
         config::Config,
         quantity::UnitSystem,

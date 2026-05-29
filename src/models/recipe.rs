@@ -1,4 +1,4 @@
-use crate::logic::{category::CategoryID, quantity::Quantity};
+use crate::models::{category::CategoryID, quantity::Quantity};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct RecipeID(pub i64);

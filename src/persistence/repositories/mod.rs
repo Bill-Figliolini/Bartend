@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use rusqlite::Connection;
 
 use crate::{
-    logic::{
+    models::{
         category::{Category, CategoryBody, CategoryID},
         item::{Item, ItemBody, ItemID},
         recipe::{Ingredient, Recipe, RecipeBody, RecipeID},

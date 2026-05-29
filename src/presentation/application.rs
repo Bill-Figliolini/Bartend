@@ -9,8 +9,8 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    logic::{
-        BarCollection,
+    logic::BarCollection,
+    models::{
         category::{Category, CategoryBody, CategoryID},
         config::Config,
         item::{Item, ItemBody},
