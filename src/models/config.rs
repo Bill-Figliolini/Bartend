@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::logic::quantity::UnitSystem;
+use crate::models::quantity::UnitSystem;
 
 //TODO:
 // Going to try a restructuring of this to see how well it works.

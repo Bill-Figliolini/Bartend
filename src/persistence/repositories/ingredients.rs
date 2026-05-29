@@ -1,8 +1,5 @@
 use crate::{
-    logic::{
-        quantity::Quantity,
-        recipe::{Ingredient, RecipeID},
-    },
+    models::{Ingredient, Quantity, RecipeID},
     persistence::{
         DBError,
         repositories::{IngredientDB, IngredientRepository, Repository},

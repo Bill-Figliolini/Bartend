@@ -1,8 +1,5 @@
 use crate::{
-    logic::{
-        item::{Item, ItemBody, ItemID},
-        quantity::Quantity,
-    },
+    models::{Item, ItemBody, ItemID, Quantity},
     persistence::{
         DBError, ItemDB,
         repositories::{ItemRepository, Repository},

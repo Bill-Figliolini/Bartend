@@ -9,13 +9,8 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    logic::{
-        BarCollection,
-        category::{Category, CategoryBody, CategoryID},
-        config::Config,
-        item::{Item, ItemBody},
-        recipe::{Recipe, RecipeBody},
-    },
+    logic::BarCollection,
+    models::{Category, CategoryBody, CategoryID, Config, Item, ItemBody, Recipe, RecipeBody},
     presentation::{
         screen::{self, Screen, categories, inventory, recipes, settings},
         widget::sidebar,

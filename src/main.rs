@@ -1,4 +1,5 @@
-pub mod logic;
+mod logic;
+pub mod models;
 mod persistence;
 mod presentation;
 

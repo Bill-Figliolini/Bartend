@@ -1,10 +1,5 @@
 use crate::{
-    logic::{
-        category::Category,
-        config::Config,
-        quantity::UnitSystem,
-        recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
-    },
+    models::{Category, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
         Updateable, Viewable, application,
         input_handling::{InputCollection, InputMessage, recipe_input::RecipeInput},

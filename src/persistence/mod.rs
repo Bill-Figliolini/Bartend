@@ -5,7 +5,7 @@ use std::{error::Error, fmt::Display, path::Path};
 use rusqlite::{Connection, ToSql, types::FromSql};
 
 use crate::{
-    logic::{category::CategoryID, item::ItemID, recipe::RecipeID},
+    models::{CategoryID, ItemID, RecipeID},
     persistence::repositories::{CategoryDB, ItemDB, ItemMappingDB, RecipeDB, Repository},
 };
 

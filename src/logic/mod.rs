@@ -1,17 +1,10 @@
+mod graph;
+
 use std::{collections::HashMap, path::Path};
 
-pub mod category;
-pub mod config;
-pub mod graph;
-pub mod item;
-pub mod quantity;
-pub mod recipe;
-
 use crate::{
-    logic::{
-        category::{Category, CategoryBody, CategoryID},
-        item::{Item, ItemBody, ItemID},
-        recipe::{Recipe, RecipeBody, RecipeID},
+    models::{
+        Category, CategoryBody, CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID,
     },
     persistence::{
         Database,

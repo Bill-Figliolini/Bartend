@@ -8,12 +8,7 @@ use std::collections::HashMap;
 use iced::Element;
 
 use crate::{
-    logic::{
-        category::{Category, CategoryID},
-        config::Config,
-        item::{Item, ItemID},
-        recipe::Recipe,
-    },
+    models::{Category, CategoryID, Config, Item, ItemID, Recipe},
     presentation::{
         Updateable, Viewable,
         application::{Command, Message},
