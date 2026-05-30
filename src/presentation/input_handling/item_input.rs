@@ -9,9 +9,8 @@ use crate::{
         application::Message,
         input_handling::{InputCollection, InputMessage},
         widget::input::{
-            Error, Input, InputContents, InputOptionalContents,
-            pick_input::{optional::OptionalPickInput, required::RequiredPickInput},
-            text_input::{number_input::NumberInput, string_input::StringInput},
+            Error, Input, InputContents, InputOptionalContents, NumberInput, OptionalPickInput,
+            RequiredPickInput, StringInput,
         },
     },
 };

@@ -7,11 +7,7 @@ use crate::{
         application::Message,
         input_handling::{InputCollection, InputMessage},
         screen::recipes,
-        widget::input::{
-            Input, InputContents,
-            pick_input::required::RequiredPickInput,
-            text_input::{number_input::NumberInput, string_input::StringInput},
-        },
+        widget::input::{Input, InputContents, NumberInput, RequiredPickInput, StringInput},
     },
 };
 

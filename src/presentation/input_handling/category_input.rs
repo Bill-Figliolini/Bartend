@@ -8,7 +8,7 @@ use crate::{
         Viewable,
         application::Message,
         input_handling::{InputCollection, InputMessage},
-        widget::input::{Error, Input, InputContents, text_input::string_input::StringInput},
+        widget::input::{Error, Input, InputContents, StringInput},
     },
 };
 

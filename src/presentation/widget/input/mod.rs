@@ -1,8 +1,13 @@
-pub mod pick_input;
-pub mod text_input;
+mod pick_input;
+mod text_input;
 use std::fmt::Display;
 
 use iced::widget::Id;
+
+pub use {
+    pick_input::optional::OptionalPickInput, pick_input::required::RequiredPickInput,
+    text_input::number_input::NumberInput, text_input::string_input::StringInput,
+};
 
 use crate::presentation::Viewable;
 

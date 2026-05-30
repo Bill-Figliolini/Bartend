@@ -1,7 +1,8 @@
-pub mod categories;
-pub mod inventory;
-pub mod recipes;
-pub mod settings;
+pub(super) mod categories;
+pub(super) mod inventory;
+pub(super) mod recipes;
+pub(super) mod service;
+pub(super) mod settings;
 
 use std::collections::HashMap;
 

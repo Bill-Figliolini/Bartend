@@ -1,6 +1,7 @@
-pub mod category_input;
-pub mod item_input;
-pub mod recipe_input;
+pub(super) mod category_input;
+pub(super) mod item_input;
+pub(super) mod recipe_input;
+pub(super) mod service_input;
 
 use iced::widget::Id;
 
