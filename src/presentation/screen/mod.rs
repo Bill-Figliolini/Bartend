@@ -23,6 +23,7 @@ pub enum Screen {
     Settings(settings::Settings),
     Categories(categories::Categories),
     Recipes(recipes::Recipes),
+    Service(service::Service),
 }
 impl Screen {
     pub fn start(
@@ -40,6 +41,7 @@ impl Screen {
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(),
             Self::Recipes(recipes) => recipes.view(),
+            Self::Service(service) => service.view(),
         }
     }
     pub fn update(&mut self, message: Message) -> Option<Command> {
@@ -50,6 +52,7 @@ impl Screen {
                 categories.update(message)
             }
             (Self::Recipes(recipes), Message::Recipes(message)) => recipes.update(message),
+            (Self::Service(service), Message::Service(message)) => service.update(message),
             _ => unreachable!(),
         }
     }

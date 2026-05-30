@@ -1,5 +1,5 @@
-pub mod number_input;
-pub mod string_input;
+pub(super) mod number_input;
+pub(super) mod string_input;
 
 use std::{fmt::Debug, rc::Rc};
 

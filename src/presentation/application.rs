@@ -32,7 +32,7 @@ struct Bartend {
 }
 
 #[derive(Debug, Clone)]
-pub enum Message {
+pub(in crate::presentation) enum Message {
     NoOp,
     OpenInventory,
     DeleteItem(Item),
@@ -54,6 +54,7 @@ pub enum Message {
     Settings(screen::settings::Message),
     Categories(screen::categories::Message),
     Recipes(screen::recipes::Message),
+    Service(screen::service::Message),
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {
