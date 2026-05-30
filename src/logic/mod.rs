@@ -68,12 +68,6 @@ impl BarCollection {
             panic!("{e}");
         }
     }
-    pub fn delete_item_mapping(&self, item: &ItemID, category: &CategoryID) {
-        if let Err(e) = self.db.mapping_db().delete(item, category) {
-            panic!("{e}");
-        }
-    }
-
     pub fn add_item(&self, item: &ItemBody) -> ItemID {
         match self.db.item_db().insert(&item) {
             Ok(id) => id,
