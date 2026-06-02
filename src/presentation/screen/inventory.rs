@@ -10,7 +10,7 @@ use crate::{
     models::{Category, CategoryID, Config, Item, ItemID, UnitSystem},
     presentation::{
         Updateable, Viewable, application,
-        input_handling::{InputCollection, InputMessage, item_input::ItemInput},
+        input_handling::{InputCollection, InputMessage, ItemInput},
         widget::{footer::footer, header::header, text_style::title},
     },
 };

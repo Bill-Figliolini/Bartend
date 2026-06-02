@@ -2,7 +2,7 @@ use crate::{
     models::{Category, CategoryID, Config, UnitSystem},
     presentation::{
         Updateable, Viewable, application,
-        input_handling::{InputCollection, InputMessage, category_input::CategoryInput},
+        input_handling::{CategoryInput, InputCollection, InputMessage},
         widget::{self, text_style},
     },
 };
