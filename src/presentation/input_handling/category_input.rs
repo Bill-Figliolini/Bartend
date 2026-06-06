@@ -7,7 +7,7 @@ use crate::{
     presentation::{
         Viewable,
         application::Message,
-        input_handling::{InputCollection, InputMessage},
+        input_handling::{EditableCollection, InputCollection, InputMessage},
         widget::input::{Error, Input, InputContents, StringInput},
     },
 };
@@ -60,12 +60,13 @@ impl InputCollection<CategoryBody> for CategoryInput {
             Err(())
         }
     }
-
+    fn clear(&mut self) {
+        self.name_input.clear();
+    }
+}
+impl EditableCollection<CategoryBody> for CategoryInput {
     fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
         self.clear();
         self.name_input.update(edit.name.clone());
-    }
-    fn clear(&mut self) {
-        self.name_input.clear();
     }
 }

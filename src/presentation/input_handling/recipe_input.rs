@@ -5,7 +5,7 @@ use crate::{
     presentation::{
         Viewable,
         application::Message,
-        input_handling::{InputCollection, InputMessage},
+        input_handling::{EditableCollection, InputCollection, InputMessage},
         screen::recipes,
         widget::input::{Input, InputContents, NumberInput, RequiredPickInput, StringInput},
     },
@@ -177,7 +177,13 @@ impl InputCollection<RecipeBody> for RecipeInput {
             Err(())
         }
     }
+    fn clear(&mut self) {
+        self.name_input.clear();
+        self.ingredient_inputs.clear();
+    }
+}
 
+impl EditableCollection<RecipeBody> for RecipeInput {
     fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
         self.clear();
         self.name_input.update(recipe.name.clone());
@@ -197,10 +203,6 @@ impl InputCollection<RecipeBody> for RecipeInput {
                 .unit_input
                 .update(ingredient.quantity.unit(unit_system));
         }
-    }
-    fn clear(&mut self) {
-        self.name_input.clear();
-        self.ingredient_inputs.clear();
     }
 }
 

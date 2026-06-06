@@ -2,7 +2,7 @@ use crate::{
     models::{Category, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
         Updateable, Viewable, application,
-        input_handling::{InputCollection, InputMessage, RecipeInput},
+        input_handling::{EditableCollection, InputCollection, InputMessage, RecipeInput},
         widget::{footer::footer, header::header, text_style::title},
     },
 };

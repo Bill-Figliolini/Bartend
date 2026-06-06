@@ -29,8 +29,11 @@ impl InputMessage {
 pub trait InputCollection<T>: Viewable<Message> {
     fn update(&mut self, msg: InputMessage);
     fn output(&mut self) -> Result<T, ()>;
-    fn begin_edit(&mut self, edit: &T, unit_system: UnitSystem);
     fn clear(&mut self);
+}
+
+pub trait EditableCollection<T>: InputCollection<T> {
+    fn begin_edit(&mut self, edit: &T, unit_system: UnitSystem);
 }
 
 pub use {category_input::CategoryInput, item_input::ItemInput, recipe_input::RecipeInput};

@@ -7,7 +7,7 @@ use crate::{
     presentation::{
         Viewable,
         application::Message,
-        input_handling::{InputCollection, InputMessage},
+        input_handling::{EditableCollection, InputCollection, InputMessage},
         widget::input::{
             Error, Input, InputContents, InputOptionalContents, NumberInput, OptionalPickInput,
             RequiredPickInput, StringInput,
@@ -120,6 +120,13 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
         }
     }
 
+    fn clear(&mut self) {
+        self.name_input.clear();
+        self.quantity_input.clear();
+        self.category_input.clear();
+    }
+}
+impl EditableCollection<(ItemBody, Option<Category>)> for ItemInput {
     fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
         self.clear();
         if let Some(ref category) = edit.1 {
@@ -130,10 +137,5 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
         let units = edit.0.quantity.unit(unit_system);
         self.quantity_input.update(quantity.to_string());
         self.unit_input.update(units);
-    }
-    fn clear(&mut self) {
-        self.name_input.clear();
-        self.quantity_input.clear();
-        self.category_input.clear();
     }
 }
