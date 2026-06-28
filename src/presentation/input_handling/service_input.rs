@@ -27,19 +27,18 @@ impl Viewable<application::Message> for ServiceInput {
         todo!()
     }
 }
-impl InputCollection for ServiceInput {
+impl InputCollection<application::Message> for ServiceInput {
     fn update(&mut self, msg: super::InputMessage) {
+        match msg {
+            _ => unreachable!("Invalid message passed"),
+        }
+    }
+
+    fn output(&mut self) -> Result<application::Message, ()> {
         todo!()
     }
-    fn output(&mut self) -> Result<T, ()> {
-        todo!()
-    }
+
     fn clear(&mut self) {
-        todo!()
-    }
-}
-impl EditableCollection for ServiceInput {
-    fn begin_edit(&mut self, edit: &T, unit_system: crate::models::UnitSystem) {
         todo!()
     }
 }
