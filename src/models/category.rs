@@ -13,6 +13,8 @@ pub struct CategoryBody {
 }
 impl Category {}
 
+pub enum CategoryCommand {}
+
 impl Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.body.name)

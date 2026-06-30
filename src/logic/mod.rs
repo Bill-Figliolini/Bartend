@@ -1,8 +1,16 @@
+mod category_service;
 mod graph;
+mod item_service;
+mod recipe_service;
 
 use std::{collections::HashMap, path::Path};
 
+use flume::Sender;
+
 use crate::{
+    logic::{
+        category_service::CategoryService, item_service::ItemService, recipe_service::RecipeService,
+    },
     models::{
         Category, CategoryBody, CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID,
     },
@@ -21,6 +29,9 @@ use crate::{
 #[derive(Debug)]
 pub struct BarCollection {
     db: Database,
+    categories: CategoryService,
+    items: ItemService,
+    recipes: RecipeService,
 }
 
 impl BarCollection {
@@ -29,8 +40,8 @@ impl BarCollection {
             Ok(db) => db,
             Err(e) => panic!("DB Creation Error: {e}"),
         };
-
-        Self { db }
+        let categories = CategoryService::new();
+        Self { db, categories }
     }
     #[must_use]
     pub fn get_items(&self) -> Vec<Item> {
@@ -129,4 +140,8 @@ impl BarCollection {
             panic!("{e}");
         }
     }
+}
+
+trait Service<T> {
+    fn get_channel(&self) -> Sender<T>;
 }
