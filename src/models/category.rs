@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use crate::models::Channel;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CategoryID(pub i64);
 #[derive(Debug, Clone)]
@@ -14,6 +16,10 @@ pub struct CategoryBody {
 impl Category {}
 
 pub enum CategoryCommand {}
+
+pub enum CategoryError {}
+
+type CategoryUserChannel = Channel<CategoryCommand, CategoryError>;
 
 impl Display for Category {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

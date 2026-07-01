@@ -5,14 +5,13 @@ mod recipe_service;
 
 use std::{collections::HashMap, path::Path};
 
-use flume::Sender;
-
 use crate::{
     logic::{
         category_service::CategoryService, item_service::ItemService, recipe_service::RecipeService,
     },
     models::{
-        Category, CategoryBody, CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID,
+        Category, CategoryBody, CategoryID, Channel, Item, ItemBody, ItemID, Recipe, RecipeBody,
+        RecipeID,
     },
     persistence::{
         Database,
@@ -29,12 +28,10 @@ use crate::{
 #[derive(Debug)]
 pub struct BarCollection {
     db: Database,
-    categories: CategoryService,
-    items: ItemService,
-    recipes: RecipeService,
 }
 
 impl BarCollection {
+    pub fn run() {}
     pub fn new(path: impl AsRef<Path>) -> Self {
         let db = match Database::new(path) {
             Ok(db) => db,
@@ -142,6 +139,6 @@ impl BarCollection {
     }
 }
 
-trait Service<T> {
-    fn get_channel(&self) -> Sender<T>;
+trait Service<ClientMsg, ServiceMsg> {
+    fn get_channel(&self) -> Channel<ClientMsg, ServiceMsg>;
 }
