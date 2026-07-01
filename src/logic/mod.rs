@@ -6,16 +6,14 @@ mod recipe_service;
 use std::{collections::HashMap, path::Path};
 
 use crate::{
-    models::{
-        Category, CategoryBody, CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID,
-    },
+    models::{CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID},
     persistence::{
         Database,
-        repositories::{
-            CategoryRepository, ItemMappingRepository, ItemRepository, RecipeRepository,
-        },
+        repositories::{ItemMappingRepository, ItemRepository, RecipeRepository},
     },
 };
+
+pub use category_service::CategoryService;
 
 ///Boundary with presentation module.
 ///Must be able to:
@@ -86,29 +84,6 @@ impl BarCollection {
         if let Err(e) = self.db.item_db().delete(item) {
             panic!("{e}");
         };
-    }
-    #[must_use]
-    pub fn get_categories(&self) -> Vec<Category> {
-        match self.db.category_db().get_range(0, 100) {
-            Ok(categories) => categories,
-            Err(e) => panic!("{e}"),
-        }
-    }
-    pub fn add_category(&self, body: &CategoryBody) -> CategoryID {
-        match self.db.category_db().insert(body) {
-            Ok(id) => id,
-            Err(e) => panic!("{e}"),
-        }
-    }
-    pub fn delete_category(&self, category: Category) {
-        if let Err(e) = self.db.category_db().delete(category) {
-            panic!("{e}")
-        }
-    }
-    pub fn update_category(&self, category: &Category) {
-        if let Err(e) = self.db.category_db().update(category) {
-            panic!("{e}")
-        }
     }
     pub fn get_recipes(&self) -> Vec<Recipe> {
         match self.db.recipe_db().get_range(0, 100) {

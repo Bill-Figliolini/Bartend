@@ -5,7 +5,7 @@ mod quantity;
 mod recipe;
 
 pub use {
-    category::{Category, CategoryBody, CategoryID},
+    category::{Category, CategoryBody, CategoryFilter, CategoryID},
     config::{Config, ConfigError, EditableConfig},
     item::{Item, ItemBody, ItemCommand, ItemID},
     quantity::{CountName, Quantity, Unit, UnitSystem},

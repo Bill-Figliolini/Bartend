@@ -9,7 +9,7 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    logic::BarCollection,
+    logic::{BarCollection, CategoryService},
     models::{Category, CategoryBody, CategoryID, Config, Item, ItemBody, Recipe, RecipeBody},
     presentation::{
         screen::{self, Screen, categories, inventory, recipes, settings},
@@ -29,6 +29,7 @@ struct Bartend {
     screen: Screen,
     config: Config,
     bar_collection: BarCollection,
+    category_service: CategoryService,
 }
 
 #[derive(Debug, Clone)]
