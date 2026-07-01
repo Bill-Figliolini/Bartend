@@ -6,12 +6,8 @@ mod recipe_service;
 use std::{collections::HashMap, path::Path};
 
 use crate::{
-    logic::{
-        category_service::CategoryService, item_service::ItemService, recipe_service::RecipeService,
-    },
     models::{
-        Category, CategoryBody, CategoryID, Channel, Item, ItemBody, ItemID, Recipe, RecipeBody,
-        RecipeID,
+        Category, CategoryBody, CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID,
     },
     persistence::{
         Database,
@@ -37,8 +33,7 @@ impl BarCollection {
             Ok(db) => db,
             Err(e) => panic!("DB Creation Error: {e}"),
         };
-        let categories = CategoryService::new();
-        Self { db, categories }
+        Self { db }
     }
     #[must_use]
     pub fn get_items(&self) -> Vec<Item> {
@@ -137,8 +132,4 @@ impl BarCollection {
             panic!("{e}");
         }
     }
-}
-
-trait Service<ClientMsg, ServiceMsg> {
-    fn get_channel(&self) -> Channel<ClientMsg, ServiceMsg>;
 }
