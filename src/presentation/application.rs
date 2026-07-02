@@ -10,7 +10,10 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{BarCollection, CategoryService},
-    models::{Category, CategoryBody, CategoryID, Config, Item, ItemBody, Recipe, RecipeBody},
+    models::{
+        Category, CategoryBody, CategoryFilter, CategoryID, Config, Item, ItemBody, Recipe,
+        RecipeBody,
+    },
     presentation::{
         screen::{self, Screen, categories, inventory, recipes, settings},
         widget::sidebar,
@@ -83,7 +86,8 @@ impl Bartend {
 
         let bar_collection = BarCollection::new(config.db_path());
         let items = bar_collection.get_items();
-        let categories = bar_collection.get_categories();
+        let category_service = CategoryService::new();
+        let categories = category_service.get(CategoryFilter {}, &bar_collection.db.category_db());
         let mapping = bar_collection.get_item_mapping(&items);
         let screen = Screen::start(&config, items, categories, mapping);
 
@@ -91,6 +95,7 @@ impl Bartend {
             screen,
             config,
             bar_collection,
+            category_service,
         }
     }
 
@@ -107,7 +112,9 @@ impl Bartend {
                     Task::none()
                 } else {
                     let items = self.bar_collection.get_items();
-                    let categories = self.bar_collection.get_categories();
+                    let categories = self
+                        .category_service
+                        .get(CategoryFilter {}, &self.bar_collection.db.category_db());
                     let mapping = self.bar_collection.get_item_mapping(&items);
                     self.screen = Screen::inventory(&self.config, items, categories, mapping);
                     Task::done(Message::UpdateInventory)
@@ -159,27 +166,34 @@ impl Bartend {
             Message::OpenCategories => {
                 if let Screen::Categories(_) = self.screen {
                 } else {
-                    let categories = self.bar_collection.get_categories();
+                    let categories = self
+                        .category_service
+                        .get(CategoryFilter {}, &self.bar_collection.db.category_db());
                     self.screen = Screen::categories(&self.config, categories);
                 }
                 Task::none()
             }
             Message::UpdateCategories => {
-                let categories = self.bar_collection.get_categories();
+                let categories = self
+                    .category_service
+                    .get(CategoryFilter {}, &self.bar_collection.db.category_db());
                 self.screen.update(Message::Categories(
                     categories::Message::CategoryListUpdate(categories),
                 ));
                 Task::none()
             }
             Message::DeleteCategory(category) => {
-                self.bar_collection.delete_category(category);
+                self.category_service
+                    .delete(category, &self.bar_collection.db.category_db());
                 Task::done(Message::UpdateCategories)
             }
 
             Message::OpenRecipes => {
                 if let Screen::Recipes(_) = self.screen {
                 } else {
-                    let categories = self.bar_collection.get_categories();
+                    let categories = self
+                        .category_service
+                        .get(CategoryFilter {}, &self.bar_collection.db.category_db());
                     let recipes = self.bar_collection.get_recipes();
                     self.screen = Screen::recipes(&self.config, categories, recipes);
                 }
@@ -245,11 +259,13 @@ impl Bartend {
                 if let Some(command) = self.screen.update(message) {
                     match command {
                         Command::AddCategory(body) => {
-                            self.bar_collection.add_category(&body);
+                            self.category_service
+                                .insert(&body, &self.bar_collection.db.category_db());
                             Task::done(Message::UpdateCategories)
                         }
                         Command::UpdateCategory(category) => {
-                            self.bar_collection.update_category(&category);
+                            self.category_service
+                                .update(&category, &self.bar_collection.db.category_db());
                             Task::done(Message::UpdateCategories)
                         }
                         _ => unreachable!(),

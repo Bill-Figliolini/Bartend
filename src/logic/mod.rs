@@ -21,7 +21,7 @@ pub use category_service::CategoryService;
 ///     Accept new Items
 #[derive(Debug)]
 pub struct BarCollection {
-    db: Database,
+    pub db: Database,
 }
 
 impl BarCollection {
