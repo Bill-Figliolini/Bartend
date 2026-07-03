@@ -1,27 +1,45 @@
 use std::collections::HashMap;
 
 use crate::{
-    models::{Category, CategoryBody, CategoryFilter, CategoryID},
-    persistence::repositories::CategoryRepository,
+    models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
+    persistence::{Database, repositories::CategoryRepository},
 };
 
 #[derive(Debug)]
 pub struct CategoryService {
     categories: HashMap<CategoryID, CategoryBody>,
+    item_mapping: HashMap<ItemID, CategoryID>,
 }
 
 impl CategoryService {
-    pub fn new() -> Self {
+    //bulk load data at start
+    pub fn new(db: &Database) -> Self {
+        let categories = HashMap::new();
+        let item_mapping = HashMap::new();
         CategoryService {
-            categories: HashMap::new(),
+            categories,
+            item_mapping,
         }
     }
 
+    pub fn item_category(&self, item: &ItemID) -> Option<&CategoryID> {
+        self.item_mapping.get(item)
+    }
     #[must_use]
-    pub fn get(&self, _filter: CategoryFilter, db: &impl CategoryRepository) -> Vec<Category> {
-        match db.get_range(0, 100) {
-            Ok(categories) => categories,
-            Err(e) => panic!("{e}"),
+    pub fn get_all(&self, _filter: CategoryFilter) -> Vec<Category> {
+        self.categories
+            .iter()
+            .map(|(id, body)| Category {
+                id: id.clone(),
+                body: body.clone(),
+            })
+            .collect()
+    }
+
+    pub fn get(&self, id: &CategoryID) -> &CategoryBody {
+        match self.categories.get(id) {
+            Some(body) => body,
+            None => panic!("Invalid CategoryID in cirulation!"),
         }
     }
 
@@ -49,7 +67,7 @@ impl CategoryService {
             }
         } else {
             panic!(
-                "Categories attempted to update uncached category {}",
+                "Categories attempted to update nonexistent category {}",
                 category
             );
         }
