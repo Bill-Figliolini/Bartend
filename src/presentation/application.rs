@@ -58,7 +58,7 @@ pub(in crate::presentation) enum Message {
     Settings(screen::settings::Message),
     Categories(screen::categories::Message),
     Recipes(screen::recipes::Message),
-    Service(screen::service::Message),
+    Serving(screen::serving::Message),
 }
 //For instances where internals of a screen need to effect application state.
 pub enum Command {

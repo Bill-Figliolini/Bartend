@@ -1,7 +1,7 @@
 pub(super) mod categories;
 pub(super) mod inventory;
 pub(super) mod recipes;
-pub(super) mod service;
+pub(super) mod serving;
 pub(super) mod settings;
 
 use std::collections::HashMap;
@@ -23,7 +23,7 @@ pub enum Screen {
     Settings(settings::Settings),
     Categories(categories::Categories),
     Recipes(recipes::Recipes),
-    Service(service::Service),
+    Serving(serving::Serving),
 }
 impl Screen {
     pub fn start(
@@ -41,7 +41,7 @@ impl Screen {
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(),
             Self::Recipes(recipes) => recipes.view(),
-            Self::Service(service) => service.view(),
+            Self::Serving(service) => service.view(),
         }
     }
     pub fn update(&mut self, message: Message) -> Option<Command> {
@@ -52,7 +52,7 @@ impl Screen {
                 categories.update(message)
             }
             (Self::Recipes(recipes), Message::Recipes(message)) => recipes.update(message),
-            (Self::Service(service), Message::Service(message)) => service.update(message),
+            (Self::Serving(service), Message::Serving(message)) => service.update(message),
             _ => unreachable!(),
         }
     }
