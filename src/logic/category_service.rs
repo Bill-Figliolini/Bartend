@@ -66,7 +66,7 @@ impl CategoryService {
     }
 
     //Writes, cache invalidating
-    pub fn insert(&mut self, body: &CategoryBody, db: &impl CategoryRepository) -> CategoryID {
+    pub fn insert(&mut self, db: &impl CategoryRepository, body: &CategoryBody) -> CategoryID {
         match db.insert(body) {
             Ok(id) => {
                 self.categories.insert(id, body.clone());
@@ -75,13 +75,13 @@ impl CategoryService {
             Err(e) => panic!("{e}"),
         }
     }
-    pub fn delete(&mut self, category: Category, db: &impl CategoryRepository) {
+    pub fn delete(&mut self, db: &impl CategoryRepository, category: Category) {
         self.categories.remove(&category.id);
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }
     }
-    pub fn update(&mut self, category: &Category, db: &impl CategoryRepository) {
+    pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
             *cached_copy = category.body.clone();
             if let Err(e) = db.update(category) {

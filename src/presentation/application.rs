@@ -170,7 +170,7 @@ impl Bartend {
             }
             Message::DeleteCategory(category) => {
                 self.category_service
-                    .delete(category, &self.bar_collection.db.category_db());
+                    .delete(&self.bar_collection.db.category_db(), category);
                 Task::done(Message::UpdateCategories)
             }
 
@@ -251,12 +251,12 @@ impl Bartend {
                     match command {
                         Command::AddCategory(body) => {
                             self.category_service
-                                .insert(&body, &self.bar_collection.db.category_db());
+                                .insert(&self.bar_collection.db.category_db(), &body);
                             Task::done(Message::UpdateCategories)
                         }
                         Command::UpdateCategory(category) => {
                             self.category_service
-                                .update(&category, &self.bar_collection.db.category_db());
+                                .update(&self.bar_collection.db.category_db(), &category);
                             Task::done(Message::UpdateCategories)
                         }
                         _ => unreachable!(),
