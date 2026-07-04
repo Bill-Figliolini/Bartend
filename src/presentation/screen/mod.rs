@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use iced::Element;
 
 use crate::{
-    logic::CategoryService,
+    logic::{CategoryService, ItemService},
     models::{Category, CategoryID, Config, Item, ItemID, Recipe},
     presentation::{
         Updateable, Viewable,
@@ -27,8 +27,8 @@ pub enum Screen {
     Serving(serving::Serving),
 }
 impl Screen {
-    pub fn start(config: &Config, items: Vec<Item>, categories: &CategoryService) -> Self {
-        let inventory = inventory::Inventory::new(config, items, categories);
+    pub fn start(config: &Config, categories: &CategoryService) -> Self {
+        let inventory = inventory::Inventory::new(config, categories);
         Self::Inventory(Box::new(inventory))
     }
     pub fn view(&self, categories: &CategoryService) -> Element<'_, Message> {

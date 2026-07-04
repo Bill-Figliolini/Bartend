@@ -7,10 +7,10 @@ use iced::{
 };
 
 use crate::{
-    logic::CategoryService,
-    models::{Category, CategoryFilter, CategoryID, Config, Item, ItemID, UnitSystem},
+    logic::{CategoryService, ItemService},
+    models::{Category, CategoryFilter, Config, Item, ItemID, UnitSystem},
     presentation::{
-        Updateable, Viewable, application,
+        Viewable, application,
         input_handling::{EditableCollection, InputCollection, InputMessage, ItemInput},
         widget::{footer::footer, header::header, text_style::title},
     },
@@ -20,7 +20,6 @@ use crate::{
 pub struct Inventory {
     input: ItemInput,
 
-    contents: Vec<Item>,
     unit_system: UnitSystem,
 
     edit_state: EditState,
@@ -43,7 +42,7 @@ pub enum Message {
 }
 
 impl Inventory {
-    pub fn new(config: &Config, items: Vec<Item>, category_service: &CategoryService) -> Self {
+    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
         let unit_system = config.default_units();
 
         Self {
@@ -55,7 +54,6 @@ impl Inventory {
             ),
 
             // Display Managers
-            contents: items,
             unit_system,
 
             // Input State
@@ -75,6 +73,7 @@ impl Inventory {
 
     fn build_inventory_display(
         &self,
+        item_service: &ItemService,
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(Fill), |item: &Item| {

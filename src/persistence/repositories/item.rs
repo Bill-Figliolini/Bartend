@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     models::{Item, ItemBody, ItemID, Quantity},
     persistence::{
@@ -49,12 +51,9 @@ impl<'a> ItemRepository for ItemDB<'a> {
         Ok(())
     }
 
-    fn get_range(&self, offset: usize, quantity: usize) -> Result<Vec<Item>, DBError> {
-        let query = format!("SELECT * FROM items LIMIT {quantity} OFFSET {offset}");
-        let mut stmt = self
-            .connection
-            .prepare(&query)
-            .expect("Query must be valid");
+    fn get_all(&self) -> Result<HashMap<ItemID, ItemBody>, DBError> {
+        let query = format!("SELECT * FROM items");
+        let mut stmt = self.connection.prepare(&query)?;
         let rows = stmt
             .query_map([], |row| {
                 let id = row.get(0).unwrap();
@@ -66,14 +65,12 @@ impl<'a> ItemRepository for ItemDB<'a> {
                 })
             })
             .unwrap();
-        Ok(rows
-            .into_iter()
-            .fold(Vec::with_capacity(quantity), |mut acc, row| {
-                match row {
-                    Ok(item) => acc.push(item),
-                    Err(e) => panic!("Retrieving Items failled with error: {e}"),
-                }
-                acc
-            }))
+        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
+            match row {
+                Ok(item) => acc.insert(item.id, item.body),
+                Err(e) => panic!("Retrieving Items failled with error: {e}"),
+            };
+            acc
+        }))
     }
 }

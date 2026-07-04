@@ -40,7 +40,7 @@ pub trait ItemRepository: Repository {
     fn insert(&self, body: &ItemBody) -> Result<ItemID, DBError>;
     fn update(&self, item: &Item) -> Result<(), DBError>;
     fn delete(&self, item: Item) -> Result<(), DBError>;
-    fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Item>, DBError>;
+    fn get_all(&self) -> Result<HashMap<ItemID, ItemBody>, DBError>;
 }
 pub trait ItemMappingRepository: Repository {
     fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
