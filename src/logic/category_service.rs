@@ -35,15 +35,15 @@ impl CategoryService {
             graph,
         }
     }
-    pub fn item_category(&self, item: &ItemID) -> Option<&CategoryID> {
-        self.item_mapping.get(item)
+    pub fn item_category(&self, item: &ItemID) -> Option<CategoryID> {
+        self.item_mapping.get(item).copied()
     }
     pub fn item_satisifies_category(&self, item: &ItemID, target_category: &CategoryID) -> bool {
         match (
             self.item_category(item),
             self.graph.get_all_children(target_category),
         ) {
-            (Some(item_category), Some(category_set)) => category_set.contains(item_category),
+            (Some(item_category), Some(category_set)) => category_set.contains(&item_category),
             (_, _) => false,
         }
     }
@@ -95,7 +95,7 @@ impl CategoryService {
         }
     }
     pub fn add_item_mapping(
-        &self,
+        &mut self,
         db: &impl ItemMappingRepository,
         item: &ItemID,
         category: &CategoryID,
@@ -103,23 +103,36 @@ impl CategoryService {
         if let Err(e) = db.insert(item, category) {
             panic!("{e}");
         }
+        self.item_mapping.insert(*item, *category);
     }
     pub fn update_item_mapping(
-        &self,
+        &mut self,
         db: &impl ItemMappingRepository,
         item: &ItemID,
         category: &Option<CategoryID>,
     ) {
-        let old_category = self.item_category(item);
-        if let Some(old_category) = old_category
-            && let Err(e) = db.delete(item, &old_category)
-        {
-            panic!("{e}");
-        }
-        if let Some(category) = category
-            && let Err(e) = db.insert(item, category)
-        {
-            panic!("{e}");
+        let mut old_category = self.item_category(item);
+        match (old_category.take(), category) {
+            (None, Some(new)) => {
+                self.add_item_mapping(db, item, new);
+            }
+            (Some(old), None) => {
+                self.item_mapping.remove(item);
+                if let Err(e) = db.delete(item, &old) {
+                    panic!("{e}");
+                }
+            }
+            (Some(old), Some(new)) => {
+                if let Err(e) = db.delete(item, &old) {
+                    panic!("{e}");
+                }
+                if let Err(e) = db.insert(item, &old) {
+                    panic!("{e}");
+                }
+                let old_mapping = self.item_mapping.get_mut(item).unwrap();
+                *old_mapping = *new;
+            }
+            (None, None) => {}
         }
     }
 }

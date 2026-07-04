@@ -91,7 +91,7 @@ impl Inventory {
             table::column(
                 text("Category").width(200),
                 |item: &Item| match category_service.item_category(&item.id) {
-                    Some(cat_id) => text(category_service.get(cat_id).name.clone()),
+                    Some(cat_id) => text(category_service.get(&cat_id).name.clone()),
                     None => text!("None"),
                 },
             );
@@ -103,8 +103,8 @@ impl Inventory {
                 EditState::None => {
                     let category = match category_service.item_category(&item.id) {
                         Some(id_ref) => Some(Category {
-                            id: *id_ref,
-                            body: category_service.get(id_ref).clone(),
+                            id: id_ref,
+                            body: category_service.get(&id_ref).clone(),
                         }),
                         None => None,
                     };

@@ -6,10 +6,10 @@ mod recipe_service;
 use std::path::Path;
 
 use crate::{
-    models::{CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID},
+    models::{Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID},
     persistence::{
         Database,
-        repositories::{ItemMappingRepository, ItemRepository, RecipeRepository},
+        repositories::{ItemRepository, RecipeRepository},
     },
 };
 
