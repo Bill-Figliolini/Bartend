@@ -11,6 +11,7 @@ use crate::{
 };
 
 pub mod category;
+pub mod graph;
 pub mod ingredients;
 pub mod item;
 pub mod mapping;
@@ -42,8 +43,7 @@ pub trait ItemRepository: Repository {
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Item>, DBError>;
 }
 pub trait ItemMappingRepository: Repository {
-    fn get_map(&self, ids: &[ItemID]) -> Result<HashMap<ItemID, CategoryID>, DBError>;
-    fn get_single(&self, id: &ItemID) -> Result<Option<CategoryID>, DBError>;
+    fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
     fn insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
     fn delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
 }
@@ -51,7 +51,7 @@ pub trait CategoryRepository: Repository {
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError>;
     fn update(&self, category: &Category) -> Result<(), DBError>;
     fn delete(&self, category: Category) -> Result<(), DBError>;
-    fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Category>, DBError>;
+    fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError>;
 }
 pub trait RecipeRepository: Repository {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;
@@ -69,3 +69,5 @@ pub trait IngredientRepository: Repository {
     fn delete(&self, recipe: &RecipeID) -> Result<(), DBError>;
     fn get(&self, recipe: &RecipeID) -> Result<Vec<Ingredient>, rusqlite::Error>;
 }
+
+pub trait GraphRepository: Repository {}

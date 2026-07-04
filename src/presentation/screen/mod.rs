@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use iced::Element;
 
 use crate::{
+    logic::CategoryService,
     models::{Category, CategoryID, Config, Item, ItemID, Recipe},
     presentation::{
         Updateable, Viewable,
@@ -26,18 +27,13 @@ pub enum Screen {
     Serving(serving::Serving),
 }
 impl Screen {
-    pub fn start(
-        config: &Config,
-        items: Vec<Item>,
-        categories: Vec<Category>,
-        mapping: HashMap<ItemID, CategoryID>,
-    ) -> Self {
-        let inventory = inventory::Inventory::new(config, items, categories, mapping);
+    pub fn start(config: &Config, items: Vec<Item>, categories: &CategoryService) -> Self {
+        let inventory = inventory::Inventory::new(config, items, categories);
         Self::Inventory(Box::new(inventory))
     }
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn view(&self, categories: &CategoryService) -> Element<'_, Message> {
         match self {
-            Self::Inventory(inventory) => inventory.view(),
+            Self::Inventory(inventory) => inventory.view(categories),
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(),
             Self::Recipes(recipes) => recipes.view(),
@@ -56,13 +52,8 @@ impl Screen {
             _ => unreachable!(),
         }
     }
-    pub fn inventory(
-        config: &Config,
-        items: Vec<Item>,
-        categories: Vec<Category>,
-        mapping: HashMap<ItemID, CategoryID>,
-    ) -> Self {
-        let inventory = inventory::Inventory::new(config, items, categories, mapping);
+    pub fn inventory(config: &Config, items: Vec<Item>, categories: &CategoryService) -> Self {
+        let inventory = inventory::Inventory::new(config, items, categories);
         Self::Inventory(Box::new(inventory))
     }
 

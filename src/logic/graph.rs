@@ -18,7 +18,7 @@ pub enum GraphError {
 }
 
 impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             graph: HashMap::new(),
         }

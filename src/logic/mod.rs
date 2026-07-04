@@ -3,7 +3,7 @@ mod graph;
 mod item_service;
 mod recipe_service;
 
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use crate::{
     models::{CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID},
@@ -25,7 +25,6 @@ pub struct BarCollection {
 }
 
 impl BarCollection {
-    pub fn run() {}
     pub fn new(path: impl AsRef<Path>) -> Self {
         let db = match Database::new(path) {
             Ok(db) => db,
@@ -38,35 +37,6 @@ impl BarCollection {
         match self.db.item_db().get_range(0, 100) {
             Ok(items) => items,
             Err(e) => panic!("{e}"),
-        }
-    }
-    #[must_use]
-    pub fn get_item_mapping(&self, items: &[Item]) -> HashMap<ItemID, CategoryID> {
-        let ids: Vec<ItemID> = items.iter().map(|item| item.id).collect();
-        match self.db.mapping_db().get_map(&ids) {
-            Ok(output) => output,
-            Err(e) => panic!("{e}"),
-        }
-    }
-    pub fn add_item_mapping(&self, item: &ItemID, category: &CategoryID) {
-        if let Err(e) = self.db.mapping_db().insert(item, category) {
-            panic!("{e}");
-        }
-    }
-    pub fn update_item_mapping(&self, item: &ItemID, category: &Option<CategoryID>) {
-        let old_category = match self.db.mapping_db().get_single(item) {
-            Ok(category_id) => category_id,
-            Err(e) => panic!("{e}"),
-        };
-        if let Some(old_category) = old_category
-            && let Err(e) = self.db.mapping_db().delete(item, &old_category)
-        {
-            panic!("{e}");
-        }
-        if let Some(category) = category
-            && let Err(e) = self.db.mapping_db().insert(item, category)
-        {
-            panic!("{e}");
         }
     }
     pub fn add_item(&self, item: &ItemBody) -> ItemID {

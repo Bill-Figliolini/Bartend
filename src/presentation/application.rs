@@ -86,10 +86,8 @@ impl Bartend {
 
         let bar_collection = BarCollection::new(config.db_path());
         let items = bar_collection.get_items();
-        let category_service = CategoryService::new();
-        let categories = category_service.get(CategoryFilter {}, &bar_collection.db.category_db());
-        let mapping = bar_collection.get_item_mapping(&items);
-        let screen = Screen::start(&config, items, categories, mapping);
+        let category_service = CategoryService::new(&bar_collection.db);
+        let screen = Screen::start(&config, items, &category_service);
 
         Self {
             screen,
@@ -112,11 +110,7 @@ impl Bartend {
                     Task::none()
                 } else {
                     let items = self.bar_collection.get_items();
-                    let categories = self
-                        .category_service
-                        .get(CategoryFilter {}, &self.bar_collection.db.category_db());
-                    let mapping = self.bar_collection.get_item_mapping(&items);
-                    self.screen = Screen::inventory(&self.config, items, categories, mapping);
+                    self.screen = Screen::inventory(&self.config, items, &self.category_service);
                     Task::done(Message::UpdateInventory)
                 }
             }
@@ -126,14 +120,10 @@ impl Bartend {
             }
             Message::UpdateInventory => {
                 let items = self.bar_collection.get_items();
-                let mapping = self.bar_collection.get_item_mapping(&items);
                 self.screen
                     .update(Message::Inventory(inventory::Message::InventoryUpdate(
                         items,
                     )));
-                self.screen.update(Message::Inventory(
-                    inventory::Message::CategoryMappingUpdate(mapping),
-                ));
                 Task::none()
             }
 
@@ -166,17 +156,13 @@ impl Bartend {
             Message::OpenCategories => {
                 if let Screen::Categories(_) = self.screen {
                 } else {
-                    let categories = self
-                        .category_service
-                        .get(CategoryFilter {}, &self.bar_collection.db.category_db());
+                    let categories = self.category_service.get_all(CategoryFilter {});
                     self.screen = Screen::categories(&self.config, categories);
                 }
                 Task::none()
             }
             Message::UpdateCategories => {
-                let categories = self
-                    .category_service
-                    .get(CategoryFilter {}, &self.bar_collection.db.category_db());
+                let categories = self.category_service.get_all(CategoryFilter {});
                 self.screen.update(Message::Categories(
                     categories::Message::CategoryListUpdate(categories),
                 ));
@@ -191,9 +177,7 @@ impl Bartend {
             Message::OpenRecipes => {
                 if let Screen::Recipes(_) = self.screen {
                 } else {
-                    let categories = self
-                        .category_service
-                        .get(CategoryFilter {}, &self.bar_collection.db.category_db());
+                    let categories = self.category_service.get_all(CategoryFilter {});
                     let recipes = self.bar_collection.get_recipes();
                     self.screen = Screen::recipes(&self.config, categories, recipes);
                 }
@@ -216,15 +200,22 @@ impl Bartend {
                         Command::AddItem(item_body, category_id) => {
                             let item_id = self.bar_collection.add_item(&item_body);
                             if let Some(category_id) = category_id {
-                                self.bar_collection.add_item_mapping(&item_id, &category_id);
+                                self.category_service.add_item_mapping(
+                                    &self.bar_collection.db.mapping_db(),
+                                    &item_id,
+                                    &category_id,
+                                );
                             }
                             Task::done(Message::UpdateInventory)
                         }
                         Command::UpdateItem(item, category_id) => {
                             let item_id = item.id;
                             self.bar_collection.update_item(item);
-                            self.bar_collection
-                                .update_item_mapping(&item_id, &category_id);
+                            self.category_service.update_item_mapping(
+                                &self.bar_collection.db.mapping_db(),
+                                &item_id,
+                                &category_id,
+                            );
                             Task::done(Message::UpdateInventory)
                         }
                         _ => unreachable!(),
@@ -302,7 +293,7 @@ impl Bartend {
             .button("Settings", || Message::OpenSettings)
             .into();
 
-        let screen_contents = self.screen.view();
+        let screen_contents = self.screen.view(&self.category_service);
         let screen = container(screen_contents).width(Fill).height(Fill);
 
         container(row![sidebar, screen])

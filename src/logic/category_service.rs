@@ -1,29 +1,51 @@
 use std::collections::HashMap;
 
 use crate::{
+    logic::graph::DirectedAcyclicGraph,
     models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
-    persistence::{Database, repositories::CategoryRepository},
+    persistence::{
+        Database,
+        repositories::{CategoryRepository, ItemMappingRepository},
+    },
 };
 
 #[derive(Debug)]
 pub struct CategoryService {
     categories: HashMap<CategoryID, CategoryBody>,
     item_mapping: HashMap<ItemID, CategoryID>,
+    graph: DirectedAcyclicGraph<CategoryID>,
 }
 
 impl CategoryService {
     //bulk load data at start
     pub fn new(db: &Database) -> Self {
-        let categories = HashMap::new();
-        let item_mapping = HashMap::new();
+        let categories = match db.category_db().get_all() {
+            Ok(map) => map,
+            Err(_) => panic!("Error reading category DB"),
+        };
+
+        let item_mapping = match db.mapping_db().get_map() {
+            Ok(map) => map,
+            Err(_) => panic!("Error reading mapping DB"),
+        };
+        let graph = DirectedAcyclicGraph::new();
         CategoryService {
             categories,
             item_mapping,
+            graph,
         }
     }
-
     pub fn item_category(&self, item: &ItemID) -> Option<&CategoryID> {
         self.item_mapping.get(item)
+    }
+    pub fn item_satisifies_category(&self, item: &ItemID, target_category: &CategoryID) -> bool {
+        match (
+            self.item_category(item),
+            self.graph.get_all_children(target_category),
+        ) {
+            (Some(item_category), Some(category_set)) => category_set.contains(item_category),
+            (_, _) => false,
+        }
     }
     #[must_use]
     pub fn get_all(&self, _filter: CategoryFilter) -> Vec<Category> {
@@ -70,6 +92,34 @@ impl CategoryService {
                 "Categories attempted to update nonexistent category {}",
                 category
             );
+        }
+    }
+    pub fn add_item_mapping(
+        &self,
+        db: &impl ItemMappingRepository,
+        item: &ItemID,
+        category: &CategoryID,
+    ) {
+        if let Err(e) = db.insert(item, category) {
+            panic!("{e}");
+        }
+    }
+    pub fn update_item_mapping(
+        &self,
+        db: &impl ItemMappingRepository,
+        item: &ItemID,
+        category: &Option<CategoryID>,
+    ) {
+        let old_category = self.item_category(item);
+        if let Some(old_category) = old_category
+            && let Err(e) = db.delete(item, &old_category)
+        {
+            panic!("{e}");
+        }
+        if let Some(category) = category
+            && let Err(e) = db.insert(item, category)
+        {
+            panic!("{e}");
         }
     }
 }

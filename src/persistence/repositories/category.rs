@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     models::{Category, CategoryBody, CategoryID},
     persistence::{
@@ -38,12 +40,9 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
             .execute("DELETE FROM category WHERE id=?1", (&category.id,))?;
         Ok(())
     }
-    fn get_range(&self, offset: usize, quantity: usize) -> Result<Vec<Category>, DBError> {
-        let query = format!("SELECT * FROM category LIMIT {quantity} OFFSET {offset}");
-        let mut stmt = self
-            .connection
-            .prepare(&query)
-            .expect("Query must be valid");
+    fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError> {
+        let query = format!("SELECT * FROM category");
+        let mut stmt = self.connection.prepare(&query)?;
         let rows = stmt.query_map([], |row| {
             let id = row.get(0).unwrap();
             let name = row.get(1).unwrap();
@@ -52,14 +51,12 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
                 body: CategoryBody { name },
             })
         })?;
-        Ok(rows
-            .into_iter()
-            .fold(Vec::with_capacity(quantity), |mut acc, row| {
-                match row {
-                    Ok(item) => acc.push(item),
-                    Err(e) => panic!("Retrieving Items failled with error: {e}"),
-                }
-                acc
-            }))
+        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
+            match row {
+                Ok(item) => acc.insert(item.id, item.body),
+                Err(e) => panic!("Retrieving Items failled with error: {e}"),
+            };
+            acc
+        }))
     }
 }

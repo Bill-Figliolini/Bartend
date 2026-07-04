@@ -24,27 +24,18 @@ impl<'a> Repository for ItemMappingDB<'a> {
 }
 
 impl<'a> ItemMappingRepository for ItemMappingDB<'a> {
-    fn get_map(&self, ids: &[ItemID]) -> Result<HashMap<ItemID, CategoryID>, DBError> {
+    fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError> {
         let mut stmt = self
             .connection
-            .prepare("SELECT item_id, category_id FROM category_item WHERE item_id = ?1;")?;
-        let mut mapping = HashMap::new();
-        for id in ids {
-            if let Some((item_id, category_id)) = stmt
-                .query_row((id,), |row| Ok((row.get(0)?, row.get(1)?)))
-                .optional()?
-            {
-                mapping.insert(item_id, category_id);
-            }
-        }
-        Ok(mapping)
-    }
-    fn get_single(&self, id: &ItemID) -> Result<Option<CategoryID>, DBError> {
-        let mut stmt = self
-            .connection
-            .prepare("SELECT category_id FROM category_item WHERE item_id = ?1;")?;
-        let result = stmt.query_row((id,), |row| row.get(0)).optional()?;
-        Ok(result)
+            .prepare("SELECT item_id, category_id FROM category_item;")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
+            match row {
+                Ok((item_id, category_id)) => acc.insert(item_id, category_id),
+                Err(e) => panic!("error retrieving item mapping: {e}"),
+            };
+            acc
+        }))
     }
     fn insert(&self, item_id: &ItemID, category_id: &CategoryID) -> Result<(), DBError> {
         self.connection.execute(
