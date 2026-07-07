@@ -1,4 +1,4 @@
-use crate::presentation::{Updateable, Viewable, application};
+use crate::presentation::application;
 
 #[derive(Debug, Clone)]
 pub(in crate::presentation) enum Message {}
@@ -6,13 +6,14 @@ pub(in crate::presentation) enum Message {}
 #[derive(Debug)]
 pub(in crate::presentation) struct Serving {}
 
-impl Viewable<application::Message> for Serving {
-    fn view(&self) -> iced::Element<'_, application::Message> {
+impl Serving {
+    pub fn new() -> Self {
+        Self {}
+    }
+    pub fn view(&self) -> iced::Element<'_, application::Message> {
         todo!()
     }
-}
-impl Updateable<Message> for Serving {
-    fn update(&mut self, message: Message) -> Option<application::Command> {
+    pub fn update(&mut self, message: Message) -> Option<application::Command> {
         todo!()
     }
 }

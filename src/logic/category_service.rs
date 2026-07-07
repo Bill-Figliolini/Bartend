@@ -14,6 +14,8 @@ pub struct CategoryService {
     categories: HashMap<CategoryID, CategoryBody>,
     item_mapping: HashMap<ItemID, CategoryID>,
     graph: DirectedAcyclicGraph<CategoryID>,
+
+    page_size: usize,
 }
 
 impl CategoryService {
@@ -33,6 +35,7 @@ impl CategoryService {
             categories,
             item_mapping,
             graph,
+            page_size: 15,
         }
     }
     pub fn item_category(&self, item: &ItemID) -> Option<CategoryID> {
@@ -65,6 +68,16 @@ impl CategoryService {
         }
     }
 
+    pub fn get_page(&self, page_number: usize) -> Vec<CategoryID> {
+        let page_offset = page_number * self.page_size;
+        self.categories
+            .keys()
+            .copied()
+            .skip(page_offset)
+            .take(self.page_size)
+            .collect()
+    }
+
     //Writes, cache invalidating
     pub fn insert(&mut self, db: &impl CategoryRepository, body: &CategoryBody) -> CategoryID {
         match db.insert(body) {
@@ -75,8 +88,8 @@ impl CategoryService {
             Err(e) => panic!("{e}"),
         }
     }
-    pub fn delete(&mut self, db: &impl CategoryRepository, category: Category) {
-        self.categories.remove(&category.id);
+    pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
+        self.categories.remove(&category);
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }

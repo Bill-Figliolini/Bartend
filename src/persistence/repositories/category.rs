@@ -35,9 +35,9 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         )?;
         Ok(())
     }
-    fn delete(&self, category: Category) -> Result<(), DBError> {
+    fn delete(&self, category: CategoryID) -> Result<(), DBError> {
         self.connection
-            .execute("DELETE FROM category WHERE id=?1", (&category.id,))?;
+            .execute("DELETE FROM category WHERE id=?1", (&category,))?;
         Ok(())
     }
     fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError> {

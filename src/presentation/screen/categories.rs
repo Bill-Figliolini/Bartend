@@ -1,4 +1,5 @@
 use crate::{
+    logic::CategoryService,
     models::{Category, CategoryID, Config, UnitSystem},
     presentation::{
         Updateable, Viewable, application,
@@ -17,12 +18,12 @@ pub struct Categories {
 
     edit_state: EditState,
 
-    contents: Vec<Category>,
+    contents: Vec<CategoryID>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    CategoryListUpdate(Vec<Category>),
+    Reload,
     Input(InputMessage),
     BeginEdit(Category),
     Save,
@@ -33,11 +34,11 @@ enum EditState {
     None,
 }
 impl Categories {
-    pub fn new(config: &Config, categories: Vec<Category>) -> Self {
+    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
         Self {
             input: CategoryInput::new(config, input_msg),
             edit_state: EditState::None,
-            contents: categories,
+            contents: category_service.get_page(0),
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
@@ -50,22 +51,28 @@ impl Categories {
         let body = row![self.input.view(), save_button];
         column![header, body].into()
     }
-    fn build_category_display(&self) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(200), |category: &Category| {
-            text(&category.body.name)
+    fn build_category_display(
+        &self,
+        category_service: &CategoryService,
+    ) -> Element<'_, application::Message> {
+        let name_column = table::column(text("Name").width(200), |category: &CategoryID| {
+            text(category_service.get(category).name.clone())
         });
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
-            |category: &Category| match self.edit_state {
+            |category: &CategoryID| match self.edit_state {
                 EditState::None => iced::widget::Button::new(text("Edit").center())
                     .on_press(application::Message::Categories(Message::BeginEdit(
-                        category.clone(),
+                        Category {
+                            id: category.clone(),
+                            body: category_service.get(category).clone(),
+                        },
                     )))
                     .width(edit_column_width),
-                EditState::Editing(category_id) if category.id == category_id => {
+                EditState::Editing(category_id) if *category == category_id => {
                     iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::UpdateCategories)
+                        .on_press(application::Message::ReloadScreen)
                         .width(edit_column_width)
                 }
                 EditState::Editing(_) => {
@@ -76,7 +83,7 @@ impl Categories {
         let delete_column_width = 50;
         let delete_column = table::column(
             text("Delete").width(delete_column_width).center(),
-            |category: &Category| {
+            |category: &CategoryID| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
                     .on_press(application::Message::DeleteCategory(category.clone()))
             },
@@ -84,24 +91,19 @@ impl Categories {
         let columns = vec![name_column, edit_column, delete_column];
         table(columns, &self.contents).into()
     }
-}
-
-impl Viewable<application::Message> for Categories {
-    fn view(&self) -> Element<'_, application::Message> {
+    pub fn view(&self, category_service: &CategoryService) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
-        let categories = self.build_category_display();
+        let categories = self.build_category_display(category_service);
         let body = column![category_entry, categories];
         column![header, body].into()
     }
-}
-impl Updateable<Message> for Categories {
-    fn update(&mut self, message: Message) -> Option<application::Command> {
+    pub fn update(
+        &mut self,
+        category_service: &CategoryService,
+        message: Message,
+    ) -> Option<application::Command> {
         match message {
-            Message::CategoryListUpdate(list) => {
-                self.contents = list;
-                None
-            }
             Message::Input(msg) => {
                 self.input.update(msg);
                 None
@@ -131,6 +133,11 @@ impl Updateable<Message> for Categories {
                 },
                 Err(()) => None,
             },
+            Message::Reload => {
+                self.contents = category_service.get_page(0);
+                self.edit_state = EditState::None;
+                None
+            }
         }
     }
 }
