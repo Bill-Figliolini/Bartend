@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use rusqlite::OptionalExtension;
-
 use crate::{
     models::{CategoryID, ItemID},
     persistence::{

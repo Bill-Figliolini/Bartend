@@ -8,6 +8,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ItemService {
     items: HashMap<ItemID, ItemBody>,
+    page_size: usize,
 }
 
 impl ItemService {
@@ -16,7 +17,23 @@ impl ItemService {
             Ok(items) => items,
             Err(e) => panic!("Error loading Items: {e}"),
         };
-        ItemService { items }
+        ItemService {
+            items,
+            page_size: 15,
+        }
+    }
+
+    pub fn get_page(&self, page: usize) -> Vec<ItemID> {
+        let page_start = self.page_size * page;
+        let vec: Vec<ItemID> = self
+            .items
+            .keys()
+            .copied()
+            .skip(page_start)
+            .take(self.page_size)
+            .collect();
+        println!("{}", vec.len());
+        vec
     }
 
     #[must_use]
@@ -41,11 +58,10 @@ impl ItemService {
         let item_location = self.items.get_mut(&item.id).unwrap();
         *item_location = item.body;
     }
-    pub fn delete(&mut self, db: &impl ItemRepository, item: Item) {
-        let id = item.id;
+    pub fn delete(&mut self, db: &impl ItemRepository, item: ItemID) {
         if let Err(e) = db.delete(item) {
             panic!("{e}");
         };
-        self.items.remove(&id);
+        self.items.remove(&item);
     }
 }

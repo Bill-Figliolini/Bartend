@@ -39,7 +39,7 @@ pub trait Repository {
 pub trait ItemRepository: Repository {
     fn insert(&self, body: &ItemBody) -> Result<ItemID, DBError>;
     fn update(&self, item: &Item) -> Result<(), DBError>;
-    fn delete(&self, item: Item) -> Result<(), DBError>;
+    fn delete(&self, item: ItemID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<ItemID, ItemBody>, DBError>;
 }
 pub trait ItemMappingRepository: Repository {

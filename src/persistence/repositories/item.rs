@@ -45,9 +45,9 @@ impl<'a> ItemRepository for ItemDB<'a> {
         Ok(())
     }
 
-    fn delete(&self, item: Item) -> Result<(), DBError> {
+    fn delete(&self, item: ItemID) -> Result<(), DBError> {
         self.connection
-            .execute("DELETE FROM items WHERE id = ?1", (item.id.0,))?;
+            .execute("DELETE FROM items WHERE id = ?1", (item,))?;
         Ok(())
     }
 
