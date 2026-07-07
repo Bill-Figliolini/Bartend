@@ -25,15 +25,12 @@ impl ItemService {
 
     pub fn get_page(&self, page: usize) -> Vec<ItemID> {
         let page_start = self.page_size * page;
-        let vec: Vec<ItemID> = self
-            .items
+        self.items
             .keys()
             .copied()
             .skip(page_start)
             .take(self.page_size)
-            .collect();
-        println!("{}", vec.len());
-        vec
+            .collect()
     }
 
     #[must_use]
