@@ -50,9 +50,9 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
         Ok(())
     }
 
-    fn delete(&self, item: Recipe) -> Result<(), DBError> {
+    fn delete(&self, item: RecipeID) -> Result<(), DBError> {
         let query = "DELETE FROM recipes WHERE id=?1";
-        self.connection.execute(query, (item.id,))?;
+        self.connection.execute(query, (item,))?;
         Ok(())
     }
 

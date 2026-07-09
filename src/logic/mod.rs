@@ -5,10 +5,7 @@ mod recipe_service;
 
 use std::path::Path;
 
-use crate::{
-    models::{Recipe, RecipeBody, RecipeID},
-    persistence::{Database, repositories::RecipeRepository},
-};
+use crate::persistence::Database;
 
 pub use self::{category_service::CategoryService, item_service::ItemService};
 
@@ -28,27 +25,5 @@ impl BarCollection {
             Err(e) => panic!("DB Creation Error: {e}"),
         };
         Self { db }
-    }
-    pub fn get_recipes(&self) -> Vec<Recipe> {
-        match self.db.recipe_db().get_range(0, 100) {
-            Ok(recipes) => recipes,
-            Err(e) => panic!("{e}"),
-        }
-    }
-    pub fn add_recipe(&self, body: &RecipeBody) -> RecipeID {
-        match self.db.recipe_db().insert(body) {
-            Ok(id) => id,
-            Err(e) => panic!("{e}"),
-        }
-    }
-    pub fn delete_recipe(&self, recipe: Recipe) {
-        if let Err(e) = self.db.recipe_db().delete(recipe) {
-            panic!("{e}");
-        }
-    }
-    pub fn update_recipe(&self, recipe: &Recipe) {
-        if let Err(e) = self.db.recipe_db().update(recipe) {
-            panic!("{e}");
-        }
     }
 }

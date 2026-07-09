@@ -56,7 +56,7 @@ pub trait CategoryRepository: Repository {
 pub trait RecipeRepository: Repository {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;
     fn update(&self, item: &Recipe) -> Result<(), DBError>;
-    fn delete(&self, item: Recipe) -> Result<(), DBError>;
+    fn delete(&self, item: RecipeID) -> Result<(), DBError>;
     fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError>;
 }
 pub trait IngredientRepository: Repository {
