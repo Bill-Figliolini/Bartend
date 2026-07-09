@@ -33,7 +33,6 @@ enum EditState {
 pub enum Message {
     Save,
     SwapUnits,
-    DeleteItem(ItemID),
     BeginEdit(ItemID, Option<Category>),
     CancelEdit,
     Input(InputMessage),
@@ -134,7 +133,7 @@ impl Inventory {
             text("Delete").width(delete_column_width).center(),
             |item: &ItemID| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::Inventory(Message::DeleteItem(*item)))
+                    .on_press(application::Message::DeleteItem(*item))
             },
         );
         let columns = vec![
@@ -183,10 +182,6 @@ impl Inventory {
             }
             Message::CancelEdit => {
                 self.edit_state = EditState::None;
-                None
-            }
-            Message::DeleteItem(id) => {
-                self.contents.retain(|stored_id| *stored_id != id);
                 None
             }
             Message::Input(msg) => {

@@ -43,6 +43,7 @@ pub(in crate::presentation) enum Message {
     ReloadScreen,
 
     OpenInventory,
+    DeleteItem(ItemID),
 
     OpenSettings,
     ResetSettings,
@@ -64,7 +65,6 @@ pub(in crate::presentation) enum Message {
 pub enum Command {
     AddItem(ItemBody, Option<CategoryID>),
     UpdateItem(Item, Option<CategoryID>),
-    DeleteItem(ItemID),
 
     UpdateConfig(Config),
 
@@ -124,6 +124,11 @@ impl Bartend {
                         Screen::inventory(&self.config, &self.item_service, &self.category_service);
                     Task::none()
                 }
+            }
+            Message::DeleteItem(id) => {
+                self.item_service
+                    .delete(&self.bar_collection.db.item_db(), id);
+                Task::done(Message::ReloadScreen)
             }
 
             Message::OpenSettings => {
@@ -203,12 +208,7 @@ impl Bartend {
                                 &item_id,
                                 &category_id,
                             );
-                            Task::none()
-                        }
-                        Command::DeleteItem(id) => {
-                            self.item_service
-                                .delete(&self.bar_collection.db.item_db(), id);
-                            Task::none()
+                            Task::done(Message::ReloadScreen)
                         }
                         _ => unreachable!(),
                     }

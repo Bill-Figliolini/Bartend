@@ -76,7 +76,7 @@ impl Screen {
             Screen::Inventory(inventory) => {
                 inventory.update(item_service, inventory::Message::Reload)
             }
-            Screen::Settings(settings) => todo!(),
+            Screen::Settings(_) => unreachable!(),
             Screen::Categories(categories) => {
                 categories.update(category_service, categories::Message::Reload)
             }
