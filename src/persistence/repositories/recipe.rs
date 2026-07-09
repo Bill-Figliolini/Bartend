@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     models::{Recipe, RecipeBody, RecipeID},
     persistence::{
@@ -56,8 +58,8 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
         Ok(())
     }
 
-    fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError> {
-        let query = format!("SELECT * FROM recipes LIMIT {limit} OFFSET {offset}");
+    fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError> {
+        let query = format!("SELECT * FROM recipes");
         let mut stmt = self
             .connection
             .prepare(&query)
@@ -73,14 +75,12 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
                 })
             })
             .unwrap();
-        Ok(rows
-            .into_iter()
-            .fold(Vec::with_capacity(limit), |mut acc, row| {
-                match row {
-                    Ok(recipe) => acc.push(recipe),
-                    Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
-                }
-                acc
-            }))
+        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
+            match row {
+                Ok(recipe) => acc.insert(recipe.id, recipe.body),
+                Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
+            };
+            acc
+        }))
     }
 }

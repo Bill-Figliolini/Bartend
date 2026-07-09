@@ -7,7 +7,9 @@ use std::path::Path;
 
 use crate::persistence::Database;
 
-pub use self::{category_service::CategoryService, item_service::ItemService};
+pub use self::{
+    category_service::CategoryService, item_service::ItemService, recipe_service::RecipeService,
+};
 
 ///Boundary with presentation module.
 ///Must be able to:

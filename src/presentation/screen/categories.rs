@@ -2,7 +2,7 @@ use crate::{
     logic::CategoryService,
     models::{Category, CategoryID, Config, UnitSystem},
     presentation::{
-        Updateable, Viewable, application,
+        Viewable, application,
         input_handling::{CategoryInput, EditableCollection, InputCollection, InputMessage},
         widget::{self, text_style},
     },
@@ -135,6 +135,7 @@ impl Categories {
             },
             Message::Reload => {
                 self.contents = category_service.get_page(0);
+                self.input.clear();
                 self.edit_state = EditState::None;
                 None
             }

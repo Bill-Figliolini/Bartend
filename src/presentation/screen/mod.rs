@@ -7,8 +7,8 @@ pub(super) mod settings;
 use iced::Element;
 
 use crate::{
-    logic::{CategoryService, ItemService},
-    models::{Category, Config, Recipe},
+    logic::{CategoryService, ItemService, RecipeService},
+    models::Config,
     presentation::{
         Updateable, Viewable,
         application::{Command, Message},
@@ -33,12 +33,13 @@ impl Screen {
         &self,
         item_service: &ItemService,
         category_service: &CategoryService,
+        recipe_service: &RecipeService,
     ) -> Element<'_, Message> {
         match self {
             Self::Inventory(inventory) => inventory.view(item_service, category_service),
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(category_service),
-            Self::Recipes(recipes) => recipes.view(),
+            Self::Recipes(recipes) => recipes.view(category_service, recipe_service),
             Self::Serving(service) => service.view(),
         }
     }
@@ -46,6 +47,7 @@ impl Screen {
         &mut self,
         item_service: &ItemService,
         category_service: &CategoryService,
+        recipe_service: &RecipeService,
         message: Message,
     ) -> Option<Command> {
         match (self, message) {
@@ -56,13 +58,20 @@ impl Screen {
             (Self::Categories(categories), Message::Categories(message)) => {
                 categories.update(category_service, message)
             }
-            (Self::Recipes(recipes), Message::Recipes(message)) => recipes.update(message),
+            (Self::Recipes(recipes), Message::Recipes(message)) => {
+                recipes.update(recipe_service, message)
+            }
             (Self::Serving(service), Message::Serving(message)) => service.update(message),
             _ => unreachable!(),
         }
     }
 
-    pub fn reload(&mut self, item_service: &ItemService, category_service: &CategoryService) {
+    pub fn reload(
+        &mut self,
+        item_service: &ItemService,
+        category_service: &CategoryService,
+        recipe_service: &RecipeService,
+    ) {
         match self {
             Screen::Inventory(inventory) => {
                 inventory.update(item_service, inventory::Message::Reload)
@@ -71,7 +80,7 @@ impl Screen {
             Screen::Categories(categories) => {
                 categories.update(category_service, categories::Message::Reload)
             }
-            Screen::Recipes(recipes) => todo!(),
+            Screen::Recipes(recipes) => recipes.update(recipe_service, recipes::Message::Reload),
             Screen::Serving(serving) => todo!(),
         };
     }
@@ -91,7 +100,11 @@ impl Screen {
     pub fn categories(config: &Config, category_service: &CategoryService) -> Self {
         Self::Categories(categories::Categories::new(config, category_service))
     }
-    pub fn recipes(config: &Config, categories: Vec<Category>, recipes: Vec<Recipe>) -> Self {
-        Screen::Recipes(Recipes::new(config, categories, recipes))
+    pub fn recipes(
+        config: &Config,
+        category_service: &CategoryService,
+        recipe_service: &RecipeService,
+    ) -> Self {
+        Screen::Recipes(Recipes::new(config, category_service, recipe_service))
     }
 }

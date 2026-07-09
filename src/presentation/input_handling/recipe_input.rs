@@ -172,6 +172,7 @@ impl InputCollection<RecipeBody> for RecipeInput {
                 .into_iter()
                 .map(|ingredient| ingredient.unwrap())
                 .collect();
+            self.clear();
             Ok(RecipeBody { name, ingredients })
         } else {
             Err(())
