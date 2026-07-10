@@ -59,11 +59,8 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
     }
 
     fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError> {
-        let query = format!("SELECT * FROM recipes");
-        let mut stmt = self
-            .connection
-            .prepare(&query)
-            .expect("Query must be valid");
+        let query = "SELECT * FROM recipes";
+        let mut stmt = self.connection.prepare(query).expect("Query must be valid");
         let rows = stmt
             .query_map([], |row| {
                 let id = row.get(0)?;

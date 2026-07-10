@@ -91,7 +91,7 @@ impl Recipes {
                     .iter()
                     .map(|ingredient| {
                         let ingredient = ingredient.clone();
-                        view_ingredient(ingredient, &category_service, &self.unit_system)
+                        view_ingredient(ingredient, category_service, &self.unit_system)
                     }),
             )
         });

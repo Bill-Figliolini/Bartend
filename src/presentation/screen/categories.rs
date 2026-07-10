@@ -65,7 +65,7 @@ impl Categories {
                 EditState::None => iced::widget::Button::new(text("Edit").center())
                     .on_press(application::Message::Categories(Message::BeginEdit(
                         Category {
-                            id: category.clone(),
+                            id: *category,
                             body: category_service.get(category).clone(),
                         },
                     )))
@@ -85,7 +85,7 @@ impl Categories {
             text("Delete").width(delete_column_width).center(),
             |category: &CategoryID| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteCategory(category.clone()))
+                    .on_press(application::Message::DeleteCategory(*category))
             },
         );
         let columns = vec![name_column, edit_column, delete_column];

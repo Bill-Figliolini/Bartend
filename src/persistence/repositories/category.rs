@@ -41,8 +41,8 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         Ok(())
     }
     fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError> {
-        let query = format!("SELECT * FROM category");
-        let mut stmt = self.connection.prepare(&query)?;
+        let query = "SELECT * FROM category";
+        let mut stmt = self.connection.prepare(query)?;
         let rows = stmt.query_map([], |row| {
             let id = row.get(0).unwrap();
             let name = row.get(1).unwrap();

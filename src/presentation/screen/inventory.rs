@@ -95,7 +95,7 @@ impl Inventory {
         let category_column =
             table::column(
                 text("Category").width(200),
-                |item: &ItemID| match category_service.item_category(&item) {
+                |item: &ItemID| match category_service.item_category(item) {
                     Some(cat_id) => text(category_service.get(&cat_id).name.clone()),
                     None => text!("None"),
                 },
@@ -106,13 +106,10 @@ impl Inventory {
             text("Edit").width(edit_column_width).center(),
             |item: &ItemID| match self.edit_state {
                 EditState::None => {
-                    let category = match category_service.item_category(&item) {
-                        Some(id_ref) => Some(Category {
-                            id: id_ref,
-                            body: category_service.get(&id_ref).clone(),
-                        }),
-                        None => None,
-                    };
+                    let category = category_service.item_category(item).map(|id_ref| Category {
+                        id: id_ref,
+                        body: category_service.get(&id_ref).clone(),
+                    });
                     iced::widget::Button::new(text("Edit").center()).on_press(
                         application::Message::Inventory(Message::BeginEdit(*item, category)),
                     )

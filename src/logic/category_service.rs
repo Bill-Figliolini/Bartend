@@ -55,7 +55,7 @@ impl CategoryService {
         self.categories
             .iter()
             .map(|(id, body)| Category {
-                id: id.clone(),
+                id: *id,
                 body: body.clone(),
             })
             .collect()

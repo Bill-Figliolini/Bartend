@@ -41,7 +41,7 @@ impl ItemService {
         }
     }
     pub fn add(&mut self, db: &impl ItemRepository, item: &ItemBody) -> ItemID {
-        let id = match db.insert(&item) {
+        let id = match db.insert(item) {
             Ok(id) => id,
             Err(e) => panic!("{e}"),
         };

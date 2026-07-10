@@ -52,8 +52,8 @@ impl<'a> ItemRepository for ItemDB<'a> {
     }
 
     fn get_all(&self) -> Result<HashMap<ItemID, ItemBody>, DBError> {
-        let query = format!("SELECT * FROM items");
-        let mut stmt = self.connection.prepare(&query)?;
+        let query = "SELECT * FROM items";
+        let mut stmt = self.connection.prepare(query)?;
         let rows = stmt
             .query_map([], |row| {
                 let id = row.get(0).unwrap();
