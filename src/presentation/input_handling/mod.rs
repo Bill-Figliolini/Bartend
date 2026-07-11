@@ -1,7 +1,7 @@
 mod category_input;
 mod item_input;
 mod recipe_input;
-mod service_input;
+mod serving_input;
 
 use iced::widget::Id;
 
@@ -36,4 +36,7 @@ pub trait EditableCollection<T>: InputCollection<T> {
     fn begin_edit(&mut self, edit: &T, unit_system: UnitSystem);
 }
 
-pub use {category_input::CategoryInput, item_input::ItemInput, recipe_input::RecipeInput};
+pub use {
+    category_input::CategoryInput, item_input::ItemInput, recipe_input::RecipeInput,
+    serving_input::ServingInput,
+};
