@@ -186,7 +186,11 @@ impl Bartend {
             }
 
             Message::OpenServing => {
-                todo!()
+                if let Screen::Serving(_) = self.screen {
+                } else {
+                    self.screen = Screen::serving(&self.config, &self.recipe_service);
+                }
+                Task::none()
             }
 
             Message::Inventory(_) => {

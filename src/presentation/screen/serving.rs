@@ -35,7 +35,14 @@ impl Serving {
         category_service: &CategoryService,
         message: Message,
     ) -> Option<application::Command> {
-        todo!()
+        match message {
+            Message::Reload => todo!(),
+            Message::Input(input_message) => {
+                self.input
+                    .update(input_message, item_service, category_service);
+                None
+            }
+        }
     }
 }
 

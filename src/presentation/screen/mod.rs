@@ -12,7 +12,7 @@ use crate::{
     presentation::{
         Updateable, Viewable,
         application::{Command, Message},
-        screen::recipes::Recipes,
+        screen::{recipes::Recipes, serving::Serving},
     },
 };
 
@@ -110,5 +110,8 @@ impl Screen {
         recipe_service: &RecipeService,
     ) -> Self {
         Screen::Recipes(Recipes::new(config, category_service, recipe_service))
+    }
+    pub fn serving(config: &Config, recipe_service: &RecipeService) -> Self {
+        Screen::Serving(Serving::new(config, recipe_service))
     }
 }
