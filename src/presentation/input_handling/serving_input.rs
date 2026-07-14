@@ -1,8 +1,11 @@
+use iced::widget::{column, row, text};
+
 use crate::{
     application,
     logic::{CategoryService, ItemService, RecipeService},
     models::{CategoryID, Ingredient, Item, ItemID, Quantity, Recipe},
     presentation::{
+        Viewable,
         application::Message,
         input_handling::InputMessage,
         widget::input::{Input, RequiredPickInput},
@@ -32,9 +35,16 @@ impl ServingInput {
     pub fn view(
         &self,
         item_service: &ItemService,
+        category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> iced::Element<'_, application::Message> {
-        todo!()
+        let recipe_selector = self.recipe.view();
+        let ingredient_use_selectors = column(
+            self.ingredients
+                .iter()
+                .map(|ingredient| ingredient.view(category_service)),
+        );
+        column![recipe_selector, ingredient_use_selectors].into()
     }
     pub fn update(
         &mut self,
@@ -114,7 +124,11 @@ impl IngredientUseInput {
             ),
         }
     }
-    pub fn view(&self) -> iced::Element<'_, application::Message> {
-        todo!()
+    pub fn view(
+        &self,
+        category_service: &CategoryService,
+    ) -> iced::Element<'_, application::Message> {
+        let category = (category_service.get(&self.category).name.clone());
+        let quantity = todo!();
     }
 }
