@@ -30,6 +30,18 @@ impl RecipeService {
             .take(self.page_size)
             .collect()
     }
+    pub fn get_all(&self) -> Vec<Recipe> {
+        self.recipes.iter().fold(
+            Vec::with_capacity(self.recipes.len()),
+            |mut acc, (id, body)| {
+                acc.push(Recipe {
+                    id: *id,
+                    body: body.clone(),
+                });
+                acc
+            },
+        )
+    }
     pub fn get(&self, id: &RecipeID) -> RecipeBody {
         match self.recipes.get(id) {
             Some(body) => body.clone(),

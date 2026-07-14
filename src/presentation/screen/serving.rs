@@ -1,5 +1,5 @@
 use crate::{
-    logic::RecipeService,
+    logic::{CategoryService, ItemService, RecipeService},
     models::{Config, UnitSystem},
     presentation::{
         application,
@@ -9,6 +9,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub(in crate::presentation) enum Message {
+    Reload,
     Input(InputMessage),
 }
 
@@ -21,14 +22,19 @@ pub(in crate::presentation) struct Serving {
 
 impl Serving {
     pub fn new(config: &Config, recipe_service: &RecipeService) -> Self {
-        let input = ServingInput::new();
+        let input = ServingInput::new(input_msg, recipe_service);
         let unit_system = config.default_units();
         Self { input, unit_system }
     }
     pub fn view(&self) -> iced::Element<'_, application::Message> {
         todo!()
     }
-    pub fn update(&mut self, message: Message) -> Option<application::Command> {
+    pub fn update(
+        &mut self,
+        item_service: &ItemService,
+        category_service: &CategoryService,
+        message: Message,
+    ) -> Option<application::Command> {
         todo!()
     }
 }

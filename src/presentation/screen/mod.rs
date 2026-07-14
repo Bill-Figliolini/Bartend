@@ -40,7 +40,7 @@ impl Screen {
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(category_service),
             Self::Recipes(recipes) => recipes.view(category_service, recipe_service),
-            Self::Serving(service) => service.view(),
+            Self::Serving(serving) => serving.view(),
         }
     }
     pub fn update(
@@ -61,7 +61,9 @@ impl Screen {
             (Self::Recipes(recipes), Message::Recipes(message)) => {
                 recipes.update(recipe_service, message)
             }
-            (Self::Serving(service), Message::Serving(message)) => service.update(message),
+            (Self::Serving(service), Message::Serving(message)) => {
+                service.update(item_service, category_service, message)
+            }
             _ => unreachable!(),
         }
     }
@@ -81,7 +83,9 @@ impl Screen {
                 categories.update(category_service, categories::Message::Reload)
             }
             Screen::Recipes(recipes) => recipes.update(recipe_service, recipes::Message::Reload),
-            Screen::Serving(serving) => todo!(),
+            Screen::Serving(serving) => {
+                serving.update(item_service, category_service, serving::Message::Reload)
+            }
         };
     }
 

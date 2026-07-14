@@ -55,6 +55,8 @@ pub(in crate::presentation) enum Message {
     OpenRecipes,
     DeleteRecipe(RecipeID),
 
+    OpenServing,
+
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
     Categories(screen::categories::Message),
@@ -183,6 +185,10 @@ impl Bartend {
                 Task::done(Message::ReloadScreen)
             }
 
+            Message::OpenServing => {
+                todo!()
+            }
+
             Message::Inventory(_) => {
                 if let Some(command) = self.screen_update(message) {
                     match command {
@@ -275,6 +281,15 @@ impl Bartend {
                     Task::none()
                 }
             }
+            Message::Serving(_) => {
+                if let Some(command) = self.screen_update(message) {
+                    match command {
+                        _ => unreachable!(),
+                    }
+                } else {
+                    Task::none()
+                }
+            }
         }
     }
 
@@ -283,6 +298,7 @@ impl Bartend {
             .button("Inventory", || Message::OpenInventory)
             .button("Categories", || Message::OpenCategories)
             .button("Recipes", || Message::OpenRecipes)
+            .button("Serving", || Message::OpenServing)
             .button("Settings", || Message::OpenSettings)
             .into();
 

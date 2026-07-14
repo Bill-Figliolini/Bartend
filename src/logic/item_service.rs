@@ -32,6 +32,9 @@ impl ItemService {
             .take(self.page_size)
             .collect()
     }
+    pub fn get_all(&self) -> Vec<ItemID> {
+        self.items.keys().copied().collect()
+    }
 
     #[must_use]
     pub fn get(&self, item: &ItemID) -> &ItemBody {
