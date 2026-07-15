@@ -65,3 +65,75 @@ impl ItemService {
         self.items.remove(&item);
     }
 }
+#[cfg(test)]
+mod tests {
+    use crate::{
+        models::{Quantity, Unit},
+        persistence::repositories::Repository,
+    };
+
+    use super::*;
+
+    struct TestDB {
+        counter: i64,
+    }
+    impl TestDB {
+        fn new() -> Self {
+            Self { counter: 30 }
+        }
+    }
+    impl Repository for TestDB {
+        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+    }
+    impl ItemRepository for TestDB {
+        fn insert(&self, body: &ItemBody) -> Result<ItemID, crate::persistence::DBError> {
+            let next = ItemID(self.counter);
+            Ok(next)
+        }
+
+        fn update(&self, _item: &Item) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn delete(&self, _item: ItemID) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn get_all(&self) -> Result<HashMap<ItemID, ItemBody>, crate::persistence::DBError> {
+            let mut result = HashMap::new();
+
+            for i in 0..30 {
+                result.insert(
+                    ItemID(i),
+                    ItemBody {
+                        name: format!("item {}", i + 1),
+                        quantity: Quantity::new(1.0, Unit::Milliliter),
+                    },
+                );
+            }
+
+            Ok(result)
+        }
+    }
+
+    #[test]
+    fn new_loads_in_whole_db() {
+        let db = TestDB::new();
+        let item_service = ItemService::new(&db);
+
+        assert_eq!(item_service.items.len(), 30);
+    }
+
+    #[test]
+    fn delete_removes_value() {
+        let db = TestDB::new();
+        let mut item_service = ItemService::new(&db);
+        let item = ItemID(0);
+
+        item_service.delete(&db, item);
+
+        assert!(!item_service.items.contains_key(&item));
+    }
+}
