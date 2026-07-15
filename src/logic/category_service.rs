@@ -20,13 +20,13 @@ pub struct CategoryService {
 
 impl CategoryService {
     //bulk load data at start
-    pub fn new(db: &Database) -> Self {
-        let categories = match db.category_db().get_all() {
+    pub fn new(db: &impl CategoryRepository) -> Self {
+        let categories = match db.get_all() {
             Ok(map) => map,
             Err(_) => panic!("Error reading category DB"),
         };
 
-        let item_mapping = match db.mapping_db().get_map() {
+        let item_mapping = match db.get_map() {
             Ok(map) => map,
             Err(_) => panic!("Error reading mapping DB"),
         };
@@ -109,7 +109,7 @@ impl CategoryService {
     }
     pub fn add_item_mapping(
         &mut self,
-        db: &impl ItemMappingRepository,
+        db: &impl CategoryRepository,
         item: &ItemID,
         category: &CategoryID,
     ) {
@@ -120,7 +120,7 @@ impl CategoryService {
     }
     pub fn update_item_mapping(
         &mut self,
-        db: &impl ItemMappingRepository,
+        db: &impl CategoryRepository,
         item: &ItemID,
         category: &Option<CategoryID>,
     ) {
@@ -147,5 +147,65 @@ impl CategoryService {
             }
             (None, None) => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::persistence::repositories::Repository;
+
+    use super::*;
+
+    struct TestDB {
+        counter: i64,
+    }
+    impl TestDB {
+        fn new() -> Self {
+            Self { counter: 30 }
+        }
+    }
+    impl Repository for TestDB {
+        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+    }
+    impl CategoryRepository for TestDB {
+        fn insert(&self, _body: &CategoryBody) -> Result<CategoryID, crate::persistence::DBError> {
+            let next = CategoryID(self.counter);
+            Ok(next)
+        }
+
+        fn update(&self, _item: &Category) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn delete(&self, _item: CategoryID) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn get_all(
+            &self,
+        ) -> Result<HashMap<CategoryID, CategoryBody>, crate::persistence::DBError> {
+            let mut result = HashMap::new();
+            for i in 0..30 {
+                result.insert(
+                    CategoryID(i),
+                    CategoryBody {
+                        name: format!("category {}", i + 1),
+                    },
+                );
+            }
+            Ok(result)
+        }
+
+        fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
+            todo!()
+        }
+    }
+
+    #[test]
+    fn category_service_loads_in_all_data() {
+        let db = TestDB::new();
+        let category_service = CategoryService::new(&db);
     }
 }

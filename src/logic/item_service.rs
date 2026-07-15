@@ -65,6 +65,7 @@ impl ItemService {
         self.items.remove(&item);
     }
 }
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -88,7 +89,7 @@ mod tests {
         }
     }
     impl ItemRepository for TestDB {
-        fn insert(&self, body: &ItemBody) -> Result<ItemID, crate::persistence::DBError> {
+        fn insert(&self, _body: &ItemBody) -> Result<ItemID, crate::persistence::DBError> {
             let next = ItemID(self.counter);
             Ok(next)
         }

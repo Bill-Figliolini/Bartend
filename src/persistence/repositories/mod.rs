@@ -52,6 +52,7 @@ pub trait CategoryRepository: Repository {
     fn update(&self, category: &Category) -> Result<(), DBError>;
     fn delete(&self, category: CategoryID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError>;
+    fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
 }
 pub trait RecipeRepository: Repository {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;

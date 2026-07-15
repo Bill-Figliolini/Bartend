@@ -115,6 +115,7 @@ impl IngredientUseInput {
                 body: item_service.get(&id).clone(),
             })
             .collect();
+        println!("{:?}", &valid_ingredients);
         Self {
             category: ingredient.category,
             quantity: ingredient.quantity,
@@ -130,8 +131,14 @@ impl IngredientUseInput {
         category_service: &CategoryService,
         unit_system: UnitSystem,
     ) -> iced::Element<'_, application::Message> {
-        let category = text(category_service.get(&self.category).name.clone());
+        let category = text!(
+            "{}: ID: {}",
+            category_service.get(&self.category).name.clone(),
+            self.category.0
+        );
         let quantity = text(self.quantity.readable(unit_system));
-        row![category, quantity, self.ingredient.view()].into()
+        row![category, quantity, self.ingredient.view()]
+            .spacing(20)
+            .into()
     }
 }

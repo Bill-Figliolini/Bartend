@@ -1,12 +1,23 @@
 use std::collections::HashMap;
 
 use crate::{
-    models::{Category, CategoryBody, CategoryID},
+    models::{Category, CategoryBody, CategoryID, ItemID},
     persistence::{
         DBError,
-        repositories::{CategoryDB, CategoryRepository, Repository},
+        repositories::{
+            CategoryDB, CategoryRepository, ItemMappingDB, ItemMappingRepository, Repository,
+        },
     },
 };
+
+impl<'a> CategoryDB<'a> {
+    #[must_use]
+    pub fn mapping_db(&'a self) -> ItemMappingDB<'a> {
+        ItemMappingDB {
+            connection: &self.connection,
+        }
+    }
+}
 
 impl<'a> Repository for CategoryDB<'a> {
     fn create_table(&self) -> Result<(), DBError> {
@@ -15,6 +26,7 @@ impl<'a> Repository for CategoryDB<'a> {
                 name STRING NOT NULL
             );";
         self.connection.execute(query, ())?;
+        self.mapping_db().create_table()?;
         Ok(())
     }
 }
@@ -58,5 +70,8 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
             };
             acc
         }))
+    }
+    fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError> {
+        self.mapping_db().get_map()
     }
 }

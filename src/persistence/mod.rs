@@ -31,7 +31,6 @@ impl<'a> Database {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         let db = Self { connection };
         db.item_db().create_table()?;
-        db.mapping_db().create_table()?;
         db.category_db().create_table()?;
         db.recipe_db().create_table()?;
         Ok(db)
@@ -39,12 +38,6 @@ impl<'a> Database {
     #[must_use]
     pub fn item_db(&'a self) -> ItemDB<'a> {
         ItemDB {
-            connection: &self.connection,
-        }
-    }
-    #[must_use]
-    pub fn mapping_db(&'a self) -> ItemMappingDB<'a> {
-        ItemMappingDB {
             connection: &self.connection,
         }
     }
