@@ -36,10 +36,12 @@ impl Serving {
         category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> iced::Element<'_, application::Message> {
-        let body = column![
-            self.input
-                .view(item_service, category_service, recipe_service)
-        ];
+        let body = self.input.view(
+            item_service,
+            category_service,
+            recipe_service,
+            self.unit_system,
+        );
         let unit_swap_button = button(text(self.unit_system.to_string()))
             .on_press(application::Message::Serving(Message::SwapUnits));
         let footer_content = row![unit_swap_button];

@@ -97,6 +97,14 @@ impl Quantity {
             _ => unreachable!("Quantity was stored with invalid type {unit_type} in db"),
         }
     }
+
+    pub fn readable(&self, unit_system: UnitSystem) -> String {
+        format!(
+            "{} {}",
+            self.value(unit_system),
+            self.unit(unit_system).to_string(),
+        )
+    }
 }
 
 impl PartialEq for Quantity {

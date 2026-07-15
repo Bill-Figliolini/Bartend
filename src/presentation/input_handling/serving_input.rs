@@ -3,7 +3,7 @@ use iced::widget::{column, row, text};
 use crate::{
     application,
     logic::{CategoryService, ItemService, RecipeService},
-    models::{CategoryID, Ingredient, Item, ItemID, Quantity, Recipe},
+    models::{CategoryID, Ingredient, Item, ItemID, Quantity, Recipe, UnitSystem},
     presentation::{
         Viewable,
         application::Message,
@@ -37,12 +37,13 @@ impl ServingInput {
         item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
+        unit_system: UnitSystem,
     ) -> iced::Element<'_, application::Message> {
         let recipe_selector = self.recipe.view();
         let ingredient_use_selectors = column(
             self.ingredients
                 .iter()
-                .map(|ingredient| ingredient.view(category_service)),
+                .map(|ingredient| ingredient.view(category_service, unit_system)),
         );
         column![recipe_selector, ingredient_use_selectors].into()
     }
@@ -127,8 +128,10 @@ impl IngredientUseInput {
     pub fn view(
         &self,
         category_service: &CategoryService,
+        unit_system: UnitSystem,
     ) -> iced::Element<'_, application::Message> {
-        let category = (category_service.get(&self.category).name.clone());
-        let quantity = todo!();
+        let category = text(category_service.get(&self.category).name.clone());
+        let quantity = text(self.quantity.readable(unit_system));
+        row![category, quantity, self.ingredient.view()].into()
     }
 }

@@ -18,7 +18,7 @@ use crate::{
 pub struct Inventory {
     input: ItemInput,
 
-    contents: Vec<ItemID>,
+    current_page: usize,
     unit_system: UnitSystem,
 
     edit_state: EditState,
@@ -42,11 +42,7 @@ pub enum Message {
 }
 
 impl Inventory {
-    pub fn new(
-        config: &Config,
-        item_service: &ItemService,
-        category_service: &CategoryService,
-    ) -> Self {
+    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
         let unit_system = config.default_units();
 
         Self {
@@ -59,7 +55,7 @@ impl Inventory {
 
             // Display Managers
             unit_system,
-            contents: item_service.get_page(0),
+            current_page: 0,
 
             // Input State
             edit_state: EditState::None,
@@ -81,11 +77,11 @@ impl Inventory {
         item_service: &ItemService,
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(Fill), |item: &ItemID| {
-            text(item_service.get(item).name.clone())
+        let name_column = table::column(text("Name").width(Fill), |item: ItemID| {
+            text(item_service.get(&item).name.clone())
         });
-        let quantity_column = table::column(text("Quantity"), |item: &ItemID| {
-            let item = item_service.get(item);
+        let quantity_column = table::column(text("Quantity"), |item: ItemID| {
+            let item = item_service.get(&item);
             text!(
                 "{:.0} {}",
                 item.quantity.value(self.unit_system),
@@ -95,7 +91,7 @@ impl Inventory {
         let category_column =
             table::column(
                 text("Category").width(200),
-                |item: &ItemID| match category_service.item_category(item) {
+                |item: ItemID| match category_service.item_category(&item) {
                     Some(cat_id) => text(category_service.get(&cat_id).name.clone()),
                     None => text!("None"),
                 },
@@ -104,18 +100,20 @@ impl Inventory {
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
-            |item: &ItemID| match self.edit_state {
+            |item: ItemID| match self.edit_state {
                 EditState::None => {
-                    let category = category_service.item_category(item).map(|id_ref| Category {
-                        id: id_ref,
-                        body: category_service.get(&id_ref).clone(),
-                    });
+                    let category = category_service
+                        .item_category(&item)
+                        .map(|id_ref| Category {
+                            id: id_ref,
+                            body: category_service.get(&id_ref).clone(),
+                        });
                     iced::widget::Button::new(text("Edit").center()).on_press(
-                        application::Message::Inventory(Message::BeginEdit(*item, category)),
+                        application::Message::Inventory(Message::BeginEdit(item, category)),
                     )
                 }
                 .width(edit_column_width),
-                EditState::Editing(item_id) if *item == item_id => {
+                EditState::Editing(item_id) if item == item_id => {
                     iced::widget::Button::new(text("Cancel").center())
                         .on_press(application::Message::Inventory(Message::CancelEdit))
                         .width(edit_column_width)
@@ -128,9 +126,9 @@ impl Inventory {
         let delete_column_width = 50;
         let delete_column = table::column(
             text("Delete").width(delete_column_width).center(),
-            |item: &ItemID| {
+            |item: ItemID| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteItem(*item))
+                    .on_press(application::Message::DeleteItem(item))
             },
         );
         let columns = vec![
@@ -140,7 +138,8 @@ impl Inventory {
             edit_column,
             delete_column,
         ];
-        table(columns, &self.contents).into()
+        let contents = item_service.get_page(self.current_page);
+        table(columns, contents).into()
     }
 
     pub fn view(
@@ -223,7 +222,7 @@ impl Inventory {
                 }
             }
             Message::Reload => {
-                self.contents = item_service.get_page(0);
+                self.input.clear();
                 self.edit_state = EditState::None;
                 None
             }

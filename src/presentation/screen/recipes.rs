@@ -23,7 +23,7 @@ pub struct Recipes {
     input: RecipeInput,
     edit_state: EditState,
 
-    recipes: Vec<RecipeID>,
+    current_page: usize,
     unit_system: UnitSystem,
 }
 #[derive(Debug, Clone)]
@@ -38,13 +38,8 @@ pub enum Message {
     Reload,
 }
 impl Recipes {
-    pub fn new(
-        config: &Config,
-        category_service: &CategoryService,
-        recipe_service: &RecipeService,
-    ) -> Self {
+    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
         let unit_system = config.default_units();
-        let recipes = recipe_service.get_page(0);
         Self {
             input: RecipeInput::new(
                 config,
@@ -53,7 +48,7 @@ impl Recipes {
             ),
             edit_state: EditState::None,
 
-            recipes,
+            current_page: 0,
             unit_system,
         }
     }
@@ -80,13 +75,13 @@ impl Recipes {
         category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name"), |recipe: &RecipeID| {
-            text(recipe_service.get(recipe).name.clone())
+        let name_column = table::column(text("Name"), |recipe: RecipeID| {
+            text(recipe_service.get(&recipe).name.clone())
         });
-        let ingredient_column = table::column(text("Ingredients"), |recipe: &RecipeID| {
+        let ingredient_column = table::column(text("Ingredients"), |recipe: RecipeID| {
             column(
                 recipe_service
-                    .get(recipe)
+                    .get(&recipe)
                     .ingredients
                     .iter()
                     .map(|ingredient| {
@@ -95,23 +90,24 @@ impl Recipes {
                     }),
             )
         });
-        let edit_column = table::column(text("Edit"), |recipe: &RecipeID| match self.edit_state {
-            EditState::Editing(recipe_id) if recipe_id == *recipe => {
+        let edit_column = table::column(text("Edit"), |recipe: RecipeID| match self.edit_state {
+            EditState::Editing(recipe_id) if recipe_id == recipe => {
                 button("Cancel").on_press(application::Message::Recipes(Message::EndEdit))
             }
             EditState::Editing(_) => button("Edit"),
             EditState::None => {
                 button("Edit").on_press(application::Message::Recipes(Message::BeginEdit(Recipe {
-                    id: *recipe,
-                    body: recipe_service.get(recipe).clone(),
+                    id: recipe,
+                    body: recipe_service.get(&recipe).clone(),
                 })))
             }
         });
-        let delete_column = table::column(text("Delete"), |recipe: &RecipeID| {
-            button("X").on_press(application::Message::DeleteRecipe(*recipe))
+        let delete_column = table::column(text("Delete"), |recipe: RecipeID| {
+            button("X").on_press(application::Message::DeleteRecipe(recipe))
         });
         let columns = vec![name_column, ingredient_column, edit_column, delete_column];
-        table(columns, &self.recipes).into()
+        let contents = recipe_service.get_page(self.current_page);
+        table(columns, contents).into()
     }
     pub fn view(
         &self,
@@ -130,11 +126,7 @@ impl Recipes {
         let footer = footer(footer_container);
         column![header, body, footer].into()
     }
-    pub fn update(
-        &mut self,
-        recipe_service: &RecipeService,
-        message: Message,
-    ) -> Option<application::Command> {
+    pub fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::Input(msg) => {
                 self.input.update(msg);
@@ -169,7 +161,8 @@ impl Recipes {
                 None
             }
             Message::Reload => {
-                self.recipes = recipe_service.get_page(0);
+                self.input.clear();
+                self.edit_state = EditState::None;
                 None
             }
         }

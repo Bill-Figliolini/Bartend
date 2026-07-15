@@ -25,8 +25,8 @@ pub enum Screen {
     Serving(serving::Serving),
 }
 impl Screen {
-    pub fn start(config: &Config, items: &ItemService, categories: &CategoryService) -> Self {
-        let inventory = inventory::Inventory::new(config, items, categories);
+    pub fn start(config: &Config, categories: &CategoryService) -> Self {
+        let inventory = inventory::Inventory::new(config, categories);
         Self::Inventory(Box::new(inventory))
     }
     pub fn view(
@@ -47,7 +47,7 @@ impl Screen {
         &mut self,
         item_service: &ItemService,
         category_service: &CategoryService,
-        recipe_service: &RecipeService,
+        _recipe_service: &RecipeService,
         message: Message,
     ) -> Option<Command> {
         match (self, message) {
@@ -56,11 +56,9 @@ impl Screen {
             }
             (Self::Settings(settings), Message::Settings(message)) => settings.update(message),
             (Self::Categories(categories), Message::Categories(message)) => {
-                categories.update(category_service, message)
+                categories.update(message)
             }
-            (Self::Recipes(recipes), Message::Recipes(message)) => {
-                recipes.update(recipe_service, message)
-            }
+            (Self::Recipes(recipes), Message::Recipes(message)) => recipes.update(message),
             (Self::Serving(service), Message::Serving(message)) => {
                 service.update(item_service, category_service, message)
             }
@@ -72,44 +70,34 @@ impl Screen {
         &mut self,
         item_service: &ItemService,
         category_service: &CategoryService,
-        recipe_service: &RecipeService,
+        _recipe_service: &RecipeService,
     ) {
         match self {
             Screen::Inventory(inventory) => {
                 inventory.update(item_service, inventory::Message::Reload)
             }
             Screen::Settings(_) => unreachable!(),
-            Screen::Categories(categories) => {
-                categories.update(category_service, categories::Message::Reload)
-            }
-            Screen::Recipes(recipes) => recipes.update(recipe_service, recipes::Message::Reload),
+            Screen::Categories(categories) => categories.update(categories::Message::Reload),
+            Screen::Recipes(recipes) => recipes.update(recipes::Message::Reload),
             Screen::Serving(serving) => {
                 serving.update(item_service, category_service, serving::Message::Reload)
             }
         };
     }
 
-    pub fn inventory(
-        config: &Config,
-        item_service: &ItemService,
-        category_service: &CategoryService,
-    ) -> Self {
-        let inventory = inventory::Inventory::new(config, item_service, category_service);
+    pub fn inventory(config: &Config, category_service: &CategoryService) -> Self {
+        let inventory = inventory::Inventory::new(config, category_service);
         Self::Inventory(Box::new(inventory))
     }
 
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
-    pub fn categories(config: &Config, category_service: &CategoryService) -> Self {
-        Self::Categories(categories::Categories::new(config, category_service))
+    pub fn categories(config: &Config) -> Self {
+        Self::Categories(categories::Categories::new(config))
     }
-    pub fn recipes(
-        config: &Config,
-        category_service: &CategoryService,
-        recipe_service: &RecipeService,
-    ) -> Self {
-        Screen::Recipes(Recipes::new(config, category_service, recipe_service))
+    pub fn recipes(config: &Config, category_service: &CategoryService) -> Self {
+        Screen::Recipes(Recipes::new(config, category_service))
     }
     pub fn serving(config: &Config, recipe_service: &RecipeService) -> Self {
         Screen::Serving(Serving::new(config, recipe_service))

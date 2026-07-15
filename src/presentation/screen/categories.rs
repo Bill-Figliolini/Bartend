@@ -18,7 +18,7 @@ pub struct Categories {
 
     edit_state: EditState,
 
-    contents: Vec<CategoryID>,
+    page_number: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -34,11 +34,11 @@ enum EditState {
     None,
 }
 impl Categories {
-    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
             input: CategoryInput::new(config, input_msg),
             edit_state: EditState::None,
-            contents: category_service.get_page(0),
+            page_number: 0,
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
@@ -55,22 +55,22 @@ impl Categories {
         &self,
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(200), |category: &CategoryID| {
-            text(category_service.get(category).name.clone())
+        let name_column = table::column(text("Name").width(200), |category: CategoryID| {
+            text(category_service.get(&category).name.clone())
         });
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
-            |category: &CategoryID| match self.edit_state {
+            |category: CategoryID| match self.edit_state {
                 EditState::None => iced::widget::Button::new(text("Edit").center())
                     .on_press(application::Message::Categories(Message::BeginEdit(
                         Category {
-                            id: *category,
-                            body: category_service.get(category).clone(),
+                            id: category,
+                            body: category_service.get(&category).clone(),
                         },
                     )))
                     .width(edit_column_width),
-                EditState::Editing(category_id) if *category == category_id => {
+                EditState::Editing(category_id) if category == category_id => {
                     iced::widget::Button::new(text("Cancel").center())
                         .on_press(application::Message::ReloadScreen)
                         .width(edit_column_width)
@@ -83,13 +83,14 @@ impl Categories {
         let delete_column_width = 50;
         let delete_column = table::column(
             text("Delete").width(delete_column_width).center(),
-            |category: &CategoryID| {
+            |category: CategoryID| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteCategory(*category))
+                    .on_press(application::Message::DeleteCategory(category))
             },
         );
         let columns = vec![name_column, edit_column, delete_column];
-        table(columns, &self.contents).into()
+        let contents = category_service.get_page(self.page_number);
+        table(columns, contents).into()
     }
     pub fn view(&self, category_service: &CategoryService) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
@@ -98,11 +99,7 @@ impl Categories {
         let body = column![category_entry, categories];
         column![header, body].into()
     }
-    pub fn update(
-        &mut self,
-        category_service: &CategoryService,
-        message: Message,
-    ) -> Option<application::Command> {
+    pub fn update(&mut self, message: Message) -> Option<application::Command> {
         match message {
             Message::Input(msg) => {
                 self.input.update(msg);
@@ -134,7 +131,6 @@ impl Categories {
                 Err(()) => None,
             },
             Message::Reload => {
-                self.contents = category_service.get_page(0);
                 self.input.clear();
                 self.edit_state = EditState::None;
                 None

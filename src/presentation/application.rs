@@ -91,7 +91,7 @@ impl Bartend {
         let item_service = ItemService::new(&bar_collection.db.item_db());
         let category_service = CategoryService::new(&bar_collection.db);
         let recipe_service = RecipeService::new(&bar_collection.db.recipe_db());
-        let screen = Screen::start(&config, &item_service, &category_service);
+        let screen = Screen::start(&config, &category_service);
 
         Self {
             screen,
@@ -122,8 +122,7 @@ impl Bartend {
                 if let Screen::Inventory(_) = self.screen {
                     Task::none()
                 } else {
-                    self.screen =
-                        Screen::inventory(&self.config, &self.item_service, &self.category_service);
+                    self.screen = Screen::inventory(&self.config, &self.category_service);
                     Task::none()
                 }
             }
@@ -161,7 +160,7 @@ impl Bartend {
             Message::OpenCategories => {
                 if let Screen::Categories(_) = self.screen {
                 } else {
-                    self.screen = Screen::categories(&self.config, &self.category_service);
+                    self.screen = Screen::categories(&self.config);
                 }
                 Task::none()
             }
@@ -174,8 +173,7 @@ impl Bartend {
             Message::OpenRecipes => {
                 if let Screen::Recipes(_) = self.screen {
                 } else {
-                    self.screen =
-                        Screen::recipes(&self.config, &self.category_service, &self.recipe_service);
+                    self.screen = Screen::recipes(&self.config, &self.category_service);
                 }
                 Task::none()
             }
