@@ -113,6 +113,7 @@ impl CategoryService {
         item: &ItemID,
         category: &CategoryID,
     ) {
+        let db = db.mapping();
         if let Err(e) = db.insert(item, category) {
             panic!("{e}");
         }
@@ -124,6 +125,7 @@ impl CategoryService {
         item: &ItemID,
         category: &Option<CategoryID>,
     ) {
+        let map_db = db.mapping();
         let mut old_category = self.item_category(item);
         match (old_category.take(), category) {
             (None, Some(new)) => {
@@ -131,15 +133,15 @@ impl CategoryService {
             }
             (Some(old), None) => {
                 self.item_mapping.remove(item);
-                if let Err(e) = db.delete(item, &old) {
+                if let Err(e) = map_db.delete(item, &old) {
                     panic!("{e}");
                 }
             }
             (Some(old), Some(new)) => {
-                if let Err(e) = db.delete(item, &old) {
+                if let Err(e) = map_db.delete(item, &old) {
                     panic!("{e}");
                 }
-                if let Err(e) = db.insert(item, &old) {
+                if let Err(e) = map_db.insert(item, &old) {
                     panic!("{e}");
                 }
                 let old_mapping = self.item_mapping.get_mut(item).unwrap();
@@ -159,9 +161,13 @@ mod tests {
     struct TestDB {
         counter: i64,
     }
+    struct TestMapDB {}
     impl TestDB {
         fn new() -> Self {
             Self { counter: 30 }
+        }
+        fn mapping_db(&self) -> TestMapDB {
+            TestMapDB {}
         }
     }
     impl Repository for TestDB {
@@ -197,9 +203,39 @@ mod tests {
             }
             Ok(result)
         }
+        fn mapping(&self) -> impl ItemMappingRepository {
+            self.mapping_db()
+        }
 
         fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
-            todo!()
+            self.mapping().get_map()
+        }
+    }
+    impl Repository for TestMapDB {
+        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+    }
+    impl ItemMappingRepository for TestMapDB {
+        fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
+            let map = HashMap::new();
+            Ok(map)
+        }
+
+        fn insert(
+            &self,
+            item: &ItemID,
+            category: &CategoryID,
+        ) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn delete(
+            &self,
+            item: &ItemID,
+            category: &CategoryID,
+        ) -> Result<(), crate::persistence::DBError> {
+            Ok(())
         }
     }
 

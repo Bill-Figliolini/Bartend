@@ -74,4 +74,8 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
     fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError> {
         self.mapping_db().get_map()
     }
+
+    fn mapping(&self) -> impl ItemMappingRepository {
+        self.mapping_db()
+    }
 }
