@@ -1,17 +1,15 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     logic::graph::DirectedAcyclicGraph,
     models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
-    persistence::{
-        Database,
-        repositories::{CategoryRepository, ItemMappingRepository},
-    },
+    persistence::repositories::{CategoryRepository, ItemMappingRepository},
 };
 
 #[derive(Debug)]
 pub struct CategoryService {
     categories: HashMap<CategoryID, CategoryBody>,
+    category_mapping: HashMap<CategoryID, HashSet<ItemID>>,
     item_mapping: HashMap<ItemID, CategoryID>,
     graph: DirectedAcyclicGraph<CategoryID>,
 
@@ -30,10 +28,29 @@ impl CategoryService {
             Ok(map) => map,
             Err(_) => panic!("Error reading mapping DB"),
         };
+
+        let category_mapping = item_mapping.iter().fold(
+            HashMap::new(),
+            |mut acc: HashMap<CategoryID, HashSet<ItemID>>, (item, category)| {
+                match acc.get_mut(category) {
+                    Some(set) => {
+                        set.insert(*item);
+                    }
+                    None => {
+                        let mut new_set = HashSet::new();
+                        new_set.insert(*item);
+                        acc.insert(*category, new_set);
+                    }
+                }
+                acc
+            },
+        );
+
         let graph = DirectedAcyclicGraph::new();
         CategoryService {
             categories,
             item_mapping,
+            category_mapping,
             graph,
             page_size: 15,
         }
@@ -41,14 +58,18 @@ impl CategoryService {
     pub fn item_category(&self, item: &ItemID) -> Option<CategoryID> {
         self.item_mapping.get(item).copied()
     }
-    pub fn item_satisifies_category(&self, item: &ItemID, target_category: &CategoryID) -> bool {
-        match (
-            self.item_category(item),
-            self.graph.get_all_children(target_category),
-        ) {
-            (Some(item_category), Some(category_set)) => category_set.contains(&item_category),
-            (_, _) => false,
+    pub fn satisfying_items(&self, category: &CategoryID) -> HashSet<ItemID> {
+        let mut items = HashSet::new();
+        items.extend(self.get_items(category));
+        if let Some(categories_to_add) = self.graph.get_all_children(category) {
+            categories_to_add
+                .into_iter()
+                .fold(&mut items, |acc, category| {
+                    acc.extend(self.get_items(&category));
+                    acc
+                });
         }
+        items
     }
     #[must_use]
     pub fn get_all(&self, _filter: CategoryFilter) -> Vec<Category> {
@@ -75,6 +96,15 @@ impl CategoryService {
             .copied()
             .skip(page_offset)
             .take(self.page_size)
+            .collect()
+    }
+
+    pub fn get_items(&self, category: &CategoryID) -> HashSet<ItemID> {
+        self.category_mapping
+            .get(category)
+            .unwrap_or(&HashSet::new())
+            .iter()
+            .cloned()
             .collect()
     }
 
@@ -224,16 +254,16 @@ mod tests {
 
         fn insert(
             &self,
-            item: &ItemID,
-            category: &CategoryID,
+            _item: &ItemID,
+            _category: &CategoryID,
         ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }
 
         fn delete(
             &self,
-            item: &ItemID,
-            category: &CategoryID,
+            _item: &ItemID,
+            _category: &CategoryID,
         ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }

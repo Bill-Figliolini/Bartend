@@ -34,9 +34,7 @@ impl ServingInput {
     }
     pub fn view(
         &self,
-        item_service: &ItemService,
         category_service: &CategoryService,
-        recipe_service: &RecipeService,
         unit_system: UnitSystem,
     ) -> iced::Element<'_, application::Message> {
         let recipe_selector = self.recipe.view();
@@ -103,10 +101,9 @@ impl IngredientUseInput {
         item_service: &ItemService,
         category_service: &CategoryService,
     ) -> Self {
-        let valid_ingredient_ids: Vec<ItemID> = item_service
-            .get_all()
+        let valid_ingredient_ids: Vec<ItemID> = category_service
+            .satisfying_items(&ingredient.category)
             .into_iter()
-            .filter(|item| category_service.item_satisifies_category(item, &ingredient.category))
             .collect();
         let valid_ingredients = valid_ingredient_ids
             .into_iter()
@@ -115,7 +112,6 @@ impl IngredientUseInput {
                 body: item_service.get(&id).clone(),
             })
             .collect();
-        println!("{:?}", &valid_ingredients);
         Self {
             category: ingredient.category,
             quantity: ingredient.quantity,
@@ -141,4 +137,5 @@ impl IngredientUseInput {
             .spacing(20)
             .into()
     }
+    fn output(&mut self) {}
 }

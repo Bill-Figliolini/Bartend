@@ -40,7 +40,7 @@ impl Screen {
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(category_service),
             Self::Recipes(recipes) => recipes.view(category_service, recipe_service),
-            Self::Serving(serving) => serving.view(item_service, category_service, recipe_service),
+            Self::Serving(serving) => serving.view(category_service),
         }
     }
     pub fn update(

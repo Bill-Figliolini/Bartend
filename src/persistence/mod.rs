@@ -6,7 +6,7 @@ use rusqlite::{Connection, ToSql, types::FromSql};
 
 use crate::{
     models::{CategoryID, ItemID, RecipeID},
-    persistence::repositories::{CategoryDB, ItemDB, ItemMappingDB, RecipeDB, Repository},
+    persistence::repositories::{CategoryDB, ItemDB, RecipeDB, Repository},
 };
 
 #[derive(Debug)]
