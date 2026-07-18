@@ -273,5 +273,7 @@ mod tests {
     fn category_service_loads_in_all_data() {
         let db = TestDB::new();
         let category_service = CategoryService::new(&db);
+
+        assert_eq!(category_service.categories.len(), 30);
     }
 }
