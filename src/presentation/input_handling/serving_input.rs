@@ -3,12 +3,12 @@ use iced::widget::{column, row, text};
 use crate::{
     application,
     logic::{CategoryService, ItemService, RecipeService},
-    models::{CategoryID, Ingredient, Item, ItemID, Quantity, Recipe, UnitSystem},
+    models::{CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, UnitSystem},
     presentation::{
         Viewable,
         application::Message,
         input_handling::InputMessage,
-        widget::input::{Input, RequiredPickInput},
+        widget::input::{Input, InputContents, RequiredPickInput},
     },
 };
 
@@ -79,6 +79,22 @@ impl ServingInput {
     }
 
     pub fn output(&mut self) -> Result<application::Message, ()> {
+        let ingredient_count = self.ingredients.len();
+        let used_ingredients = self
+            .ingredients
+            .iter_mut()
+            .fold(
+                Vec::with_capacity(ingredient_count),
+                |mut acc, ingredient| {
+                    let item_used = ingredient.output();
+                    acc.push(item_used);
+                    acc
+                },
+            )
+            .into_iter()
+            .collect::<Result<Vec<ItemUse>, ()>>()?;
+
+        self.clear();
         todo!()
     }
 
@@ -137,5 +153,11 @@ impl IngredientUseInput {
             .spacing(20)
             .into()
     }
-    fn output(&mut self) {}
+    fn output(&mut self) -> Result<ItemUse, ()> {
+        let selected_item = self.ingredient.get_output()?;
+        Ok(ItemUse {
+            item: selected_item.id,
+            quantity: self.quantity,
+        })
+    }
 }

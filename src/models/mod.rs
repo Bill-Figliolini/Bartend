@@ -7,7 +7,7 @@ mod recipe;
 pub use {
     category::{Category, CategoryBody, CategoryFilter, CategoryID},
     config::{Config, ConfigError, EditableConfig},
-    item::{Item, ItemBody, ItemCommand, ItemID},
+    item::{Item, ItemBody, ItemCommand, ItemID, ItemUse},
     quantity::{CountName, Quantity, Unit, UnitSystem},
     recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
 };

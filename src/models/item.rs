@@ -25,6 +25,12 @@ pub struct ItemBody {
     pub quantity: Quantity,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ItemUse {
+    pub item: ItemID,
+    pub quantity: Quantity,
+}
+
 impl Item {}
 
 impl PartialEq for Item {
