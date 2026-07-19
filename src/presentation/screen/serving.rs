@@ -15,6 +15,7 @@ pub(in crate::presentation) enum Message {
     Reload,
     SwapUnits,
     Input(InputMessage),
+    Save,
 }
 
 #[derive(Debug)]
@@ -34,7 +35,11 @@ impl Serving {
         &self,
         category_service: &CategoryService,
     ) -> iced::Element<'_, application::Message> {
-        let body = self.input.view(category_service, self.unit_system);
+        let save_button = button("Save").on_press(application::Message::Serving(Message::Save));
+        let body = row![
+            self.input.view(category_service, self.unit_system),
+            save_button
+        ];
         let unit_swap_button = button(text(self.unit_system.to_string()))
             .on_press(application::Message::Serving(Message::SwapUnits));
         let footer_content = row![unit_swap_button];
@@ -59,6 +64,13 @@ impl Serving {
                 self.input
                     .update(input_message, item_service, category_service);
                 None
+            }
+            Message::Save => {
+                if let Ok(used_items) = self.input.output() {
+                    Some(application::Command::UseItems(used_items))
+                } else {
+                    None
+                }
             }
         }
     }

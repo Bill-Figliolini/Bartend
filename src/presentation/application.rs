@@ -11,8 +11,8 @@ use rfd::AsyncFileDialog;
 use crate::{
     logic::{BarCollection, CategoryService, ItemService, RecipeService},
     models::{
-        Category, CategoryBody, CategoryID, Config, Item, ItemBody, ItemID, Recipe, RecipeBody,
-        RecipeID,
+        Category, CategoryBody, CategoryID, Config, Item, ItemBody, ItemID, ItemUse, Recipe,
+        RecipeBody, RecipeID,
     },
     presentation::{
         screen::{self, Screen, settings},
@@ -75,6 +75,8 @@ pub enum Command {
 
     AddRecipe(RecipeBody),
     UpdateRecipe(Recipe),
+
+    UseItems(Vec<ItemUse>),
 }
 
 impl Bartend {
@@ -286,6 +288,11 @@ impl Bartend {
             Message::Serving(_) => {
                 if let Some(command) = self.screen_update(message) {
                     match command {
+                        Command::UseItems(items) => {
+                            self.item_service
+                                .use_items(&self.bar_collection.db.item_db(), items);
+                            Task::none()
+                        }
                         _ => unreachable!(),
                     }
                 } else {

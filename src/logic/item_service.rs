@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    models::{Item, ItemBody, ItemID},
+    models::{Item, ItemBody, ItemID, ItemUse},
     persistence::repositories::ItemRepository,
 };
 
@@ -40,6 +40,11 @@ impl ItemService {
             None => panic!("Invalid Item in circulation!"),
         }
     }
+
+    pub fn use_items(&mut self, db: &impl ItemRepository, used_items: Vec<ItemUse>) {
+        todo!()
+    }
+
     pub fn add(&mut self, db: &impl ItemRepository, item: &ItemBody) -> ItemID {
         let id = match db.insert(item) {
             Ok(id) => id,

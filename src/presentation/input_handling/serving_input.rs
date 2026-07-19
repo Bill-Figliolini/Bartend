@@ -78,7 +78,7 @@ impl ServingInput {
         }
     }
 
-    pub fn output(&mut self) -> Result<application::Message, ()> {
+    pub fn output(&mut self) -> Result<Vec<ItemUse>, ()> {
         let ingredient_count = self.ingredients.len();
         let used_ingredients = self
             .ingredients
@@ -95,7 +95,7 @@ impl ServingInput {
             .collect::<Result<Vec<ItemUse>, ()>>()?;
 
         self.clear();
-        todo!()
+        Ok(used_ingredients)
     }
 
     pub fn clear(&mut self) {
