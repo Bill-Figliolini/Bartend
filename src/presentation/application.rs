@@ -106,7 +106,7 @@ impl Bartend {
     }
 
     fn title(&self) -> String {
-        format!("Bartend")
+        "Bartend".to_string()
     }
 
     fn update(&mut self, message: Message) -> iced::Task<Message> {
