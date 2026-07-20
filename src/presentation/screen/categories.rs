@@ -2,8 +2,8 @@ use crate::{
     logic::CategoryService,
     models::{Category, CategoryID, Config, UnitSystem},
     presentation::{
-        Viewable, application,
-        input_handling::{CategoryInput, EditableCollection, InputCollection, InputMessage},
+        application,
+        input_handling::{CategoryInput, InputMessage},
         widget::{self, text_style},
     },
 };

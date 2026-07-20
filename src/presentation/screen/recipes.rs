@@ -2,8 +2,8 @@ use crate::{
     logic::{CategoryService, RecipeService},
     models::{CategoryFilter, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
-        Viewable, application,
-        input_handling::{EditableCollection, InputCollection, InputMessage, RecipeInput},
+        application,
+        input_handling::{InputMessage, RecipeInput},
         widget::{footer::footer, header::header, text_style::title},
     },
 };

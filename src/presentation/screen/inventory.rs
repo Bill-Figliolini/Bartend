@@ -8,8 +8,8 @@ use crate::{
     logic::{CategoryService, ItemService},
     models::{Category, CategoryFilter, Config, Item, ItemID, UnitSystem},
     presentation::{
-        Viewable, application,
-        input_handling::{EditableCollection, InputCollection, InputMessage, ItemInput},
+        application,
+        input_handling::{InputMessage, ItemInput},
         widget::{footer::footer, header::header, text_style::title},
     },
 };

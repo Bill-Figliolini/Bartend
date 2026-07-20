@@ -5,10 +5,8 @@ mod serving_input;
 
 use iced::widget::Id;
 
-use crate::{
-    models::{Category, Item, Recipe, Unit, UnitSystem},
-    presentation::{Viewable, application::Message},
-};
+use crate::models::{Category, Item, Recipe, Unit};
+
 #[derive(Clone, Debug)]
 pub enum InputMessage {
     String(Id, String),
@@ -28,16 +26,6 @@ impl InputMessage {
             InputMessage::Item(id, _) => id.clone(),
         }
     }
-}
-
-pub trait InputCollection<T>: Viewable<Message> {
-    fn update(&mut self, msg: InputMessage);
-    fn output(&mut self) -> Result<T, ()>;
-    fn clear(&mut self);
-}
-
-pub trait EditableCollection<T>: InputCollection<T> {
-    fn begin_edit(&mut self, edit: &T, unit_system: UnitSystem);
 }
 
 pub use {

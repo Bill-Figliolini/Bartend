@@ -7,7 +7,7 @@ use crate::{
     presentation::{
         Viewable,
         application::Message,
-        input_handling::{EditableCollection, InputCollection, InputMessage},
+        input_handling::InputMessage,
         widget::input::{Error, Input, InputContents, StringInput},
     },
 };
@@ -16,14 +16,6 @@ use crate::{
 pub struct CategoryInput {
     name_input: StringInput<Message>,
     errors: HashSet<Error>,
-}
-
-impl Viewable<Message> for CategoryInput {
-    fn view(&self) -> iced::Element<'_, Message> {
-        let input_row = self.name_input.view();
-        let error_row = row(self.errors.iter().map(|e| text(e.to_string()).into()));
-        column![input_row, error_row].into()
-    }
 }
 
 impl CategoryInput {
@@ -37,10 +29,14 @@ impl CategoryInput {
             errors: HashSet::new(),
         }
     }
-}
 
-impl InputCollection<CategoryBody> for CategoryInput {
-    fn update(&mut self, msg: InputMessage) {
+    pub fn view(&self) -> iced::Element<'_, Message> {
+        let input_row = self.name_input.view();
+        let error_row = row(self.errors.iter().map(|e| text(e.to_string()).into()));
+        column![input_row, error_row].into()
+    }
+
+    pub fn update(&mut self, msg: InputMessage) {
         match msg {
             InputMessage::String(id, new_text) if self.name_input.id() == &id => {
                 self.name_input.update(new_text)
@@ -49,7 +45,7 @@ impl InputCollection<CategoryBody> for CategoryInput {
         }
     }
 
-    fn output(&mut self) -> Result<CategoryBody, ()> {
+    pub fn output(&mut self) -> Result<CategoryBody, ()> {
         let name_result = self.name_input.get_output();
         if !self.name_input.has_error() {
             self.clear();
@@ -60,12 +56,10 @@ impl InputCollection<CategoryBody> for CategoryInput {
             Err(())
         }
     }
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.name_input.clear();
     }
-}
-impl EditableCollection<CategoryBody> for CategoryInput {
-    fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
+    pub fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
         self.clear();
         self.name_input.update(edit.name.clone());
     }
