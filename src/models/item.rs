@@ -27,7 +27,7 @@ pub struct ItemBody {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ItemUse {
-    pub item: ItemID,
+    pub id: ItemID,
     pub quantity: Quantity,
 }
 

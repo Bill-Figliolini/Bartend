@@ -157,7 +157,7 @@ impl IngredientUseInput {
     fn output(&mut self) -> Result<ItemUse, ()> {
         let selected_item = self.ingredient.get_output()?;
         Ok(ItemUse {
-            item: selected_item.id,
+            id: selected_item.id,
             quantity: self.quantity,
         })
     }

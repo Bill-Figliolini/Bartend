@@ -41,8 +41,23 @@ impl ItemService {
         }
     }
 
+    fn get_mut(&mut self, item: &ItemID) -> &mut ItemBody {
+        match self.items.get_mut(item) {
+            Some(body) => body,
+            None => panic!("Invalid Item in circulation!"),
+        }
+    }
+
     pub fn use_items(&mut self, db: &impl ItemRepository, used_items: Vec<ItemUse>) {
-        todo!()
+        for usage in used_items {
+            let updated_item = self.get_mut(&usage.id);
+            updated_item.quantity -= usage.quantity;
+            let item = Item {
+                id: usage.id,
+                body: self.get(&usage.id).clone(),
+            };
+            self.update(db, item);
+        }
     }
 
     pub fn add(&mut self, db: &impl ItemRepository, item: &ItemBody) -> ItemID {
