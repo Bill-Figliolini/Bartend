@@ -141,6 +141,40 @@ impl PartialEq for Quantity {
     }
 }
 
+impl PartialOrd for Quantity {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (
+                Self::Volume {
+                    quantity: l_quantity,
+                },
+                Self::Volume {
+                    quantity: r_quantity,
+                },
+            )
+            | (
+                Self::Mass {
+                    quantity: l_quantity,
+                },
+                Self::Mass {
+                    quantity: r_quantity,
+                },
+            ) => l_quantity.partial_cmp(r_quantity),
+            (
+                Self::Count {
+                    quantity: l_quantity,
+                    name: l_name,
+                },
+                Self::Count {
+                    quantity: r_quantity,
+                    name: r_name,
+                },
+            ) if l_name == r_name => l_quantity.partial_cmp(r_quantity),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CountName {
     Dash,

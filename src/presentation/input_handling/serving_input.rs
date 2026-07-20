@@ -127,6 +127,7 @@ impl IngredientUseInput {
                 id,
                 body: item_service.get(&id).clone(),
             })
+            .filter(|item| item.body.quantity >= ingredient.quantity)
             .collect();
         Self {
             category: ingredient.category,
