@@ -33,9 +33,6 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         }
         Ok(graph)
     }
-    pub fn get_vertices(&self) -> Vec<T> {
-        self.graph.keys().copied().collect()
-    }
     pub fn insert_vertex(&mut self, vertex: T) {
         self.graph.entry(vertex).or_insert_with(|| HashSet::new());
     }
