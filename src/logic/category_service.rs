@@ -45,8 +45,9 @@ impl CategoryService {
                 acc
             },
         );
-
-        let graph = DirectedAcyclicGraph::new();
+        let category_ids: Vec<CategoryID> = categories.keys().copied().collect();
+        let category_relations = Vec::new();
+        let graph = DirectedAcyclicGraph::build_from(&category_ids, &category_relations).unwrap();
         CategoryService {
             categories,
             item_mapping,
