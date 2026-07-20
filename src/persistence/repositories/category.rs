@@ -14,7 +14,7 @@ impl<'a> CategoryDB<'a> {
     #[must_use]
     pub fn mapping_db(&'a self) -> ItemMappingDB<'a> {
         ItemMappingDB {
-            connection: &self.connection,
+            connection: self.connection,
         }
     }
 }

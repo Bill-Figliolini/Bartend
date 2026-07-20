@@ -99,11 +99,7 @@ impl Quantity {
     }
 
     pub fn readable(&self, unit_system: UnitSystem) -> String {
-        format!(
-            "{} {}",
-            self.value(unit_system),
-            self.unit(unit_system).to_string(),
-        )
+        format!("{} {}", self.value(unit_system), self.unit(unit_system),)
     }
 }
 
