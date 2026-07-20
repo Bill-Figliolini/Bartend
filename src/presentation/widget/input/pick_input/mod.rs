@@ -1,5 +1,5 @@
-pub mod optional;
-pub mod required;
+pub(super) mod optional;
+pub(super) mod required;
 
 use std::{
     fmt::{Debug, Display},

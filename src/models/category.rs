@@ -30,3 +30,5 @@ impl Display for CategoryID {
         write!(f, "{}", self.0)
     }
 }
+
+pub struct CategoryFilter {}

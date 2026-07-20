@@ -1,11 +1,12 @@
-pub mod category_input;
-pub mod item_input;
-pub mod recipe_input;
+mod category_input;
+mod item_input;
+mod recipe_input;
+mod serving_input;
 
 use iced::widget::Id;
 
 use crate::{
-    models::{Category, Unit, UnitSystem},
+    models::{Category, Item, Recipe, Unit, UnitSystem},
     presentation::{Viewable, application::Message},
 };
 #[derive(Clone, Debug)]
@@ -13,6 +14,8 @@ pub enum InputMessage {
     String(Id, String),
     Unit(Id, Unit),
     Category(Id, Category),
+    Recipe(Id, Recipe),
+    Item(Id, Item),
 }
 
 impl InputMessage {
@@ -21,6 +24,8 @@ impl InputMessage {
             InputMessage::String(id, _) => id.clone(),
             InputMessage::Unit(id, _) => id.clone(),
             InputMessage::Category(id, _) => id.clone(),
+            InputMessage::Recipe(id, _) => id.clone(),
+            InputMessage::Item(id, _) => id.clone(),
         }
     }
 }
@@ -28,6 +33,14 @@ impl InputMessage {
 pub trait InputCollection<T>: Viewable<Message> {
     fn update(&mut self, msg: InputMessage);
     fn output(&mut self) -> Result<T, ()>;
-    fn begin_edit(&mut self, edit: &T, unit_system: UnitSystem);
     fn clear(&mut self);
 }
+
+pub trait EditableCollection<T>: InputCollection<T> {
+    fn begin_edit(&mut self, edit: &T, unit_system: UnitSystem);
+}
+
+pub use {
+    category_input::CategoryInput, item_input::ItemInput, recipe_input::RecipeInput,
+    serving_input::ServingInput,
+};

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use iced::{
     Element,
     Length::Fill,
@@ -7,10 +5,11 @@ use iced::{
 };
 
 use crate::{
-    models::{Category, CategoryID, Config, Item, ItemID, UnitSystem},
+    logic::{CategoryService, ItemService},
+    models::{Category, CategoryFilter, Config, Item, ItemID, UnitSystem},
     presentation::{
-        Updateable, Viewable, application,
-        input_handling::{InputCollection, InputMessage, item_input::ItemInput},
+        Viewable, application,
+        input_handling::{EditableCollection, InputCollection, InputMessage, ItemInput},
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -19,9 +18,7 @@ use crate::{
 pub struct Inventory {
     input: ItemInput,
 
-    contents: Vec<Item>,
-    categories: Vec<Category>,
-    item_category_mapping: HashMap<ItemID, CategoryID>,
+    current_page: usize,
     unit_system: UnitSystem,
 
     edit_state: EditState,
@@ -36,32 +33,29 @@ enum EditState {
 pub enum Message {
     Save,
     SwapUnits,
-    BeginEdit(Item, Option<Category>),
+    BeginEdit(ItemID, Option<Category>),
+    CancelEdit,
     Input(InputMessage),
 
     //Variants for Application's use
-    InventoryUpdate(Vec<Item>),
-    CategoryMappingUpdate(HashMap<ItemID, CategoryID>),
+    Reload,
 }
 
 impl Inventory {
-    pub fn new(
-        config: &Config,
-        items: Vec<Item>,
-        categories: Vec<Category>,
-        mapping: HashMap<ItemID, CategoryID>,
-    ) -> Self {
+    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
         let unit_system = config.default_units();
 
         Self {
             // Input Handlers
-            input: ItemInput::new(config, input_msg, categories.clone()),
+            input: ItemInput::new(
+                config,
+                input_msg,
+                category_service.get_all(CategoryFilter {}),
+            ),
 
             // Display Managers
-            contents: items,
-            categories,
-            item_category_mapping: mapping,
             unit_system,
+            current_page: 0,
 
             // Input State
             edit_state: EditState::None,
@@ -78,59 +72,50 @@ impl Inventory {
         column![entry_header, row![self.input.view(), save_button]].into()
     }
 
-    fn build_inventory_display(&self) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(Fill), |item: &Item| {
-            text(&item.body.name)
+    fn build_inventory_display(
+        &self,
+        item_service: &ItemService,
+        category_service: &CategoryService,
+    ) -> Element<'_, application::Message> {
+        let name_column = table::column(text("Name").width(Fill), |item: ItemID| {
+            text(item_service.get(&item).name.clone())
         });
-        let quantity_column = table::column(text("Quantity"), |item: &Item| {
+        let quantity_column = table::column(text("Quantity"), |item: ItemID| {
+            let item = item_service.get(&item);
             text!(
                 "{:.0} {}",
-                item.body.quantity.value(self.unit_system),
-                item.body.quantity.unit(self.unit_system).to_string()
+                item.quantity.value(self.unit_system),
+                item.quantity.unit(self.unit_system).to_string()
             )
         });
-        let category_column = table::column(text("Category").width(200), |item: &Item| match self
-            .item_category_mapping
-            .get(&item.id)
-        {
-            Some(cat_id) => text(
-                self.categories
-                    .iter()
-                    .find(|category| category.id == *cat_id)
-                    .unwrap()
-                    .body
-                    .name
-                    .clone(),
-            ),
-            None => text!("None"),
-        });
+        let category_column =
+            table::column(
+                text("Category").width(200),
+                |item: ItemID| match category_service.item_category(&item) {
+                    Some(cat_id) => text(category_service.get(&cat_id).name.clone()),
+                    None => text!("None"),
+                },
+            );
         //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
-            |item: &Item| match self.edit_state {
+            |item: ItemID| match self.edit_state {
                 EditState::None => {
-                    let category = match self.item_category_mapping.get(&item.id) {
-                        Some(id_ref) => {
-                            let id = *id_ref;
-                            Some(
-                                self.categories
-                                    .iter()
-                                    .find(|category| category.id == id)
-                                    .unwrap()
-                                    .clone(),
-                            )
-                        }
-                        None => None,
-                    };
+                    let category = category_service
+                        .item_category(&item)
+                        .map(|id_ref| Category {
+                            id: id_ref,
+                            body: category_service.get(&id_ref).clone(),
+                        });
                     iced::widget::Button::new(text("Edit").center()).on_press(
-                        application::Message::Inventory(Message::BeginEdit(item.clone(), category)),
+                        application::Message::Inventory(Message::BeginEdit(item, category)),
                     )
                 }
                 .width(edit_column_width),
-                EditState::Editing(item_id) if item.id == item_id => {
+                EditState::Editing(item_id) if item == item_id => {
                     iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::UpdateInventory)
+                        .on_press(application::Message::Inventory(Message::CancelEdit))
                         .width(edit_column_width)
                 }
                 EditState::Editing(_) => {
@@ -141,9 +126,9 @@ impl Inventory {
         let delete_column_width = 50;
         let delete_column = table::column(
             text("Delete").width(delete_column_width).center(),
-            |item: &Item| {
+            |item: ItemID| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteItem(item.clone()))
+                    .on_press(application::Message::DeleteItem(item))
             },
         );
         let columns = vec![
@@ -153,18 +138,21 @@ impl Inventory {
             edit_column,
             delete_column,
         ];
-        table(columns, &self.contents).into()
+        let contents = item_service.get_page(self.current_page);
+        table(columns, contents).into()
     }
-}
 
-impl Viewable<application::Message> for Inventory {
-    fn view(&self) -> Element<'_, application::Message> {
+    pub fn view(
+        &self,
+        item_service: &ItemService,
+        category_service: &CategoryService,
+    ) -> Element<'_, application::Message> {
         let title_text = title("Inventory");
         let header = header(title_text);
 
         let entry_section = self.build_item_entry_section();
 
-        let inventory = self.build_inventory_display();
+        let inventory = self.build_inventory_display(item_service, category_service);
 
         let body_contents = column![entry_section, inventory];
         let body = container(body_contents).align_top(Fill);
@@ -177,12 +165,19 @@ impl Viewable<application::Message> for Inventory {
 
         column![header, body, footer].into()
     }
-}
-impl Updateable<Message> for Inventory {
-    fn update(&mut self, message: Message) -> Option<application::Command> {
+
+    pub fn update(
+        &mut self,
+        item_service: &ItemService,
+        message: Message,
+    ) -> Option<application::Command> {
         match message {
             Message::SwapUnits => {
                 self.unit_system.swap();
+                None
+            }
+            Message::CancelEdit => {
+                self.edit_state = EditState::None;
                 None
             }
             Message::Input(msg) => {
@@ -191,12 +186,14 @@ impl Updateable<Message> for Inventory {
             }
             Message::BeginEdit(item, category) => match self.edit_state {
                 EditState::None => {
-                    self.edit_state = EditState::Editing(item.id);
-                    self.input
-                        .begin_edit(&(item.body, category), self.unit_system);
+                    self.edit_state = EditState::Editing(item);
+                    self.input.begin_edit(
+                        &(item_service.get(&item).clone(), category),
+                        self.unit_system,
+                    );
                     None
                 }
-                EditState::Editing(item_id) if item.id == item_id => {
+                EditState::Editing(item_id) if item == item_id => {
                     self.input.clear();
                     self.edit_state = EditState::None;
                     None
@@ -224,13 +221,9 @@ impl Updateable<Message> for Inventory {
                     None
                 }
             }
-            Message::InventoryUpdate(items) => {
-                self.contents = items;
+            Message::Reload => {
+                self.input.clear();
                 self.edit_state = EditState::None;
-                None
-            }
-            Message::CategoryMappingUpdate(mapping) => {
-                self.item_category_mapping = mapping;
                 None
             }
         }

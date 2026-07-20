@@ -6,7 +6,7 @@
 //! Quantities allow of ease of conversion between Imperial and Metric, both at creation and later access.
 //! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur.
 
-use std::fmt::Display;
+use std::{fmt::Display, ops::SubAssign};
 
 use serde::{Deserialize, Serialize};
 
@@ -97,6 +97,10 @@ impl Quantity {
             _ => unreachable!("Quantity was stored with invalid type {unit_type} in db"),
         }
     }
+
+    pub fn readable(&self, unit_system: UnitSystem) -> String {
+        format!("{} {}", self.value(unit_system), self.unit(unit_system),)
+    }
 }
 
 impl PartialEq for Quantity {
@@ -129,6 +133,74 @@ impl PartialEq for Quantity {
                 },
             ) => l_name == r_name && l_quantity == r_quantity,
             _ => false,
+        }
+    }
+}
+
+impl PartialOrd for Quantity {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (
+                Self::Volume {
+                    quantity: l_quantity,
+                },
+                Self::Volume {
+                    quantity: r_quantity,
+                },
+            )
+            | (
+                Self::Mass {
+                    quantity: l_quantity,
+                },
+                Self::Mass {
+                    quantity: r_quantity,
+                },
+            ) => l_quantity.partial_cmp(r_quantity),
+            (
+                Self::Count {
+                    quantity: l_quantity,
+                    name: l_name,
+                },
+                Self::Count {
+                    quantity: r_quantity,
+                    name: r_name,
+                },
+            ) if l_name == r_name => l_quantity.partial_cmp(r_quantity),
+            _ => None,
+        }
+    }
+}
+
+impl SubAssign for Quantity {
+    fn sub_assign(&mut self, rhs: Self) {
+        match (self, rhs) {
+            (
+                Self::Volume {
+                    quantity: l_quantity,
+                },
+                Self::Volume {
+                    quantity: r_quantity,
+                },
+            )
+            | (
+                Self::Mass {
+                    quantity: l_quantity,
+                },
+                Self::Mass {
+                    quantity: r_quantity,
+                },
+            ) => *l_quantity -= r_quantity,
+            (
+                Self::Count {
+                    quantity: l_quantity,
+                    name: l_name,
+                },
+                Self::Count {
+                    quantity: r_quantity,
+                    name: r_name,
+                },
+            ) if *l_name == r_name => *l_quantity -= r_quantity,
+            _ => {}
         }
     }
 }

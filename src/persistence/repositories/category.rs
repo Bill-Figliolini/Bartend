@@ -1,10 +1,23 @@
+use std::collections::HashMap;
+
 use crate::{
-    models::{Category, CategoryBody, CategoryID},
+    models::{Category, CategoryBody, CategoryID, ItemID},
     persistence::{
         DBError,
-        repositories::{CategoryDB, CategoryRepository, Repository},
+        repositories::{
+            CategoryDB, CategoryRepository, ItemMappingDB, ItemMappingRepository, Repository,
+        },
     },
 };
+
+impl<'a> CategoryDB<'a> {
+    #[must_use]
+    pub fn mapping_db(&'a self) -> ItemMappingDB<'a> {
+        ItemMappingDB {
+            connection: self.connection,
+        }
+    }
+}
 
 impl<'a> Repository for CategoryDB<'a> {
     fn create_table(&self) -> Result<(), DBError> {
@@ -13,6 +26,7 @@ impl<'a> Repository for CategoryDB<'a> {
                 name STRING NOT NULL
             );";
         self.connection.execute(query, ())?;
+        self.mapping_db().create_table()?;
         Ok(())
     }
 }
@@ -33,17 +47,14 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         )?;
         Ok(())
     }
-    fn delete(&self, category: Category) -> Result<(), DBError> {
+    fn delete(&self, category: CategoryID) -> Result<(), DBError> {
         self.connection
-            .execute("DELETE FROM category WHERE id=?1", (&category.id,))?;
+            .execute("DELETE FROM category WHERE id=?1", (&category,))?;
         Ok(())
     }
-    fn get_range(&self, offset: usize, quantity: usize) -> Result<Vec<Category>, DBError> {
-        let query = format!("SELECT * FROM category LIMIT {quantity} OFFSET {offset}");
-        let mut stmt = self
-            .connection
-            .prepare(&query)
-            .expect("Query must be valid");
+    fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError> {
+        let query = "SELECT * FROM category";
+        let mut stmt = self.connection.prepare(query)?;
         let rows = stmt.query_map([], |row| {
             let id = row.get(0).unwrap();
             let name = row.get(1).unwrap();
@@ -52,14 +63,19 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
                 body: CategoryBody { name },
             })
         })?;
-        Ok(rows
-            .into_iter()
-            .fold(Vec::with_capacity(quantity), |mut acc, row| {
-                match row {
-                    Ok(item) => acc.push(item),
-                    Err(e) => panic!("Retrieving Items failled with error: {e}"),
-                }
-                acc
-            }))
+        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
+            match row {
+                Ok(item) => acc.insert(item.id, item.body),
+                Err(e) => panic!("Retrieving Items failled with error: {e}"),
+            };
+            acc
+        }))
+    }
+    fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError> {
+        self.mapping_db().get_map()
+    }
+
+    fn mapping(&self) -> impl ItemMappingRepository {
+        self.mapping_db()
     }
 }

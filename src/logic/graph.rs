@@ -18,7 +18,7 @@ pub enum GraphError {
 }
 
 impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             graph: HashMap::new(),
         }
@@ -98,19 +98,6 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
             }
         }
         Some(children)
-    }
-}
-
-impl<T: Hash + Copy + Eq> DirectedAcyclicGraph<T> {
-    pub fn create() -> String {
-        "CREATE TABLE IF NOT EXISTS category(
-            parent_id INTEGER,
-            child_id INTEGER,
-            FOREIGN KEY (parent_id) REFERENCES category(id) ON DELETE CASCADE,
-            FOREIGN KEY (child_id) REFERENCES category(id) ON DELETE CASCADE,
-        UNIQUE (parent_id, child_id));
-        "
-        .to_string()
     }
 }
 

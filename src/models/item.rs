@@ -6,6 +6,8 @@
 //! ## Potential Future Changes
 //! Variants for mappings of IDs to quantities and names could be useful for Recipes, in a later version.
 
+use std::fmt::Display;
+
 use crate::models::quantity::Quantity;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -23,4 +25,23 @@ pub struct ItemBody {
     pub quantity: Quantity,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ItemUse {
+    pub id: ItemID,
+    pub quantity: Quantity,
+}
+
 impl Item {}
+
+impl PartialEq for Item {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+impl Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.body.name)
+    }
+}
+
+pub enum ItemCommand {}

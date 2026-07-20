@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     models::{Recipe, RecipeBody, RecipeID},
     persistence::{
@@ -50,18 +52,15 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
         Ok(())
     }
 
-    fn delete(&self, item: Recipe) -> Result<(), DBError> {
+    fn delete(&self, item: RecipeID) -> Result<(), DBError> {
         let query = "DELETE FROM recipes WHERE id=?1";
-        self.connection.execute(query, (item.id,))?;
+        self.connection.execute(query, (item,))?;
         Ok(())
     }
 
-    fn get_range(&self, offset: usize, limit: usize) -> Result<Vec<Recipe>, DBError> {
-        let query = format!("SELECT * FROM recipes LIMIT {limit} OFFSET {offset}");
-        let mut stmt = self
-            .connection
-            .prepare(&query)
-            .expect("Query must be valid");
+    fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError> {
+        let query = "SELECT * FROM recipes";
+        let mut stmt = self.connection.prepare(query).expect("Query must be valid");
         let rows = stmt
             .query_map([], |row| {
                 let id = row.get(0)?;
@@ -73,14 +72,12 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
                 })
             })
             .unwrap();
-        Ok(rows
-            .into_iter()
-            .fold(Vec::with_capacity(limit), |mut acc, row| {
-                match row {
-                    Ok(recipe) => acc.push(recipe),
-                    Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
-                }
-                acc
-            }))
+        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
+            match row {
+                Ok(recipe) => acc.insert(recipe.id, recipe.body),
+                Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
+            };
+            acc
+        }))
     }
 }

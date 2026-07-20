@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::models::{category::CategoryID, quantity::Quantity};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -21,3 +23,15 @@ pub struct Ingredient {
 
 impl Recipe {}
 impl Ingredient {}
+
+impl Display for Recipe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.body.name)
+    }
+}
+
+impl PartialEq for Recipe {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
