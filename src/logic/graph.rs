@@ -82,7 +82,7 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         if !self.contains_vertex(vertex) {
             return None;
         }
-        let mut stack = Vec::new();
+        let mut stack: Vec<T> = Vec::new();
         let mut children: HashSet<T> = self.get_edges(vertex).clone();
         for child_vertex in &children {
             stack.push(*child_vertex);

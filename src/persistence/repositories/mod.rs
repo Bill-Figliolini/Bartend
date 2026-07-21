@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
 
@@ -72,4 +72,9 @@ pub trait IngredientRepository: Repository {
     fn get(&self, recipe: &RecipeID) -> Result<Vec<Ingredient>, rusqlite::Error>;
 }
 
-pub trait GraphRepository: Repository {}
+pub trait GraphRepository: Repository {
+    fn get(&self) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, DBError>;
+    fn insert(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
+    fn delete_node(&self, node: CategoryID) -> Result<(), DBError>;
+    fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
+}

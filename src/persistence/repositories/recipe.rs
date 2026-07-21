@@ -29,6 +29,7 @@ impl<'a> Repository for RecipeDB<'a> {
         Ok(())
     }
 }
+//TODO: Start using transactions
 impl<'a> RecipeRepository for RecipeDB<'a> {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError> {
         let query = "INSERT INTO recipes(name) VALUES (?1)";
