@@ -1,3 +1,4 @@
+mod bartend_error;
 mod category;
 mod config;
 mod item;

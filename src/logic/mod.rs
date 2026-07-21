@@ -5,7 +5,7 @@ mod recipe_service;
 
 use std::path::Path;
 
-use crate::persistence::Database;
+use crate::{models::CategoryID, persistence::Database};
 
 pub use self::{
     category_service::CategoryService, item_service::ItemService, recipe_service::RecipeService,
@@ -28,4 +28,11 @@ impl BarCollection {
         };
         Self { db }
     }
+}
+
+pub enum LogicError {
+    InvalidCategoryRelation {
+        parent: CategoryID,
+        child: CategoryID,
+    },
 }

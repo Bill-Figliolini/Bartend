@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    logic::graph::DirectedAcyclicGraph,
+    logic::{LogicError, graph::DirectedAcyclicGraph},
     models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
-    persistence::repositories::{CategoryRepository, ItemMappingRepository},
+    persistence::repositories::{CategoryRepository, GraphRepository, ItemMappingRepository},
 };
 
 #[derive(Debug)]
@@ -45,9 +45,8 @@ impl CategoryService {
                 acc
             },
         );
-        let category_ids: Vec<CategoryID> = categories.keys().copied().collect();
-        let category_relations = Vec::new();
-        let graph = DirectedAcyclicGraph::build_from(&category_ids, &category_relations).unwrap();
+        let category_relations = db.graph().get().unwrap();
+        let graph = DirectedAcyclicGraph::load(category_relations);
         CategoryService {
             categories,
             item_mapping,
@@ -114,6 +113,7 @@ impl CategoryService {
         match db.insert(body) {
             Ok(id) => {
                 self.categories.insert(id, body.clone());
+                self.graph.insert_vertex(id);
                 id
             }
             Err(e) => panic!("{e}"),
@@ -121,6 +121,7 @@ impl CategoryService {
     }
     pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
         self.categories.remove(&category);
+        self.graph.remove(category);
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }
@@ -181,11 +182,32 @@ impl CategoryService {
             (None, None) => {}
         }
     }
+    pub fn add_category_relation(
+        &mut self,
+        db: &impl CategoryRepository,
+        parent: &CategoryID,
+        child: &CategoryID,
+    ) -> Result<(), LogicError> {
+        if let Err(_) = self.graph.insert_edge((parent, child)) {
+            Err(LogicError::InvalidCategoryRelation {
+                parent: *parent,
+                child: *child,
+            })
+        } else {
+            if let Err(e) = db.graph().insert(*parent, *child) {
+                panic!("{e}")
+            };
+            Ok(())
+        }
+    }
+    pub fn is_valid_relation(&self, parent: &CategoryID, child: &CategoryID) -> bool {
+        !self.graph.is_parent_of(parent, child)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::persistence::repositories::Repository;
+    use crate::persistence::repositories::{GraphRepository, Repository};
 
     use super::*;
 
@@ -193,12 +215,16 @@ mod tests {
         counter: i64,
     }
     struct TestMapDB {}
+    struct TestGraphDB {}
     impl TestDB {
         fn new() -> Self {
             Self { counter: 30 }
         }
         fn mapping_db(&self) -> TestMapDB {
             TestMapDB {}
+        }
+        fn graph_db(&self) -> TestGraphDB {
+            TestGraphDB {}
         }
     }
     impl Repository for TestDB {
@@ -237,6 +263,9 @@ mod tests {
         fn mapping(&self) -> impl ItemMappingRepository {
             self.mapping_db()
         }
+        fn graph(&self) -> impl GraphRepository {
+            self.graph_db()
+        }
 
         fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
             self.mapping().get_map()
@@ -269,7 +298,38 @@ mod tests {
             Ok(())
         }
     }
+    impl Repository for TestGraphDB {
+        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+    }
+    impl GraphRepository for TestGraphDB {
+        fn get(
+            &self,
+        ) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, crate::persistence::DBError> {
+            Ok(HashMap::new())
+        }
 
+        fn insert(
+            &self,
+            _parent: CategoryID,
+            _child: CategoryID,
+        ) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn delete_node(&self, _node: CategoryID) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn delete_edge(
+            &self,
+            _parent: CategoryID,
+            _child: CategoryID,
+        ) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+    }
     #[test]
     fn category_service_loads_in_all_data() {
         let db = TestDB::new();

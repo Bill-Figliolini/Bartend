@@ -48,6 +48,7 @@ pub trait ItemMappingRepository: Repository {
     fn delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
 }
 pub trait CategoryRepository: Repository {
+    fn graph(&self) -> impl GraphRepository;
     fn mapping(&self) -> impl ItemMappingRepository;
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError>;
     fn update(&self, category: &Category) -> Result<(), DBError>;

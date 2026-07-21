@@ -23,7 +23,10 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
             graph: HashMap::new(),
         }
     }
-    pub fn build_from(vertices: &[T], edges: &[(&T, &T)]) -> Result<Self, GraphError> {
+    pub fn load(graph: HashMap<T, HashSet<T>>) -> Self {
+        Self { graph }
+    }
+    fn build_from(vertices: &[T], edges: &[(&T, &T)]) -> Result<Self, GraphError> {
         let mut graph = Self::new();
         for vertex in vertices {
             graph.insert_vertex(*vertex);
@@ -62,7 +65,7 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
             }
         }
     }
-    fn is_parent_of(&self, parent_vertex: &T, child_vertex: &T) -> bool {
+    pub fn is_parent_of(&self, parent_vertex: &T, child_vertex: &T) -> bool {
         let current_set = self.graph.get(parent_vertex);
         let next_set = match current_set {
             Some(next_set) => next_set,
