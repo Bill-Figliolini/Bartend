@@ -200,8 +200,11 @@ impl CategoryService {
             Ok(())
         }
     }
-    pub fn is_valid_relation(&self, parent: &CategoryID, child: &CategoryID) -> bool {
-        !self.graph.is_parent_of(parent, child)
+    pub fn list_valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
+        match self.graph.get_non_parents(category) {
+            Some(candidates) => candidates,
+            None => HashSet::new(),
+        }
     }
 }
 

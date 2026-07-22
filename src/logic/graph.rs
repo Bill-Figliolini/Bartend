@@ -99,6 +99,23 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         }
         Some(children)
     }
+    pub fn get_non_parents(&self, search_vertex: &T) -> Option<HashSet<T>> {
+        if !self.contains_vertex(search_vertex) {
+            return None;
+        }
+        //This feels like an awful idea, will investigate for better
+        let non_parents: HashSet<T> =
+            self.graph
+                .keys()
+                .fold(HashSet::new(), |mut acc, graph_vertex: &T| {
+                    if !self.is_parent_of(graph_vertex, search_vertex) {
+                        acc.insert(*graph_vertex);
+                    }
+                    acc
+                });
+
+        Some(non_parents)
+    }
 }
 
 #[cfg(test)]
