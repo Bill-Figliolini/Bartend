@@ -8,7 +8,7 @@ use std::{
 };
 
 #[derive(Debug)]
-pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash> {
+pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash + PartialEq> {
     graph: HashMap<T, HashSet<T>>,
 }
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub enum GraphError {
     WouldIntroduceCycle,
 }
 
-impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
+impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
     pub fn new() -> Self {
         Self {
             graph: HashMap::new(),
@@ -89,26 +89,20 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         }
         Some(children)
     }
-    pub fn get_non_cyclic(&self, search_vertex: &T) -> Option<HashSet<T>> {
+    pub fn get_non_cyclic_additions(&self, search_vertex: &T) -> Option<HashSet<T>> {
         if !self.contains_vertex(search_vertex) {
             return None;
         }
-        //This feels like an awful idea, will investigate for better
-        let non_cyclic: HashSet<T> =
-            self.graph
-                .keys()
-                .fold(HashSet::new(), |mut acc, graph_vertex: &T| {
-                    if !self.is_parent_of(graph_vertex, search_vertex)
-                        && !self
-                            .graph
-                            .get(graph_vertex)
-                            .unwrap()
-                            .contains(search_vertex)
-                    {
-                        acc.insert(*graph_vertex);
-                    }
-                    acc
-                });
+        let children_of_search = self.get_all_children(search_vertex).expect("Exists in set");
+
+        let non_cyclic: HashSet<T> = self
+            .graph
+            .keys()
+            .filter(|vertex| **vertex != *search_vertex && !children_of_search.contains(*vertex))
+            .fold(HashSet::new(), |mut acc, graph_vertex: &T| {
+                acc.insert(*graph_vertex);
+                acc
+            });
 
         Some(non_cyclic)
     }
@@ -186,18 +180,22 @@ mod tests {
         use super::*;
         fn get_graph() -> DirectedAcyclicGraph<u32> {
             let mut graph = DirectedAcyclicGraph::new();
-            for i in 1..=10 {
+            for i in 1..=5 {
                 graph.insert_vertex(i);
-                for divisor in (1..i).filter(|x| i % x == 0) {
-                    graph.insert_edge(&i, &divisor).unwrap();
-                }
             }
+            graph.insert_edge(&1, &2).unwrap();
+            graph.insert_edge(&2, &4).unwrap();
+            graph.insert_edge(&4, &3).unwrap();
             graph
         }
         #[test]
         fn returns_all_valid_connections() {
             let graph = get_graph();
-            eprintln!("{:?}", graph.get_non_cyclic(&10));
+            let mut actual_results = Vec::new();
+            for i in 1..=5 {
+                actual_results.push(graph.get_non_cyclic_additions(&i).unwrap());
+            }
+            eprintln!("{:?}", actual_results);
             assert!(false);
         }
     }

@@ -201,7 +201,7 @@ impl CategoryService {
         }
     }
     pub fn list_valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
-        match self.graph.get_non_cyclic(category) {
+        match self.graph.get_non_cyclic_additions(category) {
             Some(candidates) => candidates,
             None => HashSet::new(),
         }
