@@ -26,30 +26,20 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
     pub fn load(graph: HashMap<T, HashSet<T>>) -> Self {
         Self { graph }
     }
-    fn build_from(vertices: &[T], edges: &[(&T, &T)]) -> Result<Self, GraphError> {
-        let mut graph = Self::new();
-        for vertex in vertices {
-            graph.insert_vertex(*vertex);
-        }
-        for edge in edges {
-            graph.insert_edge(*edge)?;
-        }
-        Ok(graph)
-    }
     pub fn insert_vertex(&mut self, vertex: T) {
         self.graph.entry(vertex).or_insert_with(|| HashSet::new());
     }
     fn contains_vertex(&self, vertex: &T) -> bool {
         self.graph.contains_key(vertex)
     }
-    pub fn insert_edge(&mut self, edge: (&T, &T)) -> Result<(), GraphError> {
-        if !(self.contains_vertex(edge.0) && self.contains_vertex(edge.1)) {
+    pub fn insert_edge(&mut self, parent: &T, child: &T) -> Result<(), GraphError> {
+        if !(self.contains_vertex(parent) && self.contains_vertex(child)) {
             return Err(GraphError::EdgeEndpointNotInGraph);
         }
-        if self.is_parent_of(edge.1, edge.0) {
+        if self.is_parent_of(parent, child) {
             return Err(GraphError::WouldIntroduceCycle);
         }
-        self.graph.get_mut(edge.0).unwrap().insert(*edge.1);
+        self.graph.get_mut(parent).unwrap().insert(*child);
         Ok(())
     }
     fn get_edges(&self, vertex: &T) -> &HashSet<T> {
@@ -99,60 +89,92 @@ impl<T: Copy + Eq + Hash> DirectedAcyclicGraph<T> {
         }
         Some(children)
     }
-    pub fn get_non_parents(&self, search_vertex: &T) -> Option<HashSet<T>> {
+    pub fn get_non_cyclic(&self, search_vertex: &T) -> Option<HashSet<T>> {
         if !self.contains_vertex(search_vertex) {
             return None;
         }
         //This feels like an awful idea, will investigate for better
-        let non_parents: HashSet<T> =
+        let non_cyclic: HashSet<T> =
             self.graph
                 .keys()
                 .fold(HashSet::new(), |mut acc, graph_vertex: &T| {
-                    if !self.is_parent_of(graph_vertex, search_vertex) {
+                    if !self.is_parent_of(graph_vertex, search_vertex)
+                        && !self
+                            .graph
+                            .get(graph_vertex)
+                            .unwrap()
+                            .contains(search_vertex)
+                    {
                         acc.insert(*graph_vertex);
                     }
                     acc
                 });
 
-        Some(non_parents)
+        Some(non_cyclic)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn removing_results_in_lower_members_being_moved() {
-        let mut graph =
-            DirectedAcyclicGraph::build_from(&[1, 2, 3], &[(&1, &2), (&2, &3)]).unwrap();
+    mod basic_behavior {
+        use super::*;
+        fn get_graph() -> DirectedAcyclicGraph<u32> {
+            let graph = (1..=3).fold(HashMap::new(), |mut acc, i| {
+                let set = (1..i - 1).fold(HashSet::new(), |mut set_acc, x| {
+                    set_acc.insert(x);
+                    set_acc
+                });
+                acc.insert(i, set);
+                acc
+            });
+            DirectedAcyclicGraph::load(graph)
+        }
+        #[test]
+        fn removing_results_in_lower_members_being_moved() {
+            let mut graph = get_graph();
+            eprintln!("{:?}", graph);
 
-        graph.remove(2);
+            graph.remove(2);
 
-        assert!(!graph.contains_vertex(&2));
-        assert_eq!(*graph.get_edges(&1), HashSet::from([3]));
+            assert!(!graph.contains_vertex(&2));
+            assert_eq!(*graph.get_edges(&3), HashSet::from([1]));
+        }
+        #[test]
+        fn cycles_not_allowed_at_insertion() {
+            let mut graph = get_graph();
+
+            let insert_result = graph.insert_edge(&3, &1);
+
+            assert!(insert_result.is_err())
+        }
     }
     mod get_all_children {
         use super::*;
+        fn get_graph() -> DirectedAcyclicGraph<i32> {
+            let graph = (1..=5).fold(HashMap::new(), |mut acc, i| {
+                let mut new_set = HashSet::new();
+                if i > 1 {
+                    new_set.insert(i - 1);
+                }
+                acc.insert(i, new_set);
+                acc
+            });
+
+            DirectedAcyclicGraph::load(graph)
+        }
         #[test]
         fn results_in_indirect_child_nodes_returned() {
-            let graph = DirectedAcyclicGraph::build_from(
-                &[1, 2, 3, 4, 5],
-                &[(&1, &2), (&2, &3), (&3, &4), (&4, &5)],
-            )
-            .unwrap();
+            let graph = get_graph();
 
-            let implication = graph.get_all_children(&2);
+            let implication = graph.get_all_children(&4);
 
-            let expected_implication = Some(HashSet::from([3, 4, 5]));
+            let expected_implication = Some(HashSet::from([1, 2, 3]));
             assert_eq!(implication, expected_implication);
         }
         #[test]
-        fn results_in_none() {
-            let graph = DirectedAcyclicGraph::build_from(
-                &[1, 2, 3, 4, 5],
-                &[(&1, &2), (&2, &3), (&3, &4), (&4, &5)],
-            )
-            .unwrap();
+        fn results_in_none_if_not_in_graph() {
+            let graph = get_graph();
 
             let implication = graph.get_all_children(&7);
 
@@ -160,14 +182,23 @@ mod tests {
             assert_eq!(implication, expected_implication);
         }
     }
-
-    #[test]
-    fn cycles_not_allowed_at_insertion() {
-        let mut graph =
-            DirectedAcyclicGraph::build_from(&[1, 2, 3], &[(&1, &2), (&2, &3)]).unwrap();
-
-        let insert_result = graph.insert_edge((&3, &1));
-
-        assert!(insert_result.is_err())
+    mod get_non_cyclic {
+        use super::*;
+        fn get_graph() -> DirectedAcyclicGraph<u32> {
+            let mut graph = DirectedAcyclicGraph::new();
+            for i in 1..=10 {
+                graph.insert_vertex(i);
+                for divisor in (1..i).filter(|x| i % x == 0) {
+                    graph.insert_edge(&i, &divisor).unwrap();
+                }
+            }
+            graph
+        }
+        #[test]
+        fn returns_all_valid_connections() {
+            let graph = get_graph();
+            eprintln!("{:?}", graph.get_non_cyclic(&10));
+            assert!(false);
+        }
     }
 }

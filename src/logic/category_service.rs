@@ -188,7 +188,7 @@ impl CategoryService {
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), LogicError> {
-        if let Err(_) = self.graph.insert_edge((parent, child)) {
+        if let Err(_) = self.graph.insert_edge(parent, child) {
             Err(LogicError::InvalidCategoryRelation {
                 parent: *parent,
                 child: *child,
@@ -201,7 +201,7 @@ impl CategoryService {
         }
     }
     pub fn list_valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
-        match self.graph.get_non_parents(category) {
+        match self.graph.get_non_cyclic(category) {
             Some(candidates) => candidates,
             None => HashSet::new(),
         }
