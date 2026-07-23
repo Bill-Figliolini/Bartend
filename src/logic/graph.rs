@@ -93,7 +93,7 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         if !self.contains_vertex(search_vertex) {
             return None;
         }
-        let children_of_search = self.get_all_children(search_vertex).expect("Exists in set");
+        let children_of_search = self.get_edges(search_vertex);
 
         let non_cyclic: HashSet<T> = self
             .graph
