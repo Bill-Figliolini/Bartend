@@ -18,7 +18,7 @@ pub enum GraphError {
 }
 
 impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
-    pub fn new() -> Self {
+    pub fn _new() -> Self {
         Self {
             graph: HashMap::new(),
         }
@@ -179,7 +179,7 @@ mod tests {
     mod get_non_cyclic {
         use super::*;
         fn get_graph() -> DirectedAcyclicGraph<u32> {
-            let mut graph = DirectedAcyclicGraph::new();
+            let mut graph = DirectedAcyclicGraph::_new();
             for i in 1..=5 {
                 graph.insert_vertex(i);
             }
