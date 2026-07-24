@@ -30,6 +30,7 @@ impl<'a> Repository for CategoryDB<'a> {
             );";
         self.connection.execute(query, ())?;
         self.mapping_db().create_table()?;
+        self.graph().create_table()?;
         Ok(())
     }
 }
