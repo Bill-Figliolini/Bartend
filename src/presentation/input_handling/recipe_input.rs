@@ -38,6 +38,7 @@ impl IngredientInput {
             move |id, category| msg(InputMessage::Category(id, category)),
             categories,
             None,
+            "Category".to_string(),
         );
         let quantity_input = NumberInput::new(
             move |id, str| msg(InputMessage::String(id, str)),
@@ -48,6 +49,7 @@ impl IngredientInput {
             move |id, unit| msg(InputMessage::Unit(id, unit)),
             Unit::get_units(),
             Some(unit_system.default_units()),
+            "".to_string(),
         );
         Self {
             category_input,

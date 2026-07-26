@@ -48,11 +48,13 @@ impl ItemInput {
             move |id, unit| msg(InputMessage::Unit(id, unit)),
             Unit::get_units(),
             Some(units),
+            "".to_string(),
         );
         let category_input = OptionalPickInput::new(
             move |id, category| msg(InputMessage::Category(id, category)),
             categories,
             None,
+            "Category".to_string(),
         );
         Self {
             name_input,

@@ -29,6 +29,7 @@ where
         msg: F,
         options: Vec<T>,
         initial_value: Option<T>,
+        placeholder: String,
     ) -> Self {
         Self {
             inner: PickInput {
@@ -36,7 +37,7 @@ where
                 message: Rc::new(msg),
                 options: combo_box::State::new(options),
                 selection: initial_value,
-                placeholder: String::new(),
+                placeholder,
             },
             errors: HashSet::new(),
         }

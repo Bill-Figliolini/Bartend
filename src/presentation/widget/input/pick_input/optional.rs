@@ -28,14 +28,16 @@ where
         msg: F,
         options: Vec<T>,
         initial_value: Option<T>,
+        mut placeholder: String,
     ) -> Self {
+        placeholder.push_str(" (Optional)");
         Self {
             inner: PickInput {
                 id: Id::unique(),
                 message: Rc::new(msg),
                 options: combo_box::State::new(options),
                 selection: initial_value,
-                placeholder: String::new(),
+                placeholder,
             },
         }
     }
