@@ -1,3 +1,4 @@
+mod multi_pick_input;
 mod pick_input;
 mod text_input;
 use std::fmt::Display;

@@ -3,7 +3,7 @@ use std::{
     rc::Rc,
 };
 
-use iced::widget::{Id, column, row};
+use iced::widget::{Id, column, combo_box, row};
 
 use crate::presentation::{
     Viewable,
@@ -33,8 +33,9 @@ where
             inner: PickInput {
                 id: Id::unique(),
                 message: Rc::new(msg),
-                input: initial_value,
-                options,
+                options: combo_box::State::new(options),
+                selection: initial_value,
+                placeholder: String::new(),
             },
         }
     }
@@ -42,8 +43,8 @@ where
 
 impl<T, Message> Viewable<Message> for OptionalPickInput<T, Message>
 where
-    T: Debug + Clone + Display + PartialEq,
-    Message: Clone,
+    T: Debug + Clone + Display + PartialEq + 'static,
+    Message: Clone + 'static,
 {
     fn view(&self) -> iced::Element<'_, Message> {
         let error_row = row![];
@@ -52,15 +53,15 @@ where
 }
 impl<T, Message> Input<T, Message> for OptionalPickInput<T, Message>
 where
-    T: Debug + Clone + Display + PartialEq,
-    Message: Clone,
+    T: Debug + Clone + Display + PartialEq + 'static,
+    Message: Clone + 'static,
 {
     fn update(&mut self, input: T) {
         let next = Some(input);
-        if self.inner.input == next {
-            self.inner.input = None;
+        if self.inner.selection == next {
+            self.inner.selection = None;
         } else {
-            self.inner.input = next
+            self.inner.selection = next
         }
     }
 
@@ -68,7 +69,7 @@ where
         self.inner.id()
     }
     fn clear(&mut self) {
-        self.inner.input = None;
+        self.inner.selection = None;
     }
 }
 impl<T, Message> InputOptionalContents<T> for OptionalPickInput<T, Message>
@@ -77,6 +78,6 @@ where
     Message: Clone,
 {
     fn get_output(&mut self) -> Result<Option<T>, ()> {
-        Ok(self.inner.input.clone())
+        Ok(self.inner.selection.clone())
     }
 }
