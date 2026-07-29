@@ -1,46 +1,93 @@
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, hash::Hash, rc::Rc};
 
-use iced::{Element, widget::Id};
+use iced::{
+    Element,
+    widget::{Id, button, column, text},
+};
+use iced_aw::DropDown;
 
 use crate::presentation::application::Command;
 
 // could I turn the structure  {id, body} into a trait, to make things smoother here?
-struct MultipickInput<T, Message>
+pub struct MultipickInput<T, Message>
 where
-    T: Clone,
+    T: Clone + PartialEq + Eq + Hash,
     Message: Clone,
 {
     id: Id,
-    choices: Vec<T>,
-    selected: HashSet<T>,
+    choices: Vec<InputRow<T>>,
     message: Rc<dyn Fn(Id, T) -> Message>,
+    expanded: bool,
+}
+
+struct InputRow<T> {
+    id: Id,
+    pub contents: T,
+    pub selected: bool,
 }
 
 impl<T, Message> MultipickInput<T, Message>
 where
-    T: Clone,
+    T: Clone + PartialEq + Eq + Hash,
     Message: Clone,
 {
     pub fn new(
         choices: Vec<T>,
-        already_selected: HashSet<T>,
+        already_selected: &HashSet<T>,
         message: Rc<dyn Fn(Id, T) -> Message>,
     ) -> Self {
+        let choices = choices.into_iter().fold(Vec::new(), |mut acc, contents| {
+            let selected = already_selected.contains(&contents);
+            acc.push(InputRow::new(contents, selected));
+            acc
+        });
         Self {
             id: Id::unique(),
             choices,
-            selected: already_selected,
             message,
+            expanded: false,
         }
     }
-    pub fn output(&mut self) -> HashSet<T> {
-        self.selected.clone()
+
+    pub fn id(&self) -> &Id {
+        &self.id
+    }
+
+    pub fn output(&self) -> HashSet<T> {
+        self.choices.iter().fold(HashSet::new(), |mut acc, row| {
+            if let Some(content) = row.output() {
+                acc.insert(content);
+            }
+            acc
+        })
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        todo!()
+        let underlay = button(text!("Expand me!"));
+        let overlay = column![];
+        DropDown::new(underlay, overlay, self.expanded).into()
     }
     pub fn update(&mut self, message: Message) -> Option<Command> {
         todo!()
+    }
+}
+
+impl<T> InputRow<T>
+where
+    T: Clone + PartialEq,
+{
+    fn new(contents: T, selected: bool) -> Self {
+        Self {
+            id: Id::unique(),
+            contents,
+            selected,
+        }
+    }
+    fn output(&self) -> Option<T> {
+        if self.selected {
+            Some(self.contents.clone())
+        } else {
+            None
+        }
     }
 }

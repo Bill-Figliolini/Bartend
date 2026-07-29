@@ -3,12 +3,13 @@ use std::collections::HashSet;
 use iced::widget::{column, row, text};
 
 use crate::{
-    models::{CategoryBody, Config, UnitSystem},
+    logic::CategoryService,
+    models::{CategoryBody, CategoryID, Config, UnitSystem},
     presentation::{
         Viewable,
         application::Message,
         input_handling::InputMessage,
-        widget::input::{Error, Input, InputContents, StringInput},
+        widget::input::{Error, Input, InputContents, MultipickInput, StringInput},
     },
 };
 
@@ -62,5 +63,16 @@ impl CategoryInput {
     pub fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
         self.clear();
         self.name_input.update(edit.name.clone());
+    }
+}
+
+struct CategoryRelationInput {
+    input: MultipickInput<CategoryID, Message>,
+}
+impl CategoryRelationInput {
+    fn new(id: &CategoryID, service: &CategoryService) -> Self {
+        Self {
+            input: MultipickInput::new(choices, already_selected, message),
+        }
     }
 }

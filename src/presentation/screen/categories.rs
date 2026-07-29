@@ -58,6 +58,9 @@ impl Categories {
         let name_column = table::column(text("Name").width(200), |category: CategoryID| {
             text(category_service.get(&category).name.clone())
         });
+        let relation_column  = table::column("Relations", |category: CategoryID| {
+
+        })
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
