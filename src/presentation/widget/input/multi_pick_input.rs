@@ -6,7 +6,7 @@ use iced::{
 };
 use iced_aw::DropDown;
 
-use crate::presentation::{application::Command, input_handling::InputMessage};
+use crate::presentation::input_handling::InputMessage;
 
 // could I turn the structure  {id, body} into a trait, to make things smoother here?
 pub struct MultipickInput<T, Message>
@@ -65,10 +65,10 @@ where
 
     pub fn view(&self) -> Element<'_, Message> {
         let underlay = button(text!("Expand me!"));
-        let overlay = column![];
+        let overlay = column!["Hello!"];
         DropDown::new(underlay, overlay, self.expanded).into()
     }
-    pub fn update(&mut self, message: Message) -> Option<Command> {
+    pub fn update(&mut self, message: Message) -> Option<()> {
         todo!()
     }
 }

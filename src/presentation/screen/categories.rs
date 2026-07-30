@@ -1,14 +1,14 @@
 use crate::{
     logic::CategoryService,
-    models::{Category, CategoryID, Config, UnitSystem},
+    models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
     presentation::{
-        application,
-        input_handling::{CategoryInput, CategoryRelationInput, InputMessage},
+        application::{self, Context},
+        input_handling::{CategoryInput, InputMessage},
         widget::{self, text_style},
     },
 };
 use iced::{
-    Element,
+    Element, Task,
     widget::{column, row, table, text},
 };
 
@@ -27,6 +27,26 @@ pub enum Message {
     Input(InputMessage),
     BeginEdit(Category),
     Save,
+}
+pub enum Command {
+    AddCategory(CategoryBody),
+    UpdateCategory(Category),
+}
+impl Command {
+    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+        match self {
+            Command::AddCategory(body) => {
+                ctx.category_service
+                    .insert(&ctx.bar_collection.db.category_db(), &body);
+                Task::done(application::Message::ReloadScreen)
+            }
+            Command::UpdateCategory(category) => {
+                ctx.category_service
+                    .update(&ctx.bar_collection.db.category_db(), &category);
+                Task::done(application::Message::ReloadScreen)
+            }
+        }
+    }
 }
 #[derive(Debug)]
 enum EditState {
@@ -58,9 +78,9 @@ impl Categories {
         let name_column = table::column(text("Name").width(200), |category: CategoryID| {
             text(category_service.get(&category).name.clone())
         });
-        let relation_column = table::column("Relations", |category: CategoryID| {
+        let relation_column = table::column("Relations", |_category: CategoryID| {
             //need to reconsider this, perhaps try to treat the element as a pure function?
-            CategoryRelationInput::new(&category, category_service, input_msg(msg));
+            text("text")
         });
         let edit_column_width = 70;
         let edit_column = table::column(
@@ -103,7 +123,7 @@ impl Categories {
         let body = column![category_entry, categories];
         column![header, body].into()
     }
-    pub fn update(&mut self, message: Message) -> Option<application::Command> {
+    pub fn update(&mut self, message: Message) -> Option<Command> {
         match message {
             Message::Input(msg) => {
                 self.input.update(msg);
@@ -127,10 +147,8 @@ impl Categories {
             }
             Message::Save => match self.input.output() {
                 Ok(body) => match self.edit_state {
-                    EditState::Editing(id) => {
-                        Some(application::Command::UpdateCategory(Category { id, body }))
-                    }
-                    EditState::None => Some(application::Command::AddCategory(body)),
+                    EditState::Editing(id) => Some(Command::UpdateCategory(Category { id, body })),
+                    EditState::None => Some(Command::AddCategory(body)),
                 },
                 Err(()) => None,
             },

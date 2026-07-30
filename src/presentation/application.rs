@@ -10,12 +10,9 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{BarCollection, CategoryService, ItemService, RecipeService},
-    models::{
-        Category, CategoryBody, CategoryID, Config, Item, ItemBody, ItemID, ItemUse, Recipe,
-        RecipeBody, RecipeID,
-    },
+    models::{CategoryID, Config, ItemID, RecipeID},
     presentation::{
-        screen::{self, Screen, settings},
+        screen::{self, Screen, ScreenKind},
         widget::sidebar,
     },
 };
@@ -42,20 +39,15 @@ pub(in crate::presentation) enum Message {
     NoOp,
     ReloadScreen,
 
-    OpenInventory,
+    OpenScreen(ScreenKind),
     DeleteItem(ItemID),
 
-    OpenSettings,
     ResetSettings,
     OpenDBPicker(PathBuf),
 
-    OpenCategories,
     DeleteCategory(CategoryID),
 
-    OpenRecipes,
     DeleteRecipe(RecipeID),
-
-    OpenServing,
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -63,20 +55,14 @@ pub(in crate::presentation) enum Message {
     Recipes(screen::recipes::Message),
     Serving(screen::serving::Message),
 }
-//For instances where internals of a screen need to effect application state.
-pub enum Command {
-    AddItem(ItemBody, Option<CategoryID>),
-    UpdateItem(Item, Option<CategoryID>),
 
-    UpdateConfig(Config),
-
-    AddCategory(CategoryBody),
-    UpdateCategory(Category),
-
-    AddRecipe(RecipeBody),
-    UpdateRecipe(Recipe),
-
-    UseItems(Vec<ItemUse>),
+//The mutable app state every screen's Command needs in order to apply itself.
+pub(in crate::presentation) struct Context<'a> {
+    pub(in crate::presentation) bar_collection: &'a mut BarCollection,
+    pub(in crate::presentation) item_service: &'a mut ItemService,
+    pub(in crate::presentation) category_service: &'a mut CategoryService,
+    pub(in crate::presentation) recipe_service: &'a mut RecipeService,
+    pub(in crate::presentation) config: &'a mut Config,
 }
 
 impl Bartend {
@@ -109,24 +95,39 @@ impl Bartend {
         "Bartend".to_string()
     }
 
+    fn context(&mut self) -> Context<'_> {
+        Context {
+            bar_collection: &mut self.bar_collection,
+            item_service: &mut self.item_service,
+            category_service: &mut self.category_service,
+            recipe_service: &mut self.recipe_service,
+            config: &mut self.config,
+        }
+    }
+
+    fn open_screen(&mut self, kind: ScreenKind) {
+        if self.screen.kind() == kind {
+            return;
+        }
+        self.screen = match kind {
+            ScreenKind::Inventory => Screen::inventory(&self.config, &self.category_service),
+            ScreenKind::Settings => Screen::settings(&self.config),
+            ScreenKind::Categories => Screen::categories(&self.config),
+            ScreenKind::Recipes => Screen::recipes(&self.config, &self.category_service),
+            ScreenKind::Serving => Screen::serving(&self.config, &self.recipe_service),
+        };
+    }
+
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
             Message::NoOp => Task::none(),
             Message::ReloadScreen => {
-                self.screen.reload(
-                    &self.item_service,
-                    &self.category_service,
-                    &self.recipe_service,
-                );
-                Task::none()
+                let reload_message = self.screen.reload_message(&self.config);
+                self.update(reload_message)
             }
-            Message::OpenInventory => {
-                if let Screen::Inventory(_) = self.screen {
-                    Task::none()
-                } else {
-                    self.screen = Screen::inventory(&self.config, &self.category_service);
-                    Task::none()
-                }
+            Message::OpenScreen(kind) => {
+                self.open_screen(kind);
+                Task::none()
             }
             Message::DeleteItem(id) => {
                 self.item_service
@@ -134,18 +135,10 @@ impl Bartend {
                 Task::done(Message::ReloadScreen)
             }
 
-            Message::OpenSettings => {
-                if let Screen::Settings(_) = self.screen {
-                } else {
-                    self.screen = Screen::settings(&self.config);
-                }
-                Task::none()
-            }
             Message::ResetSettings => {
-                self.screen_update(Message::Settings(settings::Message::ResetConfig(
-                    self.config.clone(),
-                )));
-                Task::none()
+                let reset_message =
+                    Message::Settings(screen::settings::Message::ResetConfig(self.config.clone()));
+                self.update(reset_message)
             }
             Message::OpenDBPicker(path) => Task::future(async {
                 let file = AsyncFileDialog::new()
@@ -159,144 +152,32 @@ impl Bartend {
                 })
             }),
 
-            Message::OpenCategories => {
-                if let Screen::Categories(_) = self.screen {
-                } else {
-                    self.screen = Screen::categories(&self.config);
-                }
-                Task::none()
-            }
             Message::DeleteCategory(category) => {
                 self.category_service
                     .delete(&self.bar_collection.db.category_db(), category);
                 Task::done(Message::ReloadScreen)
             }
 
-            Message::OpenRecipes => {
-                if let Screen::Recipes(_) = self.screen {
-                } else {
-                    self.screen = Screen::recipes(&self.config, &self.category_service);
-                }
-                Task::none()
-            }
             Message::DeleteRecipe(recipe) => {
                 self.recipe_service
                     .delete(&self.bar_collection.db.recipe_db(), recipe);
                 Task::done(Message::ReloadScreen)
             }
 
-            Message::OpenServing => {
-                if let Screen::Serving(_) = self.screen {
-                } else {
-                    self.screen = Screen::serving(&self.config, &self.recipe_service);
-                }
-                Task::none()
-            }
-
-            Message::Inventory(_) => {
-                if let Some(command) = self.screen_update(message) {
-                    match command {
-                        Command::AddItem(item_body, category_id) => {
-                            let item_id = self
-                                .item_service
-                                .add(&self.bar_collection.db.item_db(), &item_body);
-                            if let Some(category_id) = category_id {
-                                self.category_service.add_item_mapping(
-                                    &self.bar_collection.db.category_db(),
-                                    &item_id,
-                                    &category_id,
-                                );
-                            }
-                            Task::done(Message::ReloadScreen)
-                        }
-                        Command::UpdateItem(item, category_id) => {
-                            let item_id = item.id;
-                            self.item_service
-                                .update(&self.bar_collection.db.item_db(), item);
-                            self.category_service.update_item_mapping(
-                                &self.bar_collection.db.category_db(),
-                                &item_id,
-                                &category_id,
-                            );
-                            Task::done(Message::ReloadScreen)
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    Task::none()
-                }
-            }
-            Message::Settings(_) => {
-                if let Some(command) = self.screen_update(message) {
-                    match command {
-                        Command::UpdateConfig(config) => {
-                            let db_changed = self.config.db_path() != config.db_path();
-                            self.config = config;
-                            match self.config.save() {
-                                Ok(()) => {}
-                                Err(e) => panic!("{e:?}"),
-                            }
-                            if db_changed {
-                                self.bar_collection = BarCollection::new(self.config.db_path());
-                            }
-                            self.screen = Screen::settings(&self.config);
-                            Task::none()
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    Task::none()
-                }
-            }
-            Message::Categories(_) => {
-                if let Some(command) = self.screen_update(message) {
-                    match command {
-                        Command::AddCategory(body) => {
-                            self.category_service
-                                .insert(&self.bar_collection.db.category_db(), &body);
-                            Task::done(Message::ReloadScreen)
-                        }
-                        Command::UpdateCategory(category) => {
-                            self.category_service
-                                .update(&self.bar_collection.db.category_db(), &category);
-                            Task::done(Message::ReloadScreen)
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    Task::none()
-                }
-            }
-            Message::Recipes(_) => {
-                if let Some(command) = self.screen_update(message) {
-                    let db = self.bar_collection.db.recipe_db();
-                    match command {
-                        Command::AddRecipe(body) => {
-                            self.recipe_service.add(&db, body);
-                            Task::done(Message::ReloadScreen)
-                        }
-                        Command::UpdateRecipe(recipe) => {
-                            self.recipe_service.update(&db, recipe);
-                            Task::done(Message::ReloadScreen)
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    Task::none()
-                }
-            }
-            Message::Serving(_) => {
-                if let Some(command) = self.screen_update(message) {
-                    match command {
-                        Command::UseItems(items) => {
-                            self.item_service
-                                .use_items(&self.bar_collection.db.item_db(), items);
-                            Task::none()
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    Task::none()
+            Message::Inventory(_)
+            | Message::Settings(_)
+            | Message::Categories(_)
+            | Message::Recipes(_)
+            | Message::Serving(_) => {
+                let command = self.screen.update(
+                    &self.item_service,
+                    &self.category_service,
+                    &self.recipe_service,
+                    message,
+                );
+                match command {
+                    Some(command) => command.apply(&mut self.context()),
+                    None => Task::none(),
                 }
             }
         }
@@ -304,11 +185,11 @@ impl Bartend {
 
     fn view(&self) -> Element<'_, Message> {
         let sidebar = sidebar::Sidebar::new()
-            .button("Inventory", || Message::OpenInventory)
-            .button("Categories", || Message::OpenCategories)
-            .button("Recipes", || Message::OpenRecipes)
-            .button("Serving", || Message::OpenServing)
-            .button("Settings", || Message::OpenSettings)
+            .button("Inventory", || Message::OpenScreen(ScreenKind::Inventory))
+            .button("Categories", || Message::OpenScreen(ScreenKind::Categories))
+            .button("Recipes", || Message::OpenScreen(ScreenKind::Recipes))
+            .button("Serving", || Message::OpenScreen(ScreenKind::Serving))
+            .button("Settings", || Message::OpenScreen(ScreenKind::Settings))
             .into();
 
         let screen_contents = self.screen.view(
@@ -322,13 +203,5 @@ impl Bartend {
             .height(Fill)
             .width(Fill)
             .into()
-    }
-    fn screen_update(&mut self, msg: Message) -> Option<Command> {
-        self.screen.update(
-            &self.item_service,
-            &self.category_service,
-            &self.recipe_service,
-            msg,
-        )
     }
 }

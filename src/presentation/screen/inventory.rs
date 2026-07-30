@@ -1,14 +1,15 @@
 use iced::{
     Element,
     Length::Fill,
+    Task,
     widget::{column, container, row, table, text},
 };
 
 use crate::{
     logic::{CategoryService, ItemService},
-    models::{Category, CategoryFilter, Config, Item, ItemID, UnitSystem},
+    models::{Category, CategoryFilter, CategoryID, Config, Item, ItemBody, ItemID, UnitSystem},
     presentation::{
-        application,
+        application::{self, Context},
         input_handling::{InputMessage, ItemInput},
         widget::{footer::footer, header::header, text_style::title},
     },
@@ -39,6 +40,41 @@ pub enum Message {
 
     //Variants for Application's use
     Reload,
+}
+
+pub enum Command {
+    AddItem(ItemBody, Option<CategoryID>),
+    UpdateItem(Item, Option<CategoryID>),
+}
+impl Command {
+    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+        match self {
+            Command::AddItem(item_body, category_id) => {
+                let item_id = ctx
+                    .item_service
+                    .add(&ctx.bar_collection.db.item_db(), &item_body);
+                if let Some(category_id) = category_id {
+                    ctx.category_service.add_item_mapping(
+                        &ctx.bar_collection.db.category_db(),
+                        &item_id,
+                        &category_id,
+                    );
+                }
+                Task::done(application::Message::ReloadScreen)
+            }
+            Command::UpdateItem(item, category_id) => {
+                let item_id = item.id;
+                ctx.item_service
+                    .update(&ctx.bar_collection.db.item_db(), item);
+                ctx.category_service.update_item_mapping(
+                    &ctx.bar_collection.db.category_db(),
+                    &item_id,
+                    &category_id,
+                );
+                Task::done(application::Message::ReloadScreen)
+            }
+        }
+    }
 }
 
 impl Inventory {
@@ -166,11 +202,7 @@ impl Inventory {
         column![header, body, footer].into()
     }
 
-    pub fn update(
-        &mut self,
-        item_service: &ItemService,
-        message: Message,
-    ) -> Option<application::Command> {
+    pub fn update(&mut self, item_service: &ItemService, message: Message) -> Option<Command> {
         match message {
             Message::SwapUnits => {
                 self.unit_system.swap();
@@ -205,11 +237,10 @@ impl Inventory {
             Message::Save => {
                 if let Ok(result) = self.input.output() {
                     match self.edit_state {
-                        EditState::None => Some(application::Command::AddItem(
-                            result.0,
-                            result.1.map(|cat| cat.id),
-                        )),
-                        EditState::Editing(item_id) => Some(application::Command::UpdateItem(
+                        EditState::None => {
+                            Some(Command::AddItem(result.0, result.1.map(|cat| cat.id)))
+                        }
+                        EditState::Editing(item_id) => Some(Command::UpdateItem(
                             Item {
                                 id: item_id,
                                 body: result.0,
