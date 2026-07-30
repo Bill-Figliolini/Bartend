@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use iced::widget::{column, row, text};
+use iced::widget::{Id, column, row, text};
 
 use crate::{
     logic::CategoryService,
@@ -66,11 +66,17 @@ impl CategoryInput {
     }
 }
 
-struct CategoryRelationInput {
+pub struct CategoryRelationInput {
     input: MultipickInput<CategoryID, Message>,
 }
 impl CategoryRelationInput {
-    fn new(id: &CategoryID, service: &CategoryService) -> Self {
+    pub fn new<F: Fn(Id, InputMessage) -> Message + 'static>(
+        id: &CategoryID,
+        service: &CategoryService,
+        message: F,
+    ) -> Self {
+        let choices = service.valid_relations(id).iter().copied().collect();
+        let already_selected = &service.child_categories(id);
         Self {
             input: MultipickInput::new(choices, already_selected, message),
         }

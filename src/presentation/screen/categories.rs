@@ -3,7 +3,7 @@ use crate::{
     models::{Category, CategoryID, Config, UnitSystem},
     presentation::{
         application,
-        input_handling::{CategoryInput, InputMessage},
+        input_handling::{CategoryInput, CategoryRelationInput, InputMessage},
         widget::{self, text_style},
     },
 };
@@ -58,9 +58,10 @@ impl Categories {
         let name_column = table::column(text("Name").width(200), |category: CategoryID| {
             text(category_service.get(&category).name.clone())
         });
-        let relation_column  = table::column("Relations", |category: CategoryID| {
-
-        })
+        let relation_column = table::column("Relations", |category: CategoryID| {
+            //need to reconsider this, perhaps try to treat the element as a pure function?
+            CategoryRelationInput::new(&category, category_service, input_msg(msg));
+        });
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
@@ -91,7 +92,7 @@ impl Categories {
                     .on_press(application::Message::DeleteCategory(category))
             },
         );
-        let columns = vec![name_column, edit_column, delete_column];
+        let columns = vec![name_column, relation_column, edit_column, delete_column];
         let contents = category_service.get_page(self.page_number);
         table(columns, contents).into()
     }

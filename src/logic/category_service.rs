@@ -71,6 +71,11 @@ impl CategoryService {
         }
         items
     }
+
+    pub fn child_categories(&self, category: &CategoryID) -> HashSet<CategoryID> {
+        self.graph.get_edges(category).unwrap()
+    }
+
     #[must_use]
     pub fn get_all(&self, _filter: CategoryFilter) -> Vec<Category> {
         self.categories
@@ -200,7 +205,7 @@ impl CategoryService {
             Ok(())
         }
     }
-    pub fn list_valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
+    pub fn valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
         match self.graph.get_non_cyclic_additions(category) {
             Some(candidates) => candidates,
             None => HashSet::new(),

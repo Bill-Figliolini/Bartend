@@ -6,7 +6,7 @@ use iced::{
 };
 use iced_aw::DropDown;
 
-use crate::presentation::application::Command;
+use crate::presentation::{application::Command, input_handling::InputMessage};
 
 // could I turn the structure  {id, body} into a trait, to make things smoother here?
 pub struct MultipickInput<T, Message>
@@ -16,7 +16,7 @@ where
 {
     id: Id,
     choices: Vec<InputRow<T>>,
-    message: Rc<dyn Fn(Id, T) -> Message>,
+    message: Rc<dyn Fn(Id, InputMessage) -> Message>,
     expanded: bool,
 }
 
@@ -31,16 +31,17 @@ where
     T: Clone + PartialEq + Eq + Hash,
     Message: Clone,
 {
-    pub fn new(
+    pub fn new<F: Fn(Id, InputMessage) -> Message + 'static>(
         choices: Vec<T>,
         already_selected: &HashSet<T>,
-        message: Rc<dyn Fn(Id, T) -> Message>,
+        message: F,
     ) -> Self {
         let choices = choices.into_iter().fold(Vec::new(), |mut acc, contents| {
             let selected = already_selected.contains(&contents);
             acc.push(InputRow::new(contents, selected));
             acc
         });
+        let message = Rc::new(message);
         Self {
             id: Id::unique(),
             choices,

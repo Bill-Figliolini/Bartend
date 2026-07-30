@@ -42,8 +42,8 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         self.graph.get_mut(parent).unwrap().insert(*child);
         Ok(())
     }
-    fn get_edges(&self, vertex: &T) -> &HashSet<T> {
-        self.graph.get(vertex).unwrap()
+    pub fn get_edges(&self, vertex: &T) -> Option<HashSet<T>> {
+        self.graph.get(vertex).map(|set| set.clone())
     }
     pub fn remove(&mut self, vertex: T) {
         let Some(child_verticies) = self.graph.remove(&vertex) else {
@@ -76,14 +76,14 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
             return None;
         }
         let mut stack: Vec<T> = Vec::new();
-        let mut children: HashSet<T> = self.get_edges(vertex).clone();
+        let mut children: HashSet<T> = self.get_edges(vertex).unwrap();
         for child_vertex in &children {
             stack.push(*child_vertex);
         }
         while let Some(current_vertex) = stack.pop() {
-            for child_vertex in self.get_edges(&current_vertex) {
-                if children.insert(*child_vertex) {
-                    stack.push(*child_vertex);
+            for child_vertex in self.get_edges(&current_vertex).unwrap() {
+                if children.insert(child_vertex) {
+                    stack.push(child_vertex);
                 }
             }
         }
@@ -93,7 +93,7 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         if !self.contains_vertex(search_vertex) {
             return None;
         }
-        let children_of_search = self.get_edges(search_vertex);
+        let children_of_search = self.get_edges(search_vertex).unwrap();
 
         let non_cyclic: HashSet<T> = self
             .graph
@@ -132,7 +132,7 @@ mod tests {
             graph.remove(2);
 
             assert!(!graph.contains_vertex(&2));
-            assert_eq!(*graph.get_edges(&3), HashSet::from([1]));
+            assert_eq!(graph.get_edges(&3).unwrap(), HashSet::from([1]));
         }
         #[test]
         fn cycles_not_allowed_at_insertion() {
