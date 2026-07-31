@@ -52,7 +52,7 @@ impl<'a> GraphRepository for GraphDB<'a> {
     }
 
     fn insert(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError> {
-        let query = "INSERT INTO graph(parent_id, child_id VALUES (?1, ?2);";
+        let query = "INSERT INTO graph(parent_id, child_id) VALUES (?1, ?2);";
         self.connection.execute(query, (parent, child))?;
         Ok(())
     }
