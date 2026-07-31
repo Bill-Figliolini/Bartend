@@ -36,7 +36,7 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         if !(self.contains_vertex(parent) && self.contains_vertex(child)) {
             return Err(GraphError::EdgeEndpointNotInGraph);
         }
-        if self.is_parent_of(parent, child) {
+        if self.is_parent_of(child, parent) {
             return Err(GraphError::WouldIntroduceCycle);
         }
         self.graph.get_mut(parent).unwrap().insert(*child);
@@ -138,7 +138,7 @@ mod tests {
         fn cycles_not_allowed_at_insertion() {
             let mut graph = get_graph();
 
-            let insert_result = graph.insert_edge(&3, &1);
+            let insert_result = graph.insert_edge(&1, &3);
 
             assert!(insert_result.is_err())
         }
