@@ -178,7 +178,7 @@ impl CategoryService {
                 if let Err(e) = map_db.delete(item, &old) {
                     panic!("{e}");
                 }
-                if let Err(e) = map_db.insert(item, &old) {
+                if let Err(e) = map_db.insert(item, &new) {
                     panic!("{e}");
                 }
                 let old_mapping = self.item_mapping.get_mut(item).unwrap();
