@@ -9,7 +9,7 @@ use crate::{
         Viewable,
         application::Message,
         input_handling::InputMessage,
-        widget::input::{Error, Input, InputContents, MultipickInput, StringInput},
+        widget::input::{Error, Input, InputContents, StringInput},
     },
 };
 
@@ -66,19 +66,15 @@ impl CategoryInput {
     }
 }
 
-pub struct CategoryRelationInput {
-    input: MultipickInput<CategoryID, Message>,
-}
+pub struct CategoryRelationInput {}
 impl CategoryRelationInput {
     pub fn new<F: Fn(Id, InputMessage) -> Message + 'static>(
         id: &CategoryID,
         service: &CategoryService,
         message: F,
     ) -> Self {
-        let choices = service.valid_relations(id).iter().copied().collect();
+        let choices: Vec<CategoryID> = service.valid_relations(id).iter().copied().collect();
         let already_selected = &service.child_categories(id);
-        Self {
-            input: MultipickInput::new(choices, already_selected, message),
-        }
+        Self {}
     }
 }
