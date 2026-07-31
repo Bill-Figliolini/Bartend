@@ -15,6 +15,7 @@ use crate::{
     },
 };
 
+//Screen holders
 #[derive(Debug)]
 pub enum Screen {
     Inventory(Box<inventory::Inventory>),
@@ -24,6 +25,7 @@ pub enum Screen {
     Serving(serving::Serving),
 }
 
+//Screen Labels
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScreenKind {
     Inventory,
@@ -33,8 +35,7 @@ pub enum ScreenKind {
     Serving,
 }
 
-//Unifies each screen's own Command type so `Screen::update` has a single return type.
-//The logic for each variant lives with the screen that produces it; this only delegates.
+//Sum of module commands
 pub enum ScreenCommand {
     Inventory(inventory::Command),
     Settings(settings::Command),
