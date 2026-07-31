@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use iced::{
     Element,
     Length::Fill,
-    Task,
+    Task, Theme,
     widget::{container, row},
 };
 use rfd::AsyncFileDialog;
@@ -20,6 +20,7 @@ use crate::{
 pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title(Bartend::title)
+        .theme(Theme::Dracula)
         .window_size((500.0, 600.0))
         .run()
 }
