@@ -43,5 +43,3 @@ impl Display for Item {
         write!(f, "{}", self.body.name)
     }
 }
-
-pub enum ItemCommand {}
