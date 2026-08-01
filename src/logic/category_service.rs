@@ -73,7 +73,13 @@ impl CategoryService {
     }
 
     pub fn child_categories(&self, category: &CategoryID) -> HashSet<CategoryID> {
-        self.graph.get_edges(category).unwrap()
+        match self.graph.get_edges(category) {
+            Some(children) => children,
+            None => panic!(
+                "Something has gone wrong, current state of the graph: {:?}",
+                self.graph
+            ),
+        }
     }
 
     #[must_use]

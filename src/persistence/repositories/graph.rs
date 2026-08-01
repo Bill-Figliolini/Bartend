@@ -44,6 +44,9 @@ impl<'a> GraphRepository for GraphDB<'a> {
                         new_set.insert(child_id);
                         acc.insert(parent_id, new_set);
                     }
+                    if !acc.contains_key(&child_id) {
+                        acc.insert(child_id, HashSet::new());
+                    }
                 }
                 Err(e) => panic!("{}", e),
             }
