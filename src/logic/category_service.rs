@@ -205,6 +205,18 @@ impl CategoryService {
             Ok(())
         }
     }
+    pub fn remove_category_relation(
+        &mut self,
+        db: &impl CategoryRepository,
+        parent: &CategoryID,
+        child: &CategoryID,
+    ) {
+        self.graph.remove_edge(parent, child);
+
+        if let Err(e) = db.graph().delete_edge(*parent, *child) {
+            panic!("{e}")
+        };
+    }
     pub fn valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
         match self.graph.get_non_cyclic_additions(category) {
             Some(candidates) => candidates,

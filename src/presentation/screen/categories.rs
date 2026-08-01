@@ -9,7 +9,7 @@ use crate::{
 };
 use iced::{
     Element, Task,
-    widget::{column, row, table, text},
+    widget::{column, pick_list, row, table, text},
 };
 
 #[derive(Debug)]
@@ -19,6 +19,7 @@ pub struct Categories {
     edit_state: EditState,
 
     page_number: usize,
+    stub: Option<Category>,
 }
 
 #[derive(Debug, Clone)]
@@ -26,11 +27,15 @@ pub enum Message {
     Reload,
     Input(InputMessage),
     BeginEdit(Category),
+    AddRelation(CategoryID, CategoryID),
+    RemoveRelation(CategoryID, CategoryID),
     Save,
 }
 pub enum Command {
     AddCategory(CategoryBody),
     UpdateCategory(Category),
+    AddRelation(CategoryID, CategoryID),
+    RemoveRelation(CategoryID, CategoryID),
 }
 impl Command {
     pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
@@ -44,6 +49,22 @@ impl Command {
                 ctx.category_service
                     .update(&ctx.bar_collection.db.category_db(), &category);
                 Task::done(application::Message::ReloadScreen)
+            }
+            Command::AddRelation(parent, child) => {
+                let _result = ctx.category_service.add_category_relation(
+                    &ctx.bar_collection.db.category_db(),
+                    &parent,
+                    &child,
+                );
+                Task::none()
+            }
+            Command::RemoveRelation(parent, child) => {
+                let _result = ctx.category_service.remove_category_relation(
+                    &ctx.bar_collection.db.category_db(),
+                    &parent,
+                    &child,
+                );
+                Task::none()
             }
         }
     }
@@ -59,6 +80,7 @@ impl Categories {
             input: CategoryInput::new(config, input_msg),
             edit_state: EditState::None,
             page_number: 0,
+            stub: None,
         }
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
@@ -78,9 +100,11 @@ impl Categories {
         let name_column = table::column(text("Name").width(200), |category: CategoryID| {
             text(category_service.get(&category).name.clone())
         });
-        let relation_column = table::column("Relations", |_category: CategoryID| {
-            //need to reconsider this, perhaps try to treat the element as a pure function?
-            text("text")
+        let add_relation_column = table::column("Addable Relations", |category: CategoryID| {
+            self.relation_add_view(category, category_service)
+        });
+        let list_relation_column = table::column("Current Relations", |category: CategoryID| {
+            self.category_remove_view(category, category_service)
         });
         let edit_column_width = 70;
         let edit_column = table::column(
@@ -112,7 +136,13 @@ impl Categories {
                     .on_press(application::Message::DeleteCategory(category))
             },
         );
-        let columns = vec![name_column, relation_column, edit_column, delete_column];
+        let columns = vec![
+            name_column,
+            add_relation_column,
+            list_relation_column,
+            edit_column,
+            delete_column,
+        ];
         let contents = category_service.get_page(self.page_number);
         table(columns, contents).into()
     }
@@ -157,9 +187,62 @@ impl Categories {
                 self.edit_state = EditState::None;
                 None
             }
+            Message::AddRelation(parent, child) => Some(Command::AddRelation(parent, child)),
+            Message::RemoveRelation(parent, child) => Some(Command::RemoveRelation(parent, child)),
         }
+    }
+    fn relation_add_view(
+        &self,
+        id: CategoryID,
+        service: &CategoryService,
+    ) -> Element<'_, application::Message> {
+        let options = service
+            .valid_relations(&id)
+            .into_iter()
+            .fold(Vec::new(), |mut acc, id| {
+                acc.push(Category {
+                    id,
+                    body: service.get(&id).clone(),
+                });
+                acc
+            });
+        let id = id.clone();
+        pick_list(options, self.stub.clone(), move |category| {
+            category_add_msg(id, category.id)
+        })
+        .placeholder("Add a Subcategory")
+        .into()
+    }
+    fn category_remove_view(
+        &self,
+        id: CategoryID,
+        service: &CategoryService,
+    ) -> Element<'_, application::Message> {
+        let options = service
+            .child_categories(&id)
+            .into_iter()
+            .fold(Vec::new(), |mut acc, id| {
+                acc.push(Category {
+                    id,
+                    body: service.get(&id).clone(),
+                });
+                acc
+            });
+        pick_list(options, self.stub.clone(), move |selected| {
+            category_remove_msg(id, selected.id)
+        })
+        .placeholder("List subcategories (click to remove)")
+        .into()
     }
 }
 fn input_msg(msg: InputMessage) -> application::Message {
     application::Message::Categories(Message::Input(msg))
+}
+
+fn category_add_msg(parent: CategoryID, child: CategoryID) -> application::Message {
+    application::Message::Categories(Message::AddRelation(parent, child))
+}
+
+fn category_remove_msg(parent: CategoryID, child: CategoryID) -> application::Message {
+    application::Message::Categories(Message::RemoveRelation(parent, child))
 }

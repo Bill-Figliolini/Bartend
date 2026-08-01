@@ -29,8 +29,6 @@ impl InputMessage {
 }
 
 pub use {
-    category_input::{CategoryInput, CategoryRelationInput},
-    item_input::ItemInput,
-    recipe_input::RecipeInput,
+    category_input::CategoryInput, item_input::ItemInput, recipe_input::RecipeInput,
     serving_input::ServingInput,
 };

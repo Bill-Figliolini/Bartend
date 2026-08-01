@@ -55,6 +55,14 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
             }
         }
     }
+    pub fn remove_edge(&mut self, parent: &T, child: &T) {
+        let Some(mut child_set) = self.get_edges(parent) else {
+            return;
+        };
+        child_set.remove(child);
+        let slot = self.graph.get_mut(parent).expect("Already got set");
+        *slot = child_set;
+    }
     pub fn is_parent_of(&self, parent_vertex: &T, child_vertex: &T) -> bool {
         let current_set = self.graph.get(parent_vertex);
         let next_set = match current_set {

@@ -1,10 +1,13 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
-use iced::widget::{Id, column, row, text};
+use iced::{
+    Element,
+    widget::{column, pick_list, row, text},
+};
 
 use crate::{
     logic::CategoryService,
-    models::{CategoryBody, CategoryID, Config, UnitSystem},
+    models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
     presentation::{
         Viewable,
         application::Message,
@@ -63,18 +66,5 @@ impl CategoryInput {
     pub fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
         self.clear();
         self.name_input.update(edit.name.clone());
-    }
-}
-
-pub struct CategoryRelationInput {}
-impl CategoryRelationInput {
-    pub fn new<F: Fn(Id, InputMessage) -> Message + 'static>(
-        id: &CategoryID,
-        service: &CategoryService,
-        message: F,
-    ) -> Self {
-        let choices: Vec<CategoryID> = service.valid_relations(id).iter().copied().collect();
-        let already_selected = &service.child_categories(id);
-        Self {}
     }
 }

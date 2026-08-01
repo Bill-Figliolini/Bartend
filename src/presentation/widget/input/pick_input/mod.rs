@@ -18,6 +18,7 @@ where
     options: combo_box::State<T>,
     selection: Option<T>,
     placeholder: String,
+
     message: Rc<dyn Fn(Id, T) -> Message>,
 }
 
