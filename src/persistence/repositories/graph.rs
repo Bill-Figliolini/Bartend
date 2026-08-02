@@ -61,7 +61,7 @@ impl<'a> GraphRepository for GraphDB<'a> {
     }
 
     fn delete_node(&self, node: CategoryID) -> Result<(), DBError> {
-        let query = "DELETE FROM graph WHERE parent_id=?1; OR child_id=?1";
+        let query = "DELETE FROM graph WHERE parent_id=?1 OR child_id=?1";
         self.connection.execute(query, (node,))?;
         Ok(())
     }
