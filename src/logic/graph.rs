@@ -101,12 +101,30 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         if !self.contains_vertex(search_vertex) {
             return None;
         }
-        let children_of_search = self.get_edges(search_vertex).unwrap();
-
-        let non_cyclic: HashSet<T> = self
+        let parents_of_search =
+            self.graph
+                .iter()
+                .fold(HashSet::new(), |mut acc, (parent, children)| {
+                    if children.contains(search_vertex)
+                        || acc
+                            .iter()
+                            .any(|previous_parent| children.contains(previous_parent))
+                    {
+                        acc.insert(*parent);
+                    }
+                    acc
+                });
+        let children_of_search = self
+            .get_edges(search_vertex)
+            .expect("Search node should be in graph");
+        let non_cyclic = self
             .graph
             .keys()
-            .filter(|vertex| **vertex != *search_vertex && !children_of_search.contains(*vertex))
+            .filter(|vertex| {
+                **vertex != *search_vertex
+                    && !parents_of_search.contains(*vertex)
+                    && !children_of_search.contains(*vertex)
+            })
             .fold(HashSet::new(), |mut acc, graph_vertex: &T| {
                 acc.insert(*graph_vertex);
                 acc
