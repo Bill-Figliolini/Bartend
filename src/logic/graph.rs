@@ -97,23 +97,31 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         }
         Some(children)
     }
+    pub fn get_ancestors(&self, child: &T) -> Option<HashSet<T>> {
+        if !self.contains_vertex(child) {
+            return None;
+        }
+        let mut set_of_ancestors = HashSet::new();
+        let mut to_process = Vec::from([*child]);
+        while !to_process.is_empty() {
+            let current_ancestor = to_process.pop().expect("Is not empty");
+            for (node, children) in self.graph.iter() {
+                if children.contains(&current_ancestor) && !set_of_ancestors.contains(node) {
+                    set_of_ancestors.insert(*node);
+                    to_process.push(*node);
+                }
+            }
+        }
+
+        Some(set_of_ancestors)
+    }
     pub fn get_non_cyclic_additions(&self, search_vertex: &T) -> Option<HashSet<T>> {
         if !self.contains_vertex(search_vertex) {
             return None;
         }
-        let parents_of_search =
-            self.graph
-                .iter()
-                .fold(HashSet::new(), |mut acc, (parent, children)| {
-                    if children.contains(search_vertex)
-                        || acc
-                            .iter()
-                            .any(|previous_parent| children.contains(previous_parent))
-                    {
-                        acc.insert(*parent);
-                    }
-                    acc
-                });
+        let parents_of_search = self
+            .get_ancestors(search_vertex)
+            .expect("Search node should be in graph");
         let children_of_search = self
             .get_edges(search_vertex)
             .expect("Search node should be in graph");
@@ -215,15 +223,20 @@ mod tests {
             graph
         }
         #[test]
-        #[ignore = "Work In Progress"]
         fn returns_all_valid_connections() {
             let graph = get_graph();
             let mut actual_results = Vec::new();
             for i in 1..=5 {
                 actual_results.push(graph.get_non_cyclic_additions(&i).unwrap());
             }
-            eprintln!("{:?}", actual_results);
-            assert!(false);
+            let expected_results = vec![
+                HashSet::from([3, 4, 5]),
+                HashSet::from([3, 5]),
+                HashSet::from([5]),
+                HashSet::from([5]),
+                HashSet::from([1, 2, 3, 4]),
+            ];
+            assert_eq!(actual_results, expected_results);
         }
     }
 }
