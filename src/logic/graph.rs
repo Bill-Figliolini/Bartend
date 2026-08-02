@@ -73,6 +73,9 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         *slot = child_set;
     }
     pub fn is_parent_of(&self, parent_vertex: &T, child_vertex: &T) -> bool {
+        if parent_vertex == child_vertex {
+            return true;
+        }
         let current_set = self.graph.get(parent_vertex);
         let next_set = match current_set {
             Some(next_set) => next_set,
