@@ -1,13 +1,9 @@
-use std::{collections::HashSet, rc::Rc};
+use std::collections::HashSet;
 
-use iced::{
-    Element,
-    widget::{column, pick_list, row, text},
-};
+use iced::widget::{column, row, text};
 
 use crate::{
-    logic::CategoryService,
-    models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
+    models::{CategoryBody, Config, UnitSystem},
     presentation::{
         Viewable,
         application::Message,
