@@ -76,8 +76,8 @@ impl CategoryService {
         match self.graph.get_edges(category) {
             Some(children) => children,
             None => panic!(
-                "Something has gone wrong, current state of the graph: {:?}",
-                self.graph
+                "Something has gone wrong, attempted to get category: {:?}\n current state of the graph: {:?}\nstate of categories: {:?}",
+                *category, self.graph, self.categories
             ),
         }
     }
@@ -373,6 +373,16 @@ mod tests {
 
         assert_eq!(category_service.categories.len(), 30);
     }
-    #[test]
-    fn satisfying_items() {}
+    mod category_mangement {
+        //For synchronization behaviors
+        use super::*;
+    }
+    mod item_mapping {
+        //mapping specific behavior
+        use super::*;
+    }
+    mod category_resolution {
+        //graph specific behavior
+        use super::*;
+    }
 }
