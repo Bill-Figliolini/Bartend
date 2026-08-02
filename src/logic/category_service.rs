@@ -132,12 +132,19 @@ impl CategoryService {
     }
     pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
         self.categories.remove(&category);
-        self.graph.remove(category);
+        let new_edges = self.graph.remove(category);
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }
         if let Err(e) = db.graph().delete_node(category) {
             panic!("{e}")
+        }
+        if let Some(new_edges) = new_edges {
+            for (parent, child) in new_edges {
+                if let Err(e) = db.graph().insert(parent, child) {
+                    panic!("{e}");
+                }
+            }
         }
     }
     pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
@@ -366,4 +373,6 @@ mod tests {
 
         assert_eq!(category_service.categories.len(), 30);
     }
+    #[test]
+    fn satisfying_items() {}
 }

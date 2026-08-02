@@ -45,15 +45,24 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
     pub fn get_edges(&self, vertex: &T) -> Option<HashSet<T>> {
         self.graph.get(vertex).map(|set| set.clone())
     }
-    pub fn remove(&mut self, vertex: T) {
+    pub fn remove(&mut self, vertex: T) -> Option<Vec<(T, T)>> {
         let Some(child_verticies) = self.graph.remove(&vertex) else {
-            return;
+            return None;
         };
-        for (_, adj_set) in self.graph.iter_mut() {
+        let mut new_edges = Vec::new();
+        for (vertex, adj_set) in self.graph.iter_mut() {
             if adj_set.remove(&vertex) {
                 adj_set.extend(child_verticies.clone());
+                new_edges.extend(child_verticies.iter().fold(
+                    Vec::with_capacity(child_verticies.len()),
+                    |mut acc, child| {
+                        acc.push((*vertex, *child));
+                        acc
+                    },
+                ));
             }
         }
+        Some(new_edges)
     }
     pub fn remove_edge(&mut self, parent: &T, child: &T) {
         let Some(mut child_set) = self.get_edges(parent) else {
