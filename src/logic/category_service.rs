@@ -136,6 +136,9 @@ impl CategoryService {
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }
+        if let Err(e) = db.graph().delete_node(category) {
+            panic!("{e}")
+        }
     }
     pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
