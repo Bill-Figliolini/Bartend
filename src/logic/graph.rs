@@ -187,6 +187,14 @@ mod tests {
 
             assert!(insert_result.is_err())
         }
+        #[test]
+        fn self_loops_not_allowed() {
+            let mut graph = get_graph();
+
+            let insert_result = graph.insert_edge(&1, &1);
+
+            assert!(insert_result.is_err())
+        }
     }
     mod get_all_children {
         use super::*;
