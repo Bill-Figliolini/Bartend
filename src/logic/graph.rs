@@ -164,8 +164,8 @@ mod tests {
             graph.insert_vertex(1);
             graph.insert_vertex(2);
             graph.insert_vertex(3);
-            _ = graph.insert_edge(&1, &2);
-            _ = graph.insert_edge(&2, &3);
+            graph.insert_edge(&1, &2).unwrap();
+            graph.insert_edge(&2, &3).unwrap();
 
             graph
         }
@@ -194,6 +194,23 @@ mod tests {
             let insert_result = graph.insert_edge(&1, &1);
 
             assert!(insert_result.is_err())
+        }
+        #[test]
+        fn remove_edge_splits_tree() {
+            let mut graph = get_graph();
+
+            graph.remove_edge(&2, &3);
+
+            assert!(!graph.graph.get(&1).unwrap().contains(&3));
+            assert!(!graph.graph.get(&2).unwrap().contains(&3));
+        }
+        #[test]
+        fn get_ancestors_returns_none_if_not_in_graph() {
+            let graph = get_graph();
+
+            let result = graph.get_ancestors(&25);
+
+            assert!(result.is_none())
         }
     }
     mod get_all_children {
@@ -256,6 +273,14 @@ mod tests {
                 HashSet::from([1, 2, 3, 4]),
             ];
             assert_eq!(actual_results, expected_results);
+        }
+        #[test]
+        fn returns_none_if_not_in_graph() {
+            let graph = get_graph();
+
+            let result = graph.get_non_cyclic_additions(&123);
+
+            assert!(result.is_none())
         }
     }
 }
