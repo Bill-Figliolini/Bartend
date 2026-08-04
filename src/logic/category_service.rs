@@ -12,8 +12,6 @@ pub struct CategoryService {
     category_mapping: HashMap<CategoryID, HashSet<ItemID>>,
     item_mapping: HashMap<ItemID, CategoryID>,
     graph: DirectedAcyclicGraph<CategoryID>,
-
-    page_size: usize,
 }
 
 impl CategoryService {
@@ -52,7 +50,6 @@ impl CategoryService {
             item_mapping,
             category_mapping,
             graph,
-            page_size: 15,
         }
     }
     pub fn item_category(&self, item: &ItemID) -> Option<CategoryID> {
@@ -100,13 +97,13 @@ impl CategoryService {
         }
     }
 
-    pub fn get_page(&self, page_number: usize) -> Vec<CategoryID> {
-        let page_offset = page_number * self.page_size;
+    pub fn get_page(&self, page_number: usize, page_size: usize) -> Vec<CategoryID> {
+        let page_offset = page_number * page_size;
         self.categories
             .keys()
             .copied()
             .skip(page_offset)
-            .take(self.page_size)
+            .take(page_size)
             .collect()
     }
 
@@ -376,6 +373,15 @@ mod tests {
     mod category_mangement {
         //For synchronization behaviors
         use super::*;
+        mod item_addition {
+            use super::*;
+        }
+        mod item_removal {
+            use super::*;
+        }
+        mod item_update {
+            use super::*;
+        }
     }
     mod item_mapping {
         //mapping specific behavior

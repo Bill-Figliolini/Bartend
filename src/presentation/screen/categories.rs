@@ -143,7 +143,7 @@ impl Categories {
             edit_column,
             delete_column,
         ];
-        let contents = category_service.get_page(self.page_number);
+        let contents = category_service.get_page(self.page_number, 15);
         table(columns, contents).into()
     }
     pub fn view(&self, category_service: &CategoryService) -> Element<'_, application::Message> {
