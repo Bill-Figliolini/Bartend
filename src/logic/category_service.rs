@@ -253,6 +253,12 @@ mod tests {
         fn new() -> Self {
             Self { counter: 30 }
         }
+        fn _get_next(&self) -> CategoryID {
+            CategoryID(self.counter + 1)
+        }
+        fn _update(&mut self) {
+            self.counter += 1;
+        }
         fn mapping_db(&self) -> TestMapDB {
             TestMapDB {}
         }
@@ -375,12 +381,68 @@ mod tests {
         use super::*;
         mod item_addition {
             use super::*;
+            #[test]
+            fn initializes_id_in_table_and_graph() {
+                let db = TestDB::new();
+                let mut service = CategoryService::new(&db);
+                let stub_body = CategoryBody {
+                    name: "test".to_string(),
+                };
+                let next_id = db._get_next();
+                assert!(!service.graph.contains_vertex(&next_id));
+
+                let id = service.insert(&db, &stub_body);
+
+                assert!(service.categories.contains_key(&id));
+                assert!(service.graph.contains_vertex(&id));
+                assert_eq!(service.categories.get(&id).unwrap().name, stub_body.name);
+            }
         }
         mod item_removal {
             use super::*;
+            #[test]
+            fn removes_id_from_table_and_graph() {
+                let db = TestDB::new();
+                let mut service = CategoryService::new(&db);
+                let stub_body = CategoryBody {
+                    name: "test".to_string(),
+                };
+                let id = service.insert(&db, &stub_body);
+                assert!(service.categories.contains_key(&id));
+                assert!(service.graph.contains_vertex(&id));
+
+                service.delete(&db, id.clone());
+
+                assert!(!service.categories.contains_key(&id));
+                assert!(!service.graph.contains_vertex(&id));
+            }
         }
         mod item_update {
             use super::*;
+            #[test]
+            fn updates_in_table() {
+                let db = TestDB::new();
+                let mut service = CategoryService::new(&db);
+                let initial_body = CategoryBody {
+                    name: "test".to_string(),
+                };
+                let updated_body = CategoryBody {
+                    name: "next".to_string(),
+                };
+                let id = service.insert(&db, &initial_body);
+                assert!(service.categories.contains_key(&id));
+                assert_eq!(service.categories.get(&id).unwrap().name, initial_body.name);
+
+                service.update(
+                    &db,
+                    &Category {
+                        id,
+                        body: updated_body.clone(),
+                    },
+                );
+
+                assert_eq!(service.categories.get(&id).unwrap().name, updated_body.name);
+            }
         }
     }
     mod item_mapping {

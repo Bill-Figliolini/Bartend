@@ -29,7 +29,7 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
     pub fn insert_vertex(&mut self, vertex: T) {
         self.graph.entry(vertex).or_insert_with(|| HashSet::new());
     }
-    fn contains_vertex(&self, vertex: &T) -> bool {
+    pub fn contains_vertex(&self, vertex: &T) -> bool {
         self.graph.contains_key(vertex)
     }
     pub fn insert_edge(&mut self, parent: &T, child: &T) -> Result<(), GraphError> {
