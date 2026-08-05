@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use iced::widget::{Id, column, row, text};
+use iced::widget::{Id, column, combo_box, row, text};
 
 use crate::presentation::{
     Viewable,
@@ -29,13 +29,15 @@ where
         msg: F,
         options: Vec<T>,
         initial_value: Option<T>,
+        placeholder: String,
     ) -> Self {
         Self {
             inner: PickInput {
                 id: Id::unique(),
                 message: Rc::new(msg),
-                input: initial_value,
-                options,
+                options: combo_box::State::new(options),
+                selection: initial_value,
+                placeholder,
             },
             errors: HashSet::new(),
         }
@@ -43,8 +45,8 @@ where
 }
 impl<T, Message> Viewable<Message> for RequiredPickInput<T, Message>
 where
-    T: Debug + Clone + Display + PartialEq,
-    Message: Clone,
+    T: Debug + Clone + Display + PartialEq + 'static,
+    Message: Clone + 'static,
 {
     fn view(&self) -> iced::Element<'_, Message> {
         column![
@@ -60,11 +62,11 @@ where
 
 impl<T, Message> Input<T, Message> for RequiredPickInput<T, Message>
 where
-    T: Debug + Clone + Display + PartialEq,
-    Message: Clone,
+    T: Debug + Clone + Display + PartialEq + 'static,
+    Message: Clone + 'static,
 {
     fn update(&mut self, input: T) {
-        self.inner.input = Some(input);
+        self.inner.selection = Some(input);
     }
 
     fn id(&self) -> &Id {
@@ -81,7 +83,7 @@ where
 {
     fn get_output(&mut self) -> Result<T, ()> {
         self.errors.clear();
-        match self.inner.input {
+        match self.inner.selection {
             Some(ref value) => Ok(value.clone()),
             None => {
                 self.errors.insert(Error::MustChooseValue);

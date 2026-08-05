@@ -1,10 +1,13 @@
-use iced::widget::{Container, button, column, row, text};
+use iced::{
+    Task,
+    widget::{Container, button, column, row, text},
+};
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{Config, UnitSystem},
+    models::{Config, ItemUse, UnitSystem},
     presentation::{
-        application,
+        application::{self, Context},
         input_handling::{InputMessage, ServingInput},
         widget::footer::footer,
     },
@@ -16,6 +19,21 @@ pub(in crate::presentation) enum Message {
     SwapUnits,
     Input(InputMessage),
     Save,
+}
+
+pub(in crate::presentation) enum Command {
+    UseItems(Vec<ItemUse>),
+}
+impl Command {
+    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+        match self {
+            Command::UseItems(items) => {
+                ctx.item_service
+                    .use_items(&ctx.bar_collection.db.item_db(), items);
+                Task::none()
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -53,9 +71,12 @@ impl Serving {
         item_service: &ItemService,
         category_service: &CategoryService,
         message: Message,
-    ) -> Option<application::Command> {
+    ) -> Option<Command> {
         match message {
-            Message::Reload => todo!(),
+            Message::Reload => {
+                self.input.clear();
+                None
+            }
             Message::SwapUnits => {
                 self.unit_system.swap();
                 None
@@ -67,7 +88,7 @@ impl Serving {
             }
             Message::Save => {
                 if let Ok(used_items) = self.input.output() {
-                    Some(application::Command::UseItems(used_items))
+                    Some(Command::UseItems(used_items))
                 } else {
                     None
                 }

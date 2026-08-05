@@ -2,14 +2,15 @@ use crate::{
     logic::{CategoryService, RecipeService},
     models::{CategoryFilter, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
-        Viewable, application,
-        input_handling::{EditableCollection, InputCollection, InputMessage, RecipeInput},
+        application::{self, Context},
+        input_handling::{InputMessage, RecipeInput},
         widget::{footer::footer, header::header, text_style::title},
     },
 };
 use iced::{
     Element,
     Length::Fill,
+    Task,
     widget::{button, column, row, table, text},
 };
 #[derive(Debug)]
@@ -36,6 +37,27 @@ pub enum Message {
     BeginEdit(Recipe),
     EndEdit,
     Reload,
+}
+
+pub enum Command {
+    AddRecipe(RecipeBody),
+    UpdateRecipe(Recipe),
+}
+impl Command {
+    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+        match self {
+            Command::AddRecipe(body) => {
+                ctx.recipe_service
+                    .add(&ctx.bar_collection.db.recipe_db(), body);
+                Task::done(application::Message::ReloadScreen)
+            }
+            Command::UpdateRecipe(recipe) => {
+                ctx.recipe_service
+                    .update(&ctx.bar_collection.db.recipe_db(), recipe);
+                Task::done(application::Message::ReloadScreen)
+            }
+        }
+    }
 }
 impl Recipes {
     pub fn new(config: &Config, category_service: &CategoryService) -> Self {
@@ -64,10 +86,10 @@ impl Recipes {
             .on_press(application::Message::Recipes(Message::AddIngredient));
         column![header, input_row, add_ingredient_button].into()
     }
-    fn save(&mut self, body: RecipeBody) -> application::Command {
+    fn save(&mut self, body: RecipeBody) -> Command {
         match self.edit_state {
-            EditState::Editing(id) => application::Command::UpdateRecipe(Recipe { id, body }),
-            EditState::None => application::Command::AddRecipe(body),
+            EditState::Editing(id) => Command::UpdateRecipe(Recipe { id, body }),
+            EditState::None => Command::AddRecipe(body),
         }
     }
     fn build_display_table(
@@ -126,7 +148,7 @@ impl Recipes {
         let footer = footer(footer_container);
         column![header, body, footer].into()
     }
-    pub fn update(&mut self, message: Message) -> Option<application::Command> {
+    pub fn update(&mut self, message: Message) -> Option<Command> {
         match message {
             Message::Input(msg) => {
                 self.input.update(msg);

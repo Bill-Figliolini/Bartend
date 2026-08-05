@@ -3,14 +3,15 @@ use std::path::PathBuf;
 use iced::{
     Element,
     Length::Fill,
+    Task,
     widget::{column, row},
 };
 
 use crate::{
+    logic::BarCollection,
     models::{Config, EditableConfig, UnitSystem},
     presentation::{
-        Updateable, Viewable,
-        application::{self, Command},
+        application::{self, Context},
         constants,
         widget::{footer::footer, header::header, text_style::title},
     },
@@ -29,15 +30,34 @@ pub enum Message {
     ResetConfig(Config),
 }
 
+pub enum Command {
+    UpdateConfig(Config),
+}
+impl Command {
+    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+        match self {
+            Command::UpdateConfig(config) => {
+                let db_changed = ctx.config.db_path() != config.db_path();
+                *ctx.config = config;
+                if let Err(e) = ctx.config.save() {
+                    panic!("{e:?}")
+                }
+                if db_changed {
+                    *ctx.bar_collection = BarCollection::new(ctx.config.db_path());
+                }
+                Task::done(application::Message::ReloadScreen)
+            }
+        }
+    }
+}
+
 impl Settings {
     pub fn new(current_config: &Config) -> Self {
         let config = current_config.editable();
         Self { config }
     }
-}
 
-impl Viewable<application::Message> for Settings {
-    fn view(&self) -> Element<'_, application::Message> {
+    pub fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
 
         let title_text = title("Settings");
@@ -78,9 +98,8 @@ impl Viewable<application::Message> for Settings {
 
         column![header, body, footer].into()
     }
-}
-impl Updateable<Message> for Settings {
-    fn update(&mut self, message: Message) -> Option<Command> {
+
+    pub fn update(&mut self, message: Message) -> Option<Command> {
         match message {
             Message::Save => Some(Command::UpdateConfig(self.config.commit())),
             Message::UpdateDBPath(db_path) => {

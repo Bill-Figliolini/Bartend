@@ -24,6 +24,7 @@ impl ServingInput {
             move |id, recipe| msg(InputMessage::Recipe(id, recipe)),
             recipe_service.get_all(),
             None,
+            "Recipe".to_string(),
         );
         let ingredients = Vec::new();
         Self {
@@ -136,6 +137,7 @@ impl IngredientUseInput {
                 move |id, item| msg(InputMessage::Item(id, item)),
                 valid_ingredients,
                 None,
+                "Ingredient".to_string(),
             ),
         }
     }

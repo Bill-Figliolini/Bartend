@@ -7,7 +7,7 @@ use crate::{
     presentation::{
         Viewable,
         application::Message,
-        input_handling::{EditableCollection, InputCollection, InputMessage},
+        input_handling::InputMessage,
         widget::input::{
             Error, Input, InputContents, InputOptionalContents, NumberInput, OptionalPickInput,
             RequiredPickInput, StringInput,
@@ -23,23 +23,6 @@ pub struct ItemInput {
     category_input: OptionalPickInput<Category, Message>,
 
     errors: HashSet<Error>,
-}
-impl Viewable<Message> for ItemInput {
-    fn view(&self) -> iced::Element<'_, Message> {
-        column![
-            row![
-                self.name_input.view(),
-                self.quantity_input.view(),
-                self.unit_input.view(),
-                self.category_input.view()
-            ],
-            row(self
-                .errors
-                .iter()
-                .map(|e| text!("{} ", e.to_string()).into()))
-        ]
-        .into()
-    }
 }
 impl ItemInput {
     pub fn new(
@@ -65,11 +48,13 @@ impl ItemInput {
             move |id, unit| msg(InputMessage::Unit(id, unit)),
             Unit::get_units(),
             Some(units),
+            "".to_string(),
         );
         let category_input = OptionalPickInput::new(
             move |id, category| msg(InputMessage::Category(id, category)),
             categories,
             None,
+            "Category".to_string(),
         );
         Self {
             name_input,
@@ -79,10 +64,22 @@ impl ItemInput {
             errors: HashSet::new(),
         }
     }
-}
-
-impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
-    fn update(&mut self, msg: InputMessage) {
+    pub fn view(&self) -> iced::Element<'_, Message> {
+        column![
+            row![
+                self.name_input.view(),
+                self.quantity_input.view(),
+                self.unit_input.view(),
+                self.category_input.view()
+            ],
+            row(self
+                .errors
+                .iter()
+                .map(|e| text!("{} ", e.to_string()).into()))
+        ]
+        .into()
+    }
+    pub fn update(&mut self, msg: InputMessage) {
         match msg {
             InputMessage::String(id, str) if &id == self.name_input.id() => {
                 self.name_input.update(str)
@@ -99,7 +96,7 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
             _ => unreachable!("Item Input has recieved invalid mesage {msg:?}"),
         }
     }
-    fn output(&mut self) -> Result<(ItemBody, Option<Category>), ()> {
+    pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), ()> {
         let name_result = self.name_input.get_output();
         let quantity_result = self.quantity_input.get_output();
         let units = self
@@ -120,14 +117,12 @@ impl InputCollection<(ItemBody, Option<Category>)> for ItemInput {
         }
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.name_input.clear();
         self.quantity_input.clear();
         self.category_input.clear();
     }
-}
-impl EditableCollection<(ItemBody, Option<Category>)> for ItemInput {
-    fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
+    pub fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
         self.clear();
         if let Some(ref category) = edit.1 {
             self.category_input.update(category.clone());

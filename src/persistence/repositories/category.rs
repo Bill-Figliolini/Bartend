@@ -6,9 +6,12 @@ use crate::{
         DBError,
         repositories::{
             CategoryDB, CategoryRepository, ItemMappingDB, ItemMappingRepository, Repository,
+            graph::GraphDB,
         },
     },
 };
+
+use super::GraphRepository;
 
 impl<'a> CategoryDB<'a> {
     #[must_use]
@@ -27,10 +30,19 @@ impl<'a> Repository for CategoryDB<'a> {
             );";
         self.connection.execute(query, ())?;
         self.mapping_db().create_table()?;
+        self.graph().create_table()?;
         Ok(())
     }
 }
 impl<'a> CategoryRepository for CategoryDB<'a> {
+    fn graph(&self) -> impl GraphRepository {
+        GraphDB {
+            connection: self.connection,
+        }
+    }
+    fn mapping(&self) -> impl ItemMappingRepository {
+        self.mapping_db()
+    }
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError> {
         self.connection
             .execute("INSERT INTO category(name) VALUES(?1)", (&body.name,))?;
@@ -52,6 +64,7 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
             .execute("DELETE FROM category WHERE id=?1", (&category,))?;
         Ok(())
     }
+
     fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError> {
         let query = "SELECT * FROM category";
         let mut stmt = self.connection.prepare(query)?;
@@ -71,11 +84,8 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
             acc
         }))
     }
+
     fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError> {
         self.mapping_db().get_map()
-    }
-
-    fn mapping(&self) -> impl ItemMappingRepository {
-        self.mapping_db()
     }
 }

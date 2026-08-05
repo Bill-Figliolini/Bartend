@@ -5,7 +5,7 @@ use crate::{
     presentation::{
         Viewable,
         application::Message,
-        input_handling::{EditableCollection, InputCollection, InputMessage},
+        input_handling::InputMessage,
         screen::recipes,
         widget::input::{Input, InputContents, NumberInput, RequiredPickInput, StringInput},
     },
@@ -38,6 +38,7 @@ impl IngredientInput {
             move |id, category| msg(InputMessage::Category(id, category)),
             categories,
             None,
+            "Category".to_string(),
         );
         let quantity_input = NumberInput::new(
             move |id, str| msg(InputMessage::String(id, str)),
@@ -48,6 +49,7 @@ impl IngredientInput {
             move |id, unit| msg(InputMessage::Unit(id, unit)),
             Unit::get_units(),
             Some(unit_system.default_units()),
+            "".to_string(),
         );
         Self {
             category_input,
@@ -91,9 +93,6 @@ impl IngredientInput {
             Err(())
         }
     }
-}
-
-impl Viewable<Message> for IngredientInput {
     fn view(&self) -> iced::Element<'_, Message> {
         row![
             self.category_input.view(),
@@ -131,10 +130,21 @@ impl RecipeInput {
     pub fn remove_ingredient(&mut self, index: usize) {
         self.ingredient_inputs.remove(index);
     }
-}
 
-impl InputCollection<RecipeBody> for RecipeInput {
-    fn update(&mut self, msg: InputMessage) {
+    pub fn view(&self) -> iced::Element<'_, Message> {
+        let name = self.name_input.view();
+        let ingredients = column(self.ingredient_inputs.iter().enumerate().map(
+            |(idx, ingredient)| {
+                row![
+                    ingredient.view(),
+                    button("X").on_press(Message::Recipes(recipes::Message::RemoveIngredient(idx)))
+                ]
+                .into()
+            },
+        ));
+        column![name, ingredients].into()
+    }
+    pub fn update(&mut self, msg: InputMessage) {
         let id = msg.id();
         if self.name_input.id() == &id {
             if let InputMessage::String(_, str) = msg {
@@ -154,7 +164,7 @@ impl InputCollection<RecipeBody> for RecipeInput {
         }
     }
 
-    fn output(&mut self) -> Result<RecipeBody, ()> {
+    pub fn output(&mut self) -> Result<RecipeBody, ()> {
         let name_result = self.name_input.get_output();
         let ingredient_results: Vec<Result<Ingredient, ()>> = self
             .ingredient_inputs
@@ -178,14 +188,13 @@ impl InputCollection<RecipeBody> for RecipeInput {
             Err(())
         }
     }
-    fn clear(&mut self) {
+
+    pub fn clear(&mut self) {
         self.name_input.clear();
         self.ingredient_inputs.clear();
     }
-}
 
-impl EditableCollection<RecipeBody> for RecipeInput {
-    fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
+    pub fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
         self.clear();
         self.name_input.update(recipe.name.clone());
         for ingredient in &recipe.ingredients {
@@ -204,21 +213,5 @@ impl EditableCollection<RecipeBody> for RecipeInput {
                 .unit_input
                 .update(ingredient.quantity.unit(unit_system));
         }
-    }
-}
-
-impl Viewable<Message> for RecipeInput {
-    fn view(&self) -> iced::Element<'_, Message> {
-        let name = self.name_input.view();
-        let ingredients = column(self.ingredient_inputs.iter().enumerate().map(
-            |(idx, ingredient)| {
-                row![
-                    ingredient.view(),
-                    button("X").on_press(Message::Recipes(recipes::Message::RemoveIngredient(idx)))
-                ]
-                .into()
-            },
-        ));
-        column![name, ingredients].into()
     }
 }
