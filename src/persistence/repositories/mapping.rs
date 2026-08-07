@@ -52,7 +52,7 @@ impl<'a> ItemMappingRepository for ItemMappingDB<'a> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     //Only table creation, as the other functions are dependent on other tables.
     // Will be included in Persistance integration tests
     use rusqlite::Connection;

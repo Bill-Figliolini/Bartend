@@ -94,7 +94,7 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use rusqlite::Connection;
 
     use super::*;
