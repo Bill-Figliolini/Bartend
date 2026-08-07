@@ -89,3 +89,23 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         self.mapping_db().get_map()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use rusqlite::Connection;
+
+    use super::*;
+    use crate::persistence::Database;
+    #[test]
+    fn table_created_successfully() {
+        let database = Database {
+            connection: Connection::open_in_memory().unwrap(),
+        };
+        let table_name = "category";
+
+        let result = database.category_db().create_table();
+
+        assert!(result.is_ok());
+        assert!(database.connection.table_exists(None, table_name).unwrap())
+    }
+}
