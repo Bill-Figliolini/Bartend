@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use rusqlite::Row;
+
 use crate::{
     models::{Category, CategoryBody, CategoryID, ItemID},
     persistence::{
@@ -19,6 +21,14 @@ impl<'a> CategoryDB<'a> {
         ItemMappingDB {
             connection: self.connection,
         }
+    }
+    fn from_db(row: &Row) -> Result<Category, rusqlite::Error> {
+        let id = row.get(0)?;
+        let name = row.get(1)?;
+        Ok(Category {
+            id,
+            body: CategoryBody { name },
+        })
     }
 }
 
@@ -68,14 +78,7 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
     fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError> {
         let query = "SELECT * FROM category";
         let mut stmt = self.connection.prepare(query)?;
-        let rows = stmt.query_map([], |row| {
-            let id = row.get(0).unwrap();
-            let name = row.get(1).unwrap();
-            Ok(Category {
-                id,
-                body: CategoryBody { name },
-            })
-        })?;
+        let rows = stmt.query_map([], |row| CategoryDB::from_db(row))?;
         Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
             match row {
                 Ok(item) => acc.insert(item.id, item.body),
@@ -96,6 +99,15 @@ mod test {
 
     use super::*;
     use crate::persistence::Database;
+
+    fn db_init() -> Database {
+        let db = Database {
+            connection: Connection::open_in_memory().unwrap(),
+        };
+        db.category_db().create_table().unwrap();
+        db
+    }
+
     #[test]
     fn table_created_successfully() {
         let database = Database {
@@ -107,5 +119,121 @@ mod test {
 
         assert!(result.is_ok());
         assert!(database.connection.table_exists(None, table_name).unwrap())
+    }
+    mod insertion {
+        use super::*;
+        #[test]
+        fn does_not_have_query_error() {
+            let db = db_init();
+            let category = CategoryBody {
+                name: "Test".to_string(),
+            };
+
+            let result = db.category_db().insert(&category);
+
+            assert!(result.is_ok());
+        }
+        #[test]
+        fn returns_id_of_entry() {
+            let db = db_init();
+            let category = CategoryBody {
+                name: "Test".to_string(),
+            };
+
+            let result = db.category_db().insert(&category);
+            let id = result.unwrap();
+
+            let in_db =
+                db.connection
+                    .query_one("SELECT * FROM category WHERE id=?1", (id,), |row| {
+                        CategoryDB::from_db(row)
+                    });
+            assert!(in_db.is_ok());
+            assert_eq!(in_db.unwrap().body.name, category.name);
+        }
+    }
+    mod update {
+        use super::*;
+
+        #[test]
+        fn does_not_have_query_error() {
+            let db = db_init();
+            let old_category = CategoryBody {
+                name: "Old".to_string(),
+            };
+            let new_category = CategoryBody {
+                name: "New".to_string(),
+            };
+            let id = db.category_db().insert(&old_category).unwrap();
+
+            let result = db.category_db().update(&Category {
+                id,
+                body: new_category,
+            });
+
+            assert!(result.is_ok())
+        }
+
+        #[test]
+        fn updates_value_in_db() {
+            let db = db_init();
+            let old_category = CategoryBody {
+                name: "Old".to_string(),
+            };
+            let new_category = CategoryBody {
+                name: "New".to_string(),
+            };
+            let id = db.category_db().insert(&old_category).unwrap();
+            let _ = db.category_db().update(&Category {
+                id,
+                body: new_category.clone(),
+            });
+
+            let in_db =
+                db.connection
+                    .query_one("SELECT * FROM category WHERE id=?1", (id,), |row| {
+                        CategoryDB::from_db(row)
+                    });
+            assert!(in_db.is_ok());
+            assert_eq!(in_db.unwrap().body.name, new_category.name);
+        }
+    }
+    mod delete {
+        use rusqlite::OptionalExtension;
+
+        use super::*;
+        #[test]
+        #[ignore = "Needs to be moved to integration testing due to items being effected by delete"]
+        fn does_not_have_error() {
+            let db = db_init();
+            let category = CategoryBody {
+                name: "test".to_string(),
+            };
+            let id = db.category_db().insert(&category).unwrap();
+
+            let result = db.category_db().delete(id);
+            eprintln!("{:?}", result);
+            assert!(result.is_ok())
+        }
+        #[test]
+        #[ignore = "Needs to be moved to integration testing due to items being effected by delete"]
+        fn removes_from_db() {
+            let db = db_init();
+            let category = CategoryBody {
+                name: "test".to_string(),
+            };
+            let id = db.category_db().insert(&category).unwrap();
+
+            let _ = db.category_db().delete(id);
+
+            let in_db = db
+                .connection
+                .query_one("SELECT * FROM category WHERE id=?1", (id,), |row| {
+                    CategoryDB::from_db(row)
+                })
+                .optional();
+            assert!(in_db.is_ok());
+            assert!(in_db.unwrap().is_none())
+        }
     }
 }
