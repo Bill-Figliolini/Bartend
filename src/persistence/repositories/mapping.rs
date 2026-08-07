@@ -50,3 +50,29 @@ impl<'a> ItemMappingRepository for ItemMappingDB<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    //Only table creation, as the other functions are dependent on other tables.
+    // Will be included in Persistance integration tests
+    use rusqlite::Connection;
+
+    use crate::persistence::{Database, repositories::Repository};
+
+    #[test]
+    fn table_creation_not_error() {
+        let database = Database {
+            connection: Connection::open_in_memory().unwrap(),
+        };
+
+        let result = database.category_db().mapping_db().create_table();
+
+        assert!(result.is_ok());
+        assert!(
+            database
+                .connection
+                .table_exists(None, "category_item")
+                .unwrap()
+        )
+    }
+}
