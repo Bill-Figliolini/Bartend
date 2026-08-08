@@ -31,4 +31,10 @@ impl Display for CategoryID {
     }
 }
 
+impl PartialEq for CategoryBody {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
 pub struct CategoryFilter {}
