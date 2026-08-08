@@ -38,6 +38,13 @@ impl PartialEq for Item {
         self.id == other.id
     }
 }
+
+impl PartialEq for ItemBody {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.quantity == other.quantity
+    }
+}
+
 impl Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.body.name)
