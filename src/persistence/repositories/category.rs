@@ -139,7 +139,7 @@ mod tests {
                         CategoryDB::from_db(row)
                     });
             assert!(in_db.is_ok());
-            assert_eq!(in_db.unwrap().body.name, category.name);
+            assert_eq!(in_db.unwrap().body, category);
         }
     }
     mod update {
@@ -169,7 +169,7 @@ mod tests {
                         CategoryDB::from_db(row)
                     });
             assert!(in_db.is_ok());
-            assert_eq!(in_db.unwrap().body.name, new_category.name);
+            assert_eq!(in_db.unwrap().body, new_category);
         }
     }
     mod delete {
