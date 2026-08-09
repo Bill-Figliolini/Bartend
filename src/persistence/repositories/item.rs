@@ -130,5 +130,64 @@ mod tests {
     }
     mod update {
         use super::*;
+        fn updates_value_in_db() {
+            let db = db_init();
+            let old_item = ItemBody {
+                name: "Test".to_string(),
+                quantity: Quantity::Volume { quantity: 750.0 },
+            };
+            let new_item = ItemBody {
+                name: "This is a Test".to_string(),
+                quantity: Quantity::Volume { quantity: 375.0 },
+            };
+            let result = db.item_db().insert(&old_item);
+            assert!(result.is_ok());
+            let id = result.unwrap();
+
+            let update_result = db.item_db().update(&Item {
+                id,
+                body: new_item.clone(),
+            });
+
+            assert!(update_result.is_ok());
+
+            let in_db = db
+                .connection
+                .query_one("SELECT * FROM items WHERE id=?1", (id,), ItemDB::from_db)
+                .unwrap();
+
+            assert_eq!(in_db.body, new_item)
+        }
+    }
+    mod get_all {
+        use super::*;
+        #[test]
+        fn gets_all_from_db() {
+            let test_size = 100;
+            let db = db_init();
+            let mut ids = Vec::new();
+            let items: Vec<ItemBody> = (0..test_size)
+                .map(|num| ItemBody {
+                    name: format!("test{num}"),
+                    quantity: Quantity::Volume {
+                        quantity: num as f32,
+                    },
+                })
+                .collect();
+            for item in items.iter() {
+                ids.push(db.item_db().insert(item).unwrap());
+            }
+
+            let result = db.item_db().get_all();
+            assert!(result.is_ok());
+            let in_db = result.unwrap();
+            assert_eq!(in_db.len(), ids.len());
+
+            for id in ids {
+                assert!(in_db.get(&id).is_some());
+                let category = in_db.get(&id).unwrap();
+                assert!(items.contains(category));
+            }
+        }
     }
 }
