@@ -106,6 +106,33 @@ mod tests {
         assert!(db.connection.table_exists(None, "items").unwrap())
     }
 
+    mod delete {
+        use super::*;
+        use rusqlite::OptionalExtension;
+        #[test]
+        fn removes_from_db() {
+            let db = db_init();
+            let item = ItemBody {
+                name: "test".to_string(),
+                quantity: Quantity::Volume { quantity: 750.0 },
+            };
+            let result = db.item_db().insert(&item);
+            assert!(result.is_ok());
+            let id = result.unwrap();
+
+            let _ = db.item_db().delete(id);
+
+            let in_db = db
+                .connection
+                .query_one("SELECT * FROM items WHERE id=?1", (id,), |row| {
+                    ItemDB::from_db(row)
+                })
+                .optional();
+            assert!(in_db.is_ok());
+            assert!(in_db.unwrap().is_none())
+        }
+    }
+
     mod insert {
         use super::*;
         #[test]
