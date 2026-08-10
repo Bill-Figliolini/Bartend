@@ -57,7 +57,17 @@ mod tests {
     // Will be included in Persistance integration tests
     use rusqlite::Connection;
 
-    use crate::persistence::{Database, repositories::Repository};
+    use crate::{
+        models::{CategoryBody, ItemBody, Quantity},
+        persistence::{
+            Database,
+            repositories::{CategoryRepository, ItemMappingRepository, ItemRepository, Repository},
+        },
+    };
+
+    fn db_init() -> Database {
+        Database::new(Connection::open_in_memory().unwrap()).unwrap()
+    }
 
     #[test]
     fn table_creation_not_error() {
@@ -65,7 +75,7 @@ mod tests {
             connection: Connection::open_in_memory().unwrap(),
         };
 
-        let result = database.category_db().mapping_db().create_table();
+        let result = database.category_db().mapping().create_table();
 
         assert!(result.is_ok());
         assert!(
@@ -74,5 +84,109 @@ mod tests {
                 .table_exists(None, "category_item")
                 .unwrap()
         )
+    }
+    mod insertion {
+        use super::*;
+        #[test]
+        fn writes_to_db() {
+            let db = db_init();
+            let item = ItemBody {
+                name: "test".to_string(),
+                quantity: Quantity::Volume { quantity: 750.0 },
+            };
+            let category = CategoryBody {
+                name: "testcat".to_string(),
+            };
+            let item_id = db.item_db().insert(&item).unwrap();
+            let category_id = db.category_db().insert(&category).unwrap();
+
+            let result = db.category_db().mapping().insert(&item_id, &category_id);
+
+            assert!(result.is_ok());
+
+            let in_db_result = db.category_db().mapping().get_map();
+            assert!(in_db_result.is_ok());
+            let in_db = in_db_result.unwrap();
+            let db_map = in_db.get(&item_id);
+            assert!(db_map.is_some());
+            assert_eq!(db_map.unwrap(), &category_id);
+        }
+    }
+    mod foreign_key {
+        use super::*;
+        #[test]
+        fn row_deleted_on_item_delete() {
+            let db = db_init();
+            let item = ItemBody {
+                name: "test".to_string(),
+                quantity: Quantity::Volume { quantity: 750.0 },
+            };
+            let category = CategoryBody {
+                name: "testcat".to_string(),
+            };
+            let item_id = db.item_db().insert(&item).unwrap();
+            let category_id = db.category_db().insert(&category).unwrap();
+
+            let result = db.category_db().mapping().insert(&item_id, &category_id);
+
+            assert!(result.is_ok());
+
+            db.item_db().delete(item_id).unwrap();
+
+            let in_db = db.category_db().mapping().get_map().unwrap();
+
+            assert!(in_db.get(&item_id).is_none())
+        }
+
+        #[test]
+        fn row_deleted_on_category_delete() {
+            let db = db_init();
+            let item = ItemBody {
+                name: "test".to_string(),
+                quantity: Quantity::Volume { quantity: 750.0 },
+            };
+            let category = CategoryBody {
+                name: "testcat".to_string(),
+            };
+            let item_id = db.item_db().insert(&item).unwrap();
+            let category_id = db.category_db().insert(&category).unwrap();
+
+            let result = db.category_db().mapping().insert(&item_id, &category_id);
+
+            assert!(result.is_ok());
+
+            db.category_db().delete(category_id).unwrap();
+
+            let in_db = db.category_db().mapping().get_map().unwrap();
+
+            assert!(in_db.get(&item_id).is_none())
+        }
+    }
+    mod delete {
+        use super::*;
+
+        #[test]
+        fn deletes_row_in_db() {
+            let db = db_init();
+            let item = ItemBody {
+                name: "test".to_string(),
+                quantity: Quantity::Volume { quantity: 750.0 },
+            };
+            let category = CategoryBody {
+                name: "testcat".to_string(),
+            };
+            let item_id = db.item_db().insert(&item).unwrap();
+            let category_id = db.category_db().insert(&category).unwrap();
+
+            let result = db.category_db().mapping().insert(&item_id, &category_id);
+            assert!(result.is_ok());
+
+            let result = db.category_db().mapping().delete(&item_id, &category_id);
+            assert!(result.is_ok());
+
+            let in_db = db.category_db().mapping().get_map().unwrap();
+
+            assert!(in_db.get(&item_id).is_none())
+        }
     }
 }
