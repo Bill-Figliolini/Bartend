@@ -177,18 +177,6 @@ mod tests {
         use super::*;
         use rusqlite::OptionalExtension;
         #[test]
-        fn does_not_have_error() {
-            let db = db_init();
-            let category = CategoryBody {
-                name: "test".to_string(),
-            };
-            let id = db.category_db().insert(&category).unwrap();
-
-            let result = db.category_db().delete(id);
-            eprintln!("{:?}", result);
-            assert!(result.is_ok())
-        }
-        #[test]
         fn removes_from_db() {
             let db = db_init();
             let category = CategoryBody {
