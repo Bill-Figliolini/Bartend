@@ -130,6 +130,7 @@ mod tests {
     }
     mod update {
         use super::*;
+        #[test]
         fn updates_value_in_db() {
             let db = db_init();
             let old_item = ItemBody {
