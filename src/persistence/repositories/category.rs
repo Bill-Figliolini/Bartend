@@ -105,6 +105,7 @@ mod tests {
             connection: Connection::open_in_memory().unwrap(),
         };
         db.category_db().create_table().unwrap();
+        db.item_db().create_table().unwrap();
         db
     }
 
@@ -176,7 +177,6 @@ mod tests {
         use super::*;
         use rusqlite::OptionalExtension;
         #[test]
-        #[ignore = "Needs to be moved to integration testing due to items being effected by delete"]
         fn does_not_have_error() {
             let db = db_init();
             let category = CategoryBody {
@@ -189,7 +189,6 @@ mod tests {
             assert!(result.is_ok())
         }
         #[test]
-        #[ignore = "Needs to be moved to integration testing due to items being effected by delete"]
         fn removes_from_db() {
             let db = db_init();
             let category = CategoryBody {
