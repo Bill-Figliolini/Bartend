@@ -26,8 +26,11 @@ pub struct Database {
 }
 
 impl<'a> Database {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, DBError> {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, DBError> {
         let connection = Connection::open(path)?;
+        Database::new(connection)
+    }
+    pub fn new(connection: Connection) -> Result<Self, DBError> {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         let db = Self { connection };
         db.item_db().create_table()?;

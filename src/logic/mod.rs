@@ -22,7 +22,7 @@ pub struct BarCollection {
 
 impl BarCollection {
     pub fn new(path: impl AsRef<Path>) -> Self {
-        let db = match Database::new(path) {
+        let db = match Database::load(path) {
             Ok(db) => db,
             Err(e) => panic!("DB Creation Error: {e}"),
         };
