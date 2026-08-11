@@ -48,7 +48,7 @@ impl RecipeService {
             None => panic!("Invalid Recipe ID"),
         }
     }
-    pub fn add(&mut self, db: &impl RecipeRepository, body: RecipeBody) -> RecipeID {
+    pub fn add(&mut self, db: &mut impl RecipeRepository, body: RecipeBody) -> RecipeID {
         let id = match db.insert(&body) {
             Ok(id) => id,
             Err(e) => panic!("{e}"),
@@ -62,7 +62,7 @@ impl RecipeService {
         }
         self.recipes.remove(&recipe);
     }
-    pub fn update(&mut self, db: &impl RecipeRepository, recipe: Recipe) {
+    pub fn update(&mut self, db: &mut impl RecipeRepository, recipe: Recipe) {
         if let Err(e) = db.update(&recipe) {
             panic!("{e}");
         }
