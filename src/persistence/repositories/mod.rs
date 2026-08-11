@@ -4,8 +4,7 @@ use rusqlite::Connection;
 
 use crate::{
     models::{
-        Category, CategoryBody, CategoryID, Ingredient, Item, ItemBody, ItemID, Recipe, RecipeBody,
-        RecipeID,
+        Category, CategoryBody, CategoryID, Item, ItemBody, ItemID, Recipe, RecipeBody, RecipeID,
     },
     persistence::DBError,
 };
@@ -24,13 +23,10 @@ pub struct CategoryDB<'a> {
     pub(super) connection: &'a Connection,
 }
 pub struct RecipeDB<'a> {
-    pub(super) connection: &'a Connection,
+    pub(super) connection: &'a mut Connection,
 }
 pub struct ItemMappingDB<'a> {
     pub(super) connection: &'a Connection,
-}
-struct IngredientDB<'a> {
-    connection: &'a Connection,
 }
 pub trait Repository {
     fn create_table(&self) -> Result<(), DBError>;
@@ -57,20 +53,10 @@ pub trait CategoryRepository: Repository {
     fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
 }
 pub trait RecipeRepository: Repository {
-    fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;
-    fn update(&self, item: &Recipe) -> Result<(), DBError>;
+    fn insert(&mut self, body: &RecipeBody) -> Result<RecipeID, DBError>;
+    fn update(&mut self, item: &Recipe) -> Result<(), DBError>;
     fn delete(&self, item: RecipeID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError>;
-}
-pub trait IngredientRepository: Repository {
-    fn insert(
-        &self,
-        recipe: &RecipeID,
-        index: &usize,
-        ingredient: &Ingredient,
-    ) -> Result<(), DBError>;
-    fn delete(&self, recipe: &RecipeID) -> Result<(), DBError>;
-    fn get(&self, recipe: &RecipeID) -> Result<Vec<Ingredient>, rusqlite::Error>;
 }
 
 pub trait GraphRepository: Repository {
