@@ -36,14 +36,8 @@ impl<'a> GraphRepository for GraphDB<'a> {
         Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
             match row {
                 Ok((parent_id, child_id)) => {
-                    if acc.contains_key(&parent_id) {
-                        let bucket = acc.get_mut(&parent_id).expect("confirmed to exist");
-                        bucket.insert(child_id);
-                    } else {
-                        let mut new_set = HashSet::new();
-                        new_set.insert(child_id);
-                        acc.insert(parent_id, new_set);
-                    }
+                    let parent_entry = acc.entry(parent_id).or_default();
+                    parent_entry.insert(child_id);
                     if !acc.contains_key(&child_id) {
                         acc.insert(child_id, HashSet::new());
                     }
@@ -70,5 +64,65 @@ impl<'a> GraphRepository for GraphDB<'a> {
         let query = "DELETE FROM graph WHERE parent_id = ?1 AND child_id = ?2;";
         self.connection.execute(query, (parent, child))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    use crate::{
+        models::CategoryBody,
+        persistence::{Database, repositories::CategoryRepository},
+    };
+
+    fn db_init() -> Database {
+        Database::new(Connection::open_in_memory().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn creates_without_failure() {
+        let db = Database {
+            connection: Connection::open_in_memory().unwrap(),
+        };
+
+        let result = db.category_db().graph().create_table();
+
+        assert!(result.is_ok());
+    }
+
+    mod insert {
+        use super::*;
+
+        #[test]
+        fn inserts_row_into_db() {
+            let db = db_init();
+            let parent_id = db
+                .category_db()
+                .insert(&CategoryBody {
+                    name: "test".to_string(),
+                })
+                .unwrap();
+            let child_id = db
+                .category_db()
+                .insert(&CategoryBody {
+                    name: "Test 2".to_string(),
+                })
+                .unwrap();
+
+            let result = db.category_db().graph().insert(parent_id, child_id);
+            assert!(result.is_ok());
+
+            let in_db: Result<(CategoryID, CategoryID), rusqlite::Error> = db.connection.query_one(
+                "SELECT * FROM graph WHERE parent_id=?1 AND child_id=?2",
+                (parent_id, child_id),
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            );
+            assert!(in_db.is_ok());
+            let in_db = in_db.unwrap();
+            assert_eq!(in_db.0, parent_id);
+            assert_eq!(in_db.1, child_id);
+        }
     }
 }
