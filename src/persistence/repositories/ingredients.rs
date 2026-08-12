@@ -46,8 +46,7 @@ pub(super) fn get(
     let mut stmt = connection
             .prepare(
                 "SELECT category_id, quantity, unit FROM ingredients WHERE recipe_id = ?1 ORDER BY ingredient_index;",
-            )
-            .unwrap();
+            )?;
     let rows = stmt
         .query_map((*recipe,), |row| {
             let category = row.get(0)?;
