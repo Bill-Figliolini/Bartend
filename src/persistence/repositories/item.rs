@@ -87,11 +87,7 @@ mod tests {
 
     use super::*;
     fn db_init() -> Database {
-        let db = Database {
-            connection: Connection::open_in_memory().unwrap(),
-        };
-        db.item_db().create_table().unwrap();
-        db
+        Database::new(Connection::open_in_memory().unwrap()).unwrap()
     }
 
     #[test]
