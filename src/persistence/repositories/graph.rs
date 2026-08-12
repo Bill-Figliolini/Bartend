@@ -125,4 +125,71 @@ mod tests {
             assert_eq!(in_db.1, child_id);
         }
     }
+
+    mod delete {
+        use super::*;
+        fn line_graph_builder(db: &Database, length: usize) -> Vec<CategoryID> {
+            let mut ids = Vec::with_capacity(length);
+            for i in 0..=length {
+                let category = CategoryBody {
+                    name: i.to_string(),
+                };
+                let id = db.category_db().insert(&category).unwrap();
+                if let Some(last_id) = ids.last() {
+                    db.category_db().graph().insert(*last_id, id).unwrap();
+                }
+                ids.push(id);
+            }
+            ids
+        }
+
+        #[test]
+        fn edge_delete_only_effects_edge() {
+            //Set up
+            let db = db_init();
+            let length = 4;
+            let ids = line_graph_builder(&db, length);
+            //Initial state
+            let initial_edge_result = db.category_db().graph().get();
+            assert!(initial_edge_result.is_ok());
+            let inital_edges = initial_edge_result.unwrap();
+            for i in 0..length {
+                assert!(*&inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
+            }
+
+            let delete_result = db.category_db().graph().delete_edge(ids[1], ids[2]);
+            assert!(delete_result.is_ok());
+
+            let after_edges = db.category_db().graph().get().unwrap();
+            for id in ids.iter() {
+                assert!(after_edges.keys().any(|key| key == id));
+            }
+            assert!(after_edges.get(&ids[0]).unwrap().contains(&ids[1]));
+            assert!(!after_edges.get(&ids[1]).unwrap().contains(&ids[2]));
+            assert!(after_edges.get(&ids[2]).unwrap().contains(&ids[3]));
+        }
+
+        #[test]
+        fn node_delete_removes_all_trace() {
+            //Set up
+            let db = db_init();
+            let length = 5;
+            let ids = line_graph_builder(&db, length);
+            let initial_edge_result = db.category_db().graph().get();
+            assert!(initial_edge_result.is_ok());
+            let inital_edges = initial_edge_result.unwrap();
+            for i in 0..length {
+                assert!(*&inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
+            }
+
+            let delete_result = db.category_db().graph().delete_node(ids[2]);
+            assert!(delete_result.is_ok());
+
+            let after_edges = db.category_db().graph().get().unwrap();
+            for edge in after_edges {
+                assert_ne!(edge.0, ids[2]);
+                assert!(!edge.1.contains(&ids[2]));
+            }
+        }
+    }
 }
