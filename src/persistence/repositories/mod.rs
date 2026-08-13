@@ -23,7 +23,7 @@ pub struct CategoryDB<'a> {
     pub(super) connection: &'a Connection,
 }
 pub struct RecipeDB<'a> {
-    pub(super) connection: &'a mut Connection,
+    pub(super) connection: &'a Connection,
 }
 pub struct ItemMappingDB<'a> {
     pub(super) connection: &'a Connection,
@@ -53,8 +53,8 @@ pub trait CategoryRepository: Repository {
     fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
 }
 pub trait RecipeRepository: Repository {
-    fn insert(&mut self, body: &RecipeBody) -> Result<RecipeID, DBError>;
-    fn update(&mut self, item: &Recipe) -> Result<(), DBError>;
+    fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;
+    fn update(&self, item: &Recipe) -> Result<(), DBError>;
     fn delete(&self, item: RecipeID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError>;
 }

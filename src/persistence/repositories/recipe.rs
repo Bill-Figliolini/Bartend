@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use rusqlite::Connection;
+
 use crate::{
     models::{Recipe, RecipeBody, RecipeID},
     persistence::{
@@ -9,10 +11,10 @@ use crate::{
 };
 
 impl<'a> RecipeDB<'a> {
-    fn from_db(&self, row: &rusqlite::Row) -> Result<Recipe, rusqlite::Error> {
+    fn from_db(connection: &Connection, row: &rusqlite::Row) -> Result<Recipe, rusqlite::Error> {
         let id = row.get(0)?;
         let name = row.get(1)?;
-        let ingredients = ingredients::get(&self.connection, &id)?;
+        let ingredients = ingredients::get(connection, &id)?;
         Ok(Recipe {
             id,
             body: RecipeBody { name, ingredients },
@@ -34,9 +36,9 @@ impl<'a> Repository for RecipeDB<'a> {
 }
 
 impl<'a> RecipeRepository for RecipeDB<'a> {
-    fn insert(&mut self, body: &RecipeBody) -> Result<RecipeID, DBError> {
+    fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError> {
         let query = "INSERT INTO recipes(name) VALUES (?1)";
-        let transaction = self.connection.transaction()?;
+        let transaction = self.connection.unchecked_transaction()?;
         transaction.execute(query, (&body.name,))?;
 
         let recipe = RecipeID(transaction.last_insert_rowid());
@@ -48,9 +50,9 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
         Ok(recipe)
     }
 
-    fn update(&mut self, recipe: &Recipe) -> Result<(), DBError> {
+    fn update(&self, recipe: &Recipe) -> Result<(), DBError> {
         let query = "UPDATE recipes SET name=?2 WHERE id=?1";
-        let transaction = self.connection.transaction()?;
+        let transaction = self.connection.unchecked_transaction()?;
         transaction.execute(query, (recipe.id, &recipe.body.name))?;
 
         ingredients::delete(&transaction, &recipe.id)?;
@@ -71,7 +73,7 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
     fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError> {
         let query = "SELECT * FROM recipes";
         let mut stmt = self.connection.prepare(query).expect("Query must be valid");
-        let rows = stmt.query_map([], |row| self.from_db(row))?;
+        let rows = stmt.query_map([], |row| RecipeDB::from_db(self.connection, row))?;
         Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
             match row {
                 Ok(recipe) => acc.insert(recipe.id, recipe.body),
