@@ -10,7 +10,6 @@ use crate::{
 };
 
 pub mod category;
-pub mod graph;
 pub mod ingredients;
 pub mod item;
 pub mod mapping;
@@ -44,24 +43,21 @@ pub trait ItemMappingRepository: Repository {
     fn delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
 }
 pub trait CategoryRepository: Repository {
-    fn graph(&self) -> impl GraphRepository;
     fn mapping(&self) -> impl ItemMappingRepository;
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError>;
     fn update(&self, category: &Category) -> Result<(), DBError>;
     fn delete(&self, category: CategoryID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError>;
     fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
+
+    fn get_graph(&self) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, DBError>;
+    fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
+    fn delete_node(&self, node: CategoryID) -> Result<(), DBError>;
+    fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
 }
 pub trait RecipeRepository: Repository {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;
     fn update(&self, item: &Recipe) -> Result<(), DBError>;
     fn delete(&self, item: RecipeID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError>;
-}
-
-pub trait GraphRepository: Repository {
-    fn get(&self) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, DBError>;
-    fn insert(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
-    fn delete_node(&self, node: CategoryID) -> Result<(), DBError>;
-    fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
 }
