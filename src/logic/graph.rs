@@ -45,7 +45,8 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
     pub fn get_edges(&self, vertex: &T) -> Option<HashSet<T>> {
         self.graph.get(vertex).map(|set| set.clone())
     }
-    pub fn remove(&mut self, vertex: T) -> Option<Vec<(T, T)>> {
+    //TODO: for DB changes, will need to split change detection and actual removal
+    pub fn remove(&mut self, vertex: T, patch: Option<Vec<(T, T)>>) -> Option<Vec<(T, T)>> {
         let Some(child_verticies) = self.graph.remove(&vertex) else {
             return None;
         };
@@ -64,6 +65,12 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         }
         Some(new_edges)
     }
+    pub fn get_removal_patch(&self, vertex: &T) -> Option<Vec<(T, T)>> {
+        let Some(child_verticies) = self.get_edges(&vertex) else {
+            return None;
+        };
+        todo!();
+    }
     pub fn remove_edge(&mut self, parent: &T, child: &T) {
         let Some(mut child_set) = self.get_edges(parent) else {
             return;
@@ -72,6 +79,7 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         let slot = self.graph.get_mut(parent).expect("Already got set");
         *slot = child_set;
     }
+
     pub fn is_parent_of(&self, parent_vertex: &T, child_vertex: &T) -> bool {
         if parent_vertex == child_vertex {
             return true;
@@ -115,17 +123,31 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         }
         let mut set_of_ancestors = HashSet::new();
         let mut to_process = Vec::from([*child]);
-        while !to_process.is_empty() {
-            let current_ancestor = to_process.pop().expect("Is not empty");
-            for (node, children) in self.graph.iter() {
-                if children.contains(&current_ancestor) && !set_of_ancestors.contains(node) {
-                    set_of_ancestors.insert(*node);
-                    to_process.push(*node);
-                }
+        while let Some(current_ancestor) = to_process.pop() {
+            if let Some(next_ancestors) = self.get_immediate_ancestors(&current_ancestor) {
+                let unvisited_next: HashSet<T> = next_ancestors
+                    .into_iter()
+                    .filter(|ancestor| !set_of_ancestors.contains(ancestor))
+                    .collect();
+                to_process.extend(unvisited_next);
             }
+            set_of_ancestors.insert(current_ancestor);
         }
 
         Some(set_of_ancestors)
+    }
+    pub fn get_immediate_ancestors(&self, child: &T) -> Option<HashSet<T>> {
+        if !self.contains_vertex(child) {
+            return None;
+        }
+        let mut ancestors = HashSet::new();
+        for (node, edges) in self.graph.iter() {
+            if edges.contains(child) {
+                ancestors.insert(*node);
+            }
+        }
+
+        Some(ancestors)
     }
     pub fn get_non_cyclic_additions(&self, search_vertex: &T) -> Option<HashSet<T>> {
         if !self.contains_vertex(search_vertex) {

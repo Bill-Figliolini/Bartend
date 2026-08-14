@@ -127,22 +127,17 @@ impl CategoryService {
             Err(e) => panic!("{e}"),
         }
     }
+    //TODO: Need to fix for potiental error cases on db fail
     pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
-        self.categories.remove(&category);
-        let new_edges = self.graph.remove(category);
+        let patch = self.graph.get_removal_patch(&category);
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }
-        if let Err(e) = db.delete_node(category) {
+        if let Err(e) = db.delete_node(category, &patch) {
             panic!("{e}")
         }
-        if let Some(new_edges) = new_edges {
-            for (parent, child) in new_edges {
-                if let Err(e) = db.insert_relation(parent, child) {
-                    panic!("{e}");
-                }
-            }
-        }
+        self.categories.remove(&category);
+        self.graph.remove(category, patch);
     }
     pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {

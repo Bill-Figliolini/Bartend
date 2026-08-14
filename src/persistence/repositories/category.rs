@@ -105,7 +105,11 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         Ok(())
     }
 
-    fn delete_node(&self, node: CategoryID) -> Result<(), DBError> {
+    fn delete_node(
+        &self,
+        node: CategoryID,
+        patch: &Option<Vec<(CategoryID, CategoryID)>>,
+    ) -> Result<(), DBError> {
         let query = "DELETE FROM graph WHERE parent_id=?1 OR child_id=?1";
         self.connection.execute(query, (node,))?;
         Ok(())

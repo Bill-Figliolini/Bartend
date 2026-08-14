@@ -39,7 +39,11 @@ pub trait CategoryRepository {
 
     fn get_graph(&self) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, DBError>;
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
-    fn delete_node(&self, node: CategoryID) -> Result<(), DBError>;
+    fn delete_node(
+        &self,
+        node: CategoryID,
+        patch: &Option<Vec<(CategoryID, CategoryID)>>,
+    ) -> Result<(), DBError>;
     fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
     fn map_insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
     fn map_delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
