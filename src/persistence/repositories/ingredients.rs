@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Transaction};
+use rusqlite::Connection;
 
 use crate::{
     models::{Ingredient, Quantity, RecipeID},
@@ -19,7 +19,7 @@ pub(super) fn schema() -> &'static str {
 }
 
 pub(super) fn insert(
-    transaction: &Transaction,
+    transaction: &Connection,
     recipe: &RecipeID,
     index: &usize,
     ingredient: &Ingredient,
