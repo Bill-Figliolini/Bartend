@@ -48,12 +48,12 @@ impl Command {
         match self {
             Command::AddRecipe(body) => {
                 ctx.recipe_service
-                    .add(&mut ctx.bar_collection.db.recipe_db(), body);
+                    .add(&ctx.bar_collection.db.recipe_db(), body);
                 Task::done(application::Message::ReloadScreen)
             }
             Command::UpdateRecipe(recipe) => {
                 ctx.recipe_service
-                    .update(&mut ctx.bar_collection.db.recipe_db(), recipe);
+                    .update(&ctx.bar_collection.db.recipe_db(), recipe);
                 Task::done(application::Message::ReloadScreen)
             }
         }

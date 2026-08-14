@@ -32,7 +32,7 @@ impl<'a> Database {
     }
     pub fn new(connection: Connection) -> Result<Self, DBError> {
         connection.pragma_update(None, "foreign_keys", "ON")?;
-        let mut db = Self { connection };
+        let db = Self { connection };
         db.item_db().create_table()?;
         db.category_db().create_table()?;
         db.recipe_db().create_table()?;
@@ -51,9 +51,9 @@ impl<'a> Database {
         }
     }
     #[must_use]
-    pub fn recipe_db(&'a mut self) -> RecipeDB<'a> {
+    pub fn recipe_db(&'a self) -> RecipeDB<'a> {
         RecipeDB {
-            connection: &mut self.connection,
+            connection: &self.connection,
         }
     }
 }
