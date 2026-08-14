@@ -25,7 +25,7 @@ impl<'a> CategoryDB<'a> {
     pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
         let category_schema = "CREATE TABLE IF NOT EXISTS category(
                 id INTEGER PRIMARY KEY,
-                name STRING NOT NULL
+                name TEXT NOT NULL
             );";
         self.connection.execute(category_schema, ())?;
         let graph_schema = "CREATE TABLE IF NOT EXISTS graph(
