@@ -12,7 +12,6 @@ use crate::{
 pub mod category;
 pub mod ingredients;
 pub mod item;
-pub mod mapping;
 pub mod recipe;
 
 pub struct ItemDB<'a> {
@@ -22,9 +21,6 @@ pub struct CategoryDB<'a> {
     pub(super) connection: &'a Connection,
 }
 pub struct RecipeDB<'a> {
-    pub(super) connection: &'a Connection,
-}
-pub struct ItemMappingDB<'a> {
     pub(super) connection: &'a Connection,
 }
 pub trait Repository {
@@ -37,13 +33,7 @@ pub trait ItemRepository: Repository {
     fn delete(&self, item: ItemID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<ItemID, ItemBody>, DBError>;
 }
-pub trait ItemMappingRepository: Repository {
-    fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
-    fn insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
-    fn delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
-}
 pub trait CategoryRepository: Repository {
-    fn mapping(&self) -> impl ItemMappingRepository;
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError>;
     fn update(&self, category: &Category) -> Result<(), DBError>;
     fn delete(&self, category: CategoryID) -> Result<(), DBError>;
@@ -54,6 +44,8 @@ pub trait CategoryRepository: Repository {
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
     fn delete_node(&self, node: CategoryID) -> Result<(), DBError>;
     fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
+    fn map_insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
+    fn map_delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
 }
 pub trait RecipeRepository: Repository {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     logic::{LogicError, graph::DirectedAcyclicGraph},
     models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
-    persistence::repositories::{CategoryRepository, ItemMappingRepository},
+    persistence::repositories::CategoryRepository,
 };
 
 #[derive(Debug)]
@@ -163,8 +163,7 @@ impl CategoryService {
         item: &ItemID,
         category: &CategoryID,
     ) {
-        let db = db.mapping();
-        if let Err(e) = db.insert(item, category) {
+        if let Err(e) = db.map_insert(item, category) {
             panic!("{e}");
         }
         self.item_mapping.insert(*item, *category);
@@ -175,7 +174,6 @@ impl CategoryService {
         item: &ItemID,
         category: &Option<CategoryID>,
     ) {
-        let map_db = db.mapping();
         let mut old_category = self.item_category(item);
         match (old_category.take(), category) {
             (None, Some(new)) => {
@@ -183,15 +181,15 @@ impl CategoryService {
             }
             (Some(old), None) => {
                 self.item_mapping.remove(item);
-                if let Err(e) = map_db.delete(item, &old) {
+                if let Err(e) = db.map_delete(item, &old) {
                     panic!("{e}");
                 }
             }
             (Some(old), Some(new)) => {
-                if let Err(e) = map_db.delete(item, &old) {
+                if let Err(e) = db.map_delete(item, &old) {
                     panic!("{e}");
                 }
-                if let Err(e) = map_db.insert(item, &new) {
+                if let Err(e) = db.map_insert(item, &new) {
                     panic!("{e}");
                 }
                 let old_mapping = self.item_mapping.get_mut(item).unwrap();
@@ -247,7 +245,6 @@ mod tests {
     struct TestDB {
         counter: i64,
     }
-    struct TestMapDB {}
     impl TestDB {
         fn new() -> Self {
             Self { counter: 30 }
@@ -257,9 +254,6 @@ mod tests {
         }
         fn _update(&mut self) {
             self.counter += 1;
-        }
-        fn mapping_db(&self) -> TestMapDB {
-            TestMapDB {}
         }
     }
     impl Repository for TestDB {
@@ -295,9 +289,6 @@ mod tests {
             }
             Ok(result)
         }
-        fn mapping(&self) -> impl ItemMappingRepository {
-            self.mapping_db()
-        }
         fn get_graph(
             &self,
         ) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, crate::persistence::DBError> {
@@ -324,21 +315,10 @@ mod tests {
             Ok(())
         }
         fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
-            self.mapping().get_map()
-        }
-    }
-    impl Repository for TestMapDB {
-        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
-            Ok(())
-        }
-    }
-    impl ItemMappingRepository for TestMapDB {
-        fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
             let map = HashMap::new();
             Ok(map)
         }
-
-        fn insert(
+        fn map_insert(
             &self,
             _item: &ItemID,
             _category: &CategoryID,
@@ -346,7 +326,7 @@ mod tests {
             Ok(())
         }
 
-        fn delete(
+        fn map_delete(
             &self,
             _item: &ItemID,
             _category: &CategoryID,
