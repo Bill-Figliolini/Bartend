@@ -85,10 +85,7 @@ impl ItemService {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        models::{Quantity, Unit},
-        persistence::repositories::Repository,
-    };
+    use crate::models::{Quantity, Unit};
 
     use super::*;
 
@@ -98,11 +95,6 @@ mod tests {
     impl TestDB {
         fn new() -> Self {
             Self { counter: 30 }
-        }
-    }
-    impl Repository for TestDB {
-        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
-            Ok(())
         }
     }
     impl ItemRepository for TestDB {

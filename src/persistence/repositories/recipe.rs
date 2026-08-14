@@ -6,7 +6,7 @@ use crate::{
     models::{Recipe, RecipeBody, RecipeID},
     persistence::{
         DBError,
-        repositories::{RecipeDB, RecipeRepository, Repository, ingredients},
+        repositories::{RecipeDB, RecipeRepository, ingredients},
     },
 };
 
@@ -22,8 +22,8 @@ impl<'a> RecipeDB<'a> {
     }
 }
 
-impl<'a> Repository for RecipeDB<'a> {
-    fn create_table(&self) -> Result<(), DBError> {
+impl<'a> RecipeDB<'a> {
+    pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
         let query = "CREATE TABLE IF NOT EXISTS recipes(
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL

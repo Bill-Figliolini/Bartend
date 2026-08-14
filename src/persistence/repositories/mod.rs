@@ -23,17 +23,14 @@ pub struct CategoryDB<'a> {
 pub struct RecipeDB<'a> {
     pub(super) connection: &'a Connection,
 }
-pub trait Repository {
-    fn create_table(&self) -> Result<(), DBError>;
-}
 
-pub trait ItemRepository: Repository {
+pub trait ItemRepository {
     fn insert(&self, body: &ItemBody) -> Result<ItemID, DBError>;
     fn update(&self, item: &Item) -> Result<(), DBError>;
     fn delete(&self, item: ItemID) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<ItemID, ItemBody>, DBError>;
 }
-pub trait CategoryRepository: Repository {
+pub trait CategoryRepository {
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError>;
     fn update(&self, category: &Category) -> Result<(), DBError>;
     fn delete(&self, category: CategoryID) -> Result<(), DBError>;
@@ -47,7 +44,7 @@ pub trait CategoryRepository: Repository {
     fn map_insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
     fn map_delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
 }
-pub trait RecipeRepository: Repository {
+pub trait RecipeRepository {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;
     fn update(&self, item: &Recipe) -> Result<(), DBError>;
     fn delete(&self, item: RecipeID) -> Result<(), DBError>;

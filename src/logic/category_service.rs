@@ -238,8 +238,6 @@ impl CategoryService {
 
 #[cfg(test)]
 mod tests {
-    use crate::persistence::repositories::Repository;
-
     use super::*;
 
     struct TestDB {
@@ -254,11 +252,6 @@ mod tests {
         }
         fn _update(&mut self) {
             self.counter += 1;
-        }
-    }
-    impl Repository for TestDB {
-        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
-            Ok(())
         }
     }
     impl CategoryRepository for TestDB {

@@ -6,7 +6,7 @@ use rusqlite::{Connection, ToSql, types::FromSql};
 
 use crate::{
     models::{CategoryID, ItemID, RecipeID},
-    persistence::repositories::{CategoryDB, ItemDB, RecipeDB, Repository},
+    persistence::repositories::{CategoryDB, ItemDB, RecipeDB},
 };
 
 #[derive(Debug)]
@@ -22,7 +22,7 @@ impl From<rusqlite::Error> for DBError {
 
 #[derive(Debug)]
 pub struct Database {
-    pub connection: Connection,
+    pub(in crate::persistence) connection: Connection,
 }
 
 impl<'a> Database {

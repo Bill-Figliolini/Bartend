@@ -4,10 +4,7 @@ use rusqlite::Row;
 
 use crate::{
     models::{Item, ItemBody, ItemID, Quantity},
-    persistence::{
-        DBError, ItemDB,
-        repositories::{ItemRepository, Repository},
-    },
+    persistence::{DBError, ItemDB, repositories::ItemRepository},
 };
 
 impl<'a> ItemDB<'a> {
@@ -22,8 +19,8 @@ impl<'a> ItemDB<'a> {
     }
 }
 
-impl<'a> Repository for ItemDB<'a> {
-    fn create_table(&self) -> Result<(), DBError> {
+impl<'a> ItemDB<'a> {
+    pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
         let query = "CREATE TABLE IF NOT EXISTS items(
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,

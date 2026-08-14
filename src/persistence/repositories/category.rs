@@ -6,7 +6,7 @@ use crate::{
     models::{Category, CategoryBody, CategoryID, ItemID},
     persistence::{
         DBError,
-        repositories::{CategoryDB, CategoryRepository, Repository},
+        repositories::{CategoryDB, CategoryRepository},
     },
 };
 
@@ -21,8 +21,8 @@ impl<'a> CategoryDB<'a> {
     }
 }
 
-impl<'a> Repository for CategoryDB<'a> {
-    fn create_table(&self) -> Result<(), DBError> {
+impl<'a> CategoryDB<'a> {
+    pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
         let category_schema = "CREATE TABLE IF NOT EXISTS category(
                 id INTEGER PRIMARY KEY,
                 name STRING NOT NULL
