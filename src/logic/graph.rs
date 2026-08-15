@@ -12,6 +12,13 @@ pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash + PartialEq> {
     graph: HashMap<T, HashSet<T>>,
 }
 #[derive(Debug)]
+pub(super) struct GraphPatch<T: Copy + Eq + Hash + PartialEq> {
+    pub to_remove: T,
+    pub parents: Option<HashSet<T>>,
+    pub children: Option<HashSet<T>>,
+}
+
+#[derive(Debug)]
 pub enum GraphError {
     EdgeEndpointNotInGraph,
     WouldIntroduceCycle,
@@ -46,30 +53,28 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         self.graph.get(vertex).map(|set| set.clone())
     }
     //TODO: for DB changes, will need to split change detection and actual removal
-    pub fn remove(&mut self, vertex: T, patch: Option<Vec<(T, T)>>) -> Option<Vec<(T, T)>> {
-        let Some(child_verticies) = self.graph.remove(&vertex) else {
-            return None;
-        };
-        let mut new_edges = Vec::new();
-        for (parent_vertex, adj_set) in self.graph.iter_mut() {
-            if adj_set.remove(&vertex) {
-                adj_set.extend(child_verticies.clone());
-                new_edges.extend(child_verticies.iter().fold(
-                    Vec::with_capacity(child_verticies.len()),
-                    |mut acc, child| {
-                        acc.push((*parent_vertex, *child));
-                        acc
-                    },
-                ));
+    pub fn remove(&mut self, patch: GraphPatch<T>) {
+        if let Some(parents) = patch.parents {
+            for parent in parents.iter() {
+                self.graph.entry(*parent).and_modify(|children| {
+                    children.remove(&patch.to_remove);
+                });
+            }
+            if let Some(added_children) = patch.children {
+                for parent in parents {
+                    self.graph.entry(parent).and_modify(|children| {
+                        children.extend(added_children.clone());
+                    });
+                }
             }
         }
-        Some(new_edges)
     }
-    pub fn get_removal_patch(&self, vertex: &T) -> Option<Vec<(T, T)>> {
-        let Some(child_verticies) = self.get_edges(&vertex) else {
-            return None;
-        };
-        todo!();
+    pub fn get_removal_patch(&self, vertex: &T) -> GraphPatch<T> {
+        GraphPatch {
+            to_remove: *vertex,
+            parents: self.get_immediate_ancestors(vertex),
+            children: self.get_edges(vertex),
+        }
     }
     pub fn remove_edge(&mut self, parent: &T, child: &T) {
         let Some(mut child_set) = self.get_edges(parent) else {
