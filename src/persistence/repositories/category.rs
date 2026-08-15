@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use rusqlite::Row;
+use rusqlite::{Connection, Row};
 
 use crate::{
+    logic::GraphPatch,
     models::{Category, CategoryBody, CategoryID, ItemID},
     persistence::{
         DBError,
@@ -18,6 +19,15 @@ impl<'a> CategoryDB<'a> {
             id,
             body: CategoryBody { name },
         })
+    }
+    fn internal_relation_insert(
+        connection: &Connection,
+        parent: &CategoryID,
+        child: &CategoryID,
+    ) -> Result<(), DBError> {
+        let query = "INSERT INTO graph(parent_id, child_id) VALUES (?1, ?2);";
+        connection.execute(query, (parent, child))?;
+        Ok(())
     }
 }
 
@@ -100,18 +110,23 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
     }
 
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError> {
-        let query = "INSERT INTO graph(parent_id, child_id) VALUES (?1, ?2);";
-        self.connection.execute(query, (parent, child))?;
-        Ok(())
+        CategoryDB::internal_relation_insert(self.connection, &parent, &child)
     }
 
-    fn delete_node(
-        &self,
-        node: CategoryID,
-        patch: &Option<Vec<(CategoryID, CategoryID)>>,
-    ) -> Result<(), DBError> {
+    fn delete_node(&self, patch: &GraphPatch<CategoryID>) -> Result<(), DBError> {
         let query = "DELETE FROM graph WHERE parent_id=?1 OR child_id=?1";
-        self.connection.execute(query, (node,))?;
+        let transaction = self.connection.unchecked_transaction()?;
+        transaction.execute(query, (patch.to_remove,))?;
+        if let Some(ref children) = patch.children {
+            if let Some(ref parents) = patch.parents {
+                for parent in parents {
+                    for child in children {
+                        CategoryDB::internal_relation_insert(&transaction, &parent, &child)?
+                    }
+                }
+            }
+        }
+        transaction.commit()?;
         Ok(())
     }
 
@@ -375,8 +390,13 @@ mod tests {
                 for i in 0..length {
                     assert!(*&inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
                 }
+                let patch = GraphPatch {
+                    to_remove: ids[2],
+                    parents: Some(HashSet::from([ids[1]])),
+                    children: Some(HashSet::from([ids[3]])),
+                };
 
-                let delete_result = db.category_db().delete_node(ids[2]);
+                let delete_result = db.category_db().delete_node(&patch);
                 assert!(delete_result.is_ok());
 
                 let after_edges = db.category_db().get_graph().unwrap();

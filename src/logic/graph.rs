@@ -12,7 +12,7 @@ pub(super) struct DirectedAcyclicGraph<T: Copy + Eq + Hash + PartialEq> {
     graph: HashMap<T, HashSet<T>>,
 }
 #[derive(Debug)]
-pub(super) struct GraphPatch<T: Copy + Eq + Hash + PartialEq> {
+pub struct GraphPatch<T: Copy + Eq + Hash + PartialEq> {
     pub to_remove: T,
     pub parents: Option<HashSet<T>>,
     pub children: Option<HashSet<T>>,
@@ -24,7 +24,7 @@ pub enum GraphError {
     WouldIntroduceCycle,
 }
 
-impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
+impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
     pub fn _new() -> Self {
         Self {
             graph: HashMap::new(),
@@ -54,6 +54,7 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
     }
     //TODO: for DB changes, will need to split change detection and actual removal
     pub fn remove(&mut self, patch: GraphPatch<T>) {
+        self.graph.remove(&patch.to_remove);
         if let Some(parents) = patch.parents {
             for parent in parents.iter() {
                 self.graph.entry(*parent).and_modify(|children| {
@@ -70,11 +71,13 @@ impl<T: Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> {
         }
     }
     pub fn get_removal_patch(&self, vertex: &T) -> GraphPatch<T> {
-        GraphPatch {
+        let patch = GraphPatch {
             to_remove: *vertex,
             parents: self.get_immediate_ancestors(vertex),
             children: self.get_edges(vertex),
-        }
+        };
+        eprintln!("{patch:?}");
+        patch
     }
     pub fn remove_edge(&mut self, parent: &T, child: &T) {
         let Some(mut child_set) = self.get_edges(parent) else {
@@ -191,20 +194,14 @@ mod tests {
             graph.insert_vertex(1);
             graph.insert_vertex(2);
             graph.insert_vertex(3);
+            graph.insert_vertex(4);
+            graph.insert_vertex(5);
             graph.insert_edge(&1, &2).unwrap();
             graph.insert_edge(&2, &3).unwrap();
+            graph.insert_edge(&1, &4).unwrap();
+            graph.insert_edge(&4, &5).unwrap();
 
             graph
-        }
-        #[test]
-        fn removing_results_in_lower_members_being_moved() {
-            let mut graph = get_graph();
-            eprintln!("{:?}", graph);
-
-            graph.remove(2);
-
-            assert!(!graph.contains_vertex(&2));
-            assert_eq!(graph.get_edges(&1).unwrap(), HashSet::from([3]));
         }
         #[test]
         fn cycles_not_allowed_at_insertion() {
@@ -238,6 +235,58 @@ mod tests {
             let result = graph.get_ancestors(&25);
 
             assert!(result.is_none())
+        }
+    }
+    mod removal_relation_maintenance {
+        use super::*;
+
+        fn get_graph() -> DirectedAcyclicGraph<u32> {
+            let mut graph = DirectedAcyclicGraph::_new();
+            graph.insert_vertex(1);
+            graph.insert_vertex(2);
+            graph.insert_vertex(3);
+            graph.insert_vertex(4);
+            graph.insert_vertex(5);
+            graph.insert_edge(&1, &2).unwrap();
+            graph.insert_edge(&2, &3).unwrap();
+            graph.insert_edge(&1, &4).unwrap();
+            graph.insert_edge(&4, &5).unwrap();
+
+            graph
+        }
+        #[test]
+        fn removing_results_in_lower_members_being_moved() {
+            let mut graph = get_graph();
+
+            let patch = graph.get_removal_patch(&2);
+            graph.remove(patch);
+
+            assert!(!graph.contains_vertex(&2));
+            assert_eq!(graph.get_edges(&1).unwrap(), HashSet::from([3, 4]));
+        }
+        #[test]
+        fn removing_topmost_results_separate_trees() {
+            let mut graph = get_graph();
+
+            let patch = graph.get_removal_patch(&1);
+            graph.remove(patch);
+
+            assert!(!graph.contains_vertex(&1));
+            assert_eq!(graph.get_all_children(&2).unwrap(), HashSet::from([3]));
+            assert_eq!(graph.get_all_children(&4).unwrap(), HashSet::from([5]));
+        }
+        #[test]
+        fn removing_bottomost_results_no_other_changes() {
+            let mut graph = get_graph();
+
+            let patch = graph.get_removal_patch(&5);
+            graph.remove(patch);
+
+            assert!(!graph.contains_vertex(&5));
+            assert_eq!(
+                graph.get_all_children(&1).unwrap(),
+                HashSet::from([2, 3, 4])
+            );
         }
     }
     mod get_all_children {

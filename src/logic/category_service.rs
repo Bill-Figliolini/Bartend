@@ -133,11 +133,11 @@ impl CategoryService {
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }
-        if let Err(e) = db.delete_node(category, &patch) {
+        if let Err(e) = db.delete_node(&patch) {
             panic!("{e}")
         }
         self.categories.remove(&category);
-        self.graph.remove(category, patch);
+        self.graph.remove(patch);
     }
     pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
@@ -233,6 +233,8 @@ impl CategoryService {
 
 #[cfg(test)]
 mod tests {
+    use crate::logic::GraphPatch;
+
     use super::*;
 
     struct TestDB {
@@ -291,7 +293,10 @@ mod tests {
             Ok(())
         }
 
-        fn delete_node(&self, _node: CategoryID) -> Result<(), crate::persistence::DBError> {
+        fn delete_node(
+            &self,
+            _patch: &GraphPatch<CategoryID>,
+        ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }
 

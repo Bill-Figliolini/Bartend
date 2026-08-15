@@ -8,7 +8,8 @@ use std::path::Path;
 use crate::{models::CategoryID, persistence::Database};
 
 pub use self::{
-    category_service::CategoryService, item_service::ItemService, recipe_service::RecipeService,
+    category_service::CategoryService, graph::GraphPatch, item_service::ItemService,
+    recipe_service::RecipeService,
 };
 
 ///Boundary with presentation module.
