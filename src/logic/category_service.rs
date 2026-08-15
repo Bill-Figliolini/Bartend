@@ -184,7 +184,7 @@ impl CategoryService {
                 if let Err(e) = db.map_delete(item, &old) {
                     panic!("{e}");
                 }
-                if let Err(e) = db.map_insert(item, &new) {
+                if let Err(e) = db.map_insert(item, new) {
                     panic!("{e}");
                 }
                 let old_mapping = self.item_mapping.get_mut(item).unwrap();
@@ -199,7 +199,7 @@ impl CategoryService {
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), LogicError> {
-        if let Err(_) = self.graph.insert_edge(parent, child) {
+        if self.graph.insert_edge(parent, child).is_err() {
             Err(LogicError::InvalidCategoryRelation {
                 parent: *parent,
                 child: *child,
@@ -224,10 +224,9 @@ impl CategoryService {
         };
     }
     pub fn valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
-        match self.graph.get_non_cyclic_additions(category) {
-            Some(candidates) => candidates,
-            None => HashSet::new(),
-        }
+        self.graph
+            .get_non_cyclic_additions(category)
+            .unwrap_or_default()
     }
 }
 

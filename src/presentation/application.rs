@@ -79,7 +79,7 @@ impl Bartend {
         let bar_collection = BarCollection::new(config.db_path());
         let item_service = ItemService::new(&bar_collection.db.item_db());
         let category_service = CategoryService::new(&bar_collection.db.category_db());
-        let recipe_service = RecipeService::new(&mut bar_collection.db.recipe_db());
+        let recipe_service = RecipeService::new(&bar_collection.db.recipe_db());
         let screen = Screen::start(&config, &category_service);
 
         Self {

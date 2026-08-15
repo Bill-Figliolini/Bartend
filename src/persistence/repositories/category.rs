@@ -99,9 +99,7 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
                 Ok((parent_id, child_id)) => {
                     let parent_entry = acc.entry(parent_id).or_default();
                     parent_entry.insert(child_id);
-                    if !acc.contains_key(&child_id) {
-                        acc.insert(child_id, HashSet::new());
-                    }
+                    acc.entry(child_id).or_insert_with(|| HashSet::new());
                 }
                 Err(e) => panic!("{}", e),
             }
@@ -117,12 +115,12 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         let query = "DELETE FROM graph WHERE parent_id=?1 OR child_id=?1";
         let transaction = self.connection.unchecked_transaction()?;
         transaction.execute(query, (patch.to_remove,))?;
-        if let Some(ref children) = patch.children {
-            if let Some(ref parents) = patch.parents {
-                for parent in parents {
-                    for child in children {
-                        CategoryDB::internal_relation_insert(&transaction, &parent, &child)?
-                    }
+        if let Some(ref children) = patch.children
+            && let Some(ref parents) = patch.parents
+        {
+            for parent in parents {
+                for child in children {
+                    CategoryDB::internal_relation_insert(&transaction, parent, child)?
                 }
             }
         }

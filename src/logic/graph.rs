@@ -50,7 +50,7 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
         Ok(())
     }
     pub fn get_edges(&self, vertex: &T) -> Option<HashSet<T>> {
-        self.graph.get(vertex).map(|set| set.clone())
+        self.graph.get(vertex).cloned()
     }
     //TODO: for DB changes, will need to split change detection and actual removal
     pub fn remove(&mut self, patch: GraphPatch<T>) {
