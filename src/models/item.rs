@@ -19,7 +19,7 @@ pub struct Item {
     pub body: ItemBody,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ItemBody {
     pub name: String,
     pub quantity: Quantity,
@@ -36,12 +36,6 @@ impl Item {}
 impl PartialEq for Item {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
-    }
-}
-
-impl PartialEq for ItemBody {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.quantity == other.quantity
     }
 }
 

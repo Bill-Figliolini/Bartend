@@ -7,7 +7,7 @@ pub struct Category {
     pub id: CategoryID,
     pub body: CategoryBody,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CategoryBody {
     pub name: String,
 }
@@ -28,12 +28,6 @@ impl PartialEq for Category {
 impl Display for CategoryID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl PartialEq for CategoryBody {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
     }
 }
 
