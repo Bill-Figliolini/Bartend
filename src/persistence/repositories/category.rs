@@ -179,12 +179,14 @@ mod tests {
         let database = Database {
             connection: Connection::open_in_memory().unwrap(),
         };
-        let table_name = "category";
+        let table_names = vec!["category", "graph", "category_item"];
 
         let result = database.category_db().create_table();
 
         assert!(result.is_ok());
-        assert!(database.connection.table_exists(None, table_name).unwrap())
+        for table in table_names {
+            assert!(database.connection.table_exists(None, table).unwrap())
+        }
     }
     mod category {
         use super::*;

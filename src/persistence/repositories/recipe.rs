@@ -80,3 +80,29 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
         Ok(recipes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use crate::persistence::Database;
+
+    fn db_init() -> Database {
+        Database::new(Connection::open_in_memory().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn table_created_successfully() {
+        let database = Database {
+            connection: Connection::open_in_memory().unwrap(),
+        };
+        let table_names = vec!["recipes", "ingredients"];
+
+        let result = database.recipe_db().create_table();
+
+        assert!(result.is_ok());
+        for table in table_names {
+            assert!(database.connection.table_exists(None, table).unwrap())
+        }
+    }
+}
