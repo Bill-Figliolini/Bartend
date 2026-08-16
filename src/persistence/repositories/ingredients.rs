@@ -39,6 +39,7 @@ pub(super) fn delete(connection: &Connection, recipe: &RecipeID) -> Result<(), D
     Ok(())
 }
 
+//Needs to return ruslite::Error to meet the implementation of query_map
 pub(super) fn get(
     connection: &Connection,
     recipe: &RecipeID,
@@ -47,15 +48,13 @@ pub(super) fn get(
             .prepare(
                 "SELECT category_id, quantity, unit FROM ingredients WHERE recipe_id = ?1 ORDER BY ingredient_index;",
             )?;
-    let rows = stmt
-        .query_map((*recipe,), |row| {
-            let category = row.get(0)?;
-            let quantity = Quantity::from_db(row.get(2)?, row.get(1)?);
-            Ok(Ingredient { category, quantity })
-        })
-        .unwrap();
-    Ok(rows.into_iter().fold(Vec::new(), |mut acc, ingredient| {
-        acc.push(ingredient.unwrap());
-        acc
-    }))
+    let rows = stmt.query_map((*recipe,), |row| {
+        let category = row.get(0)?;
+        let quantity = Quantity::from_db(row.get(2)?, row.get(1)?);
+        Ok(Ingredient { category, quantity })
+    })?;
+    let rows = rows
+        .into_iter()
+        .collect::<Result<Vec<Ingredient>, rusqlite::Error>>()?;
+    Ok(rows)
 }
