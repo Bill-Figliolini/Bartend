@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use rusqlite::Connection;
+use std::collections::HashMap;
 
 use crate::{
     models::{Recipe, RecipeBody, RecipeID},
@@ -72,14 +71,12 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
 
     fn get_all(&self) -> Result<HashMap<RecipeID, RecipeBody>, DBError> {
         let query = "SELECT * FROM recipes";
-        let mut stmt = self.connection.prepare(query).expect("Query must be valid");
+        let mut stmt = self.connection.prepare(query)?;
         let rows = stmt.query_map([], |row| RecipeDB::from_db(self.connection, row))?;
-        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
-            match row {
-                Ok(recipe) => acc.insert(recipe.id, recipe.body),
-                Err(e) => panic!("Retrieving Recipe failled with error: {e}"),
-            };
-            acc
-        }))
+        let rows: Vec<Recipe> = rows
+            .into_iter()
+            .collect::<Result<Vec<Recipe>, rusqlite::Error>>()?;
+        let recipes = rows.into_iter().map(|row| (row.id, row.body)).collect();
+        Ok(recipes)
     }
 }
