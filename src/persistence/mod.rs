@@ -25,7 +25,7 @@ pub struct Database {
     pub(in crate::persistence) connection: Connection,
 }
 
-impl<'a> Database {
+impl Database {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, DBError> {
         let connection = Connection::open(path)?;
         Database::new(connection)
@@ -39,19 +39,19 @@ impl<'a> Database {
         Ok(db)
     }
     #[must_use]
-    pub fn item_db(&'a self) -> ItemDB<'a> {
+    pub fn item_db(&self) -> ItemDB<'_> {
         ItemDB {
             connection: &self.connection,
         }
     }
     #[must_use]
-    pub fn category_db(&'a self) -> CategoryDB<'a> {
+    pub fn category_db(&self) -> CategoryDB<'_> {
         CategoryDB {
             connection: &self.connection,
         }
     }
     #[must_use]
-    pub fn recipe_db(&'a self) -> RecipeDB<'a> {
+    pub fn recipe_db(&self) -> RecipeDB<'_> {
         RecipeDB {
             connection: &self.connection,
         }
