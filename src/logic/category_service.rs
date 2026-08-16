@@ -127,9 +127,9 @@ impl CategoryService {
             Err(e) => panic!("{e}"),
         }
     }
-    //TODO: Need to fix for potiental error cases on db fail
     pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
         let patch = self.graph.get_removal_patch(&category);
+        //TODO: THis can be further simplified into a single operation.
         if let Err(e) = db.delete(category) {
             panic!("{e}")
         }
