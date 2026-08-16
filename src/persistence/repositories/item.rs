@@ -66,13 +66,11 @@ impl<'a> ItemRepository for ItemDB<'a> {
         let query = "SELECT * FROM items";
         let mut stmt = self.connection.prepare(query)?;
         let rows = stmt.query_map([], ItemDB::from_db)?;
-        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
-            match row {
-                Ok(item) => acc.insert(item.id, item.body),
-                Err(e) => panic!("Retrieving Items failled with error: {e}"),
-            };
-            acc
-        }))
+        let rows = rows
+            .into_iter()
+            .collect::<Result<Vec<Item>, rusqlite::Error>>()?;
+        let items = rows.into_iter().map(|item| (item.id, item.body)).collect();
+        Ok(items)
     }
 }
 
