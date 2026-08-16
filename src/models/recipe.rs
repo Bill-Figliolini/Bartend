@@ -10,7 +10,7 @@ pub struct Recipe {
     pub id: RecipeID,
     pub body: RecipeBody,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RecipeBody {
     pub name: String,
     pub ingredients: Vec<Ingredient>,

@@ -84,10 +84,11 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::random_range;
     use rusqlite::Connection;
 
     use crate::{
-        models::{CategoryBody, CategoryID, Ingredient, Quantity},
+        models::{CategoryBody, CategoryID, CountName::Dash, Ingredient, Quantity},
         persistence::{Database, repositories::CategoryRepository},
     };
 
@@ -106,9 +107,24 @@ mod tests {
     fn create_recipe(categories: &Vec<CategoryID>, name: String) -> RecipeBody {
         let ingredients = categories
             .iter()
-            .map(|id| Ingredient {
-                category: *id,
-                quantity: Quantity::Volume { quantity: 750.0 },
+            .map(|id| {
+                let quantity = match rand::random_range(0..3) {
+                    0 => Quantity::Count {
+                        quantity: random_range(0.0..=750.0),
+                        name: Dash,
+                    },
+                    1 => Quantity::Mass {
+                        quantity: random_range(0.0..=750.0),
+                    },
+                    2 => Quantity::Volume {
+                        quantity: random_range(0.0..=750.0),
+                    },
+                    _ => unreachable!(),
+                };
+                Ingredient {
+                    category: *id,
+                    quantity,
+                }
             })
             .collect();
         RecipeBody { name, ingredients }
@@ -229,9 +245,35 @@ mod tests {
         }
     }
     mod get_all {
+
         use super::*;
         #[test]
-        fn gets_all_in_db() {}
+        fn gets_all_in_db() {
+            let db = db_init();
+            let num_recipes = 100;
+            let mut recipes = Vec::with_capacity(num_recipes);
+            for i in 0..=num_recipes {
+                let ingredient_count: usize = rand::random_range(0..=100);
+                let category_bodies = create_categories(ingredient_count);
+                let category_ids = category_bodies
+                    .iter()
+                    .map(|body| db.category_db().insert(body).unwrap())
+                    .collect();
+                let recipe = create_recipe(&category_ids, format!("Recipe {i}"));
+                let id = db.recipe_db().insert(&recipe).unwrap();
+                recipes.push(Recipe { id, body: recipe });
+            }
+
+            let result = db.recipe_db().get_all();
+            let mut in_db = result.unwrap();
+
+            for recipe in recipes {
+                assert!(in_db.contains_key(&recipe.id));
+                assert_eq!(in_db.get(&recipe.id).unwrap(), &recipe.body);
+                in_db.remove(&recipe.id);
+            }
+            assert!(in_db.is_empty())
+        }
     }
     mod foreign_key_constraints {
         use super::*;
