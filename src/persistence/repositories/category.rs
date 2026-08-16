@@ -93,18 +93,19 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         let query = "SELECT parent_id, child_id FROM graph;";
         let mut stmt = self.connection.prepare(query)?;
         let rows = stmt.query_map([], |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())))?;
-
-        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
-            match row {
-                Ok((parent_id, child_id)) => {
+        let rows = rows
+            .into_iter()
+            .collect::<Result<Vec<(CategoryID, CategoryID)>, rusqlite::Error>>()?;
+        let graph: HashMap<CategoryID, HashSet<CategoryID>> =
+            rows.into_iter()
+                .fold(HashMap::new(), |mut acc, (parent_id, child_id)| {
                     let parent_entry = acc.entry(parent_id).or_default();
                     parent_entry.insert(child_id);
                     acc.entry(child_id).or_insert_with(|| HashSet::new());
-                }
-                Err(e) => panic!("{}", e),
-            }
-            acc
-        }))
+                    acc
+                });
+
+        Ok(graph)
     }
 
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError> {
@@ -139,13 +140,12 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
             .connection
             .prepare("SELECT item_id, category_id FROM category_item;")?;
         let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
-        Ok(rows.into_iter().fold(HashMap::new(), |mut acc, row| {
-            match row {
-                Ok((item_id, category_id)) => acc.insert(item_id, category_id),
-                Err(e) => panic!("error retrieving item mapping: {e}"),
-            };
-            acc
-        }))
+        let map = rows
+            .into_iter()
+            .collect::<Result<Vec<(ItemID, CategoryID)>, rusqlite::Error>>()?
+            .into_iter()
+            .collect();
+        Ok(map)
     }
     fn map_insert(&self, item_id: &ItemID, category_id: &CategoryID) -> Result<(), DBError> {
         self.connection.execute(
