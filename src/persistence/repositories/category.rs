@@ -92,7 +92,7 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
     fn get_graph(&self) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, DBError> {
         let query = "SELECT parent_id, child_id FROM graph;";
         let mut stmt = self.connection.prepare(query)?;
-        let rows = stmt.query_map([], |row| Ok((row.get(0).unwrap(), row.get(1).unwrap())))?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
         let rows = rows
             .into_iter()
             .collect::<Result<Vec<(CategoryID, CategoryID)>, rusqlite::Error>>()?;
