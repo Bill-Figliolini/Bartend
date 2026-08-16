@@ -15,7 +15,7 @@ pub struct RecipeBody {
     pub name: String,
     pub ingredients: Vec<Ingredient>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Ingredient {
     pub category: CategoryID,
     pub quantity: Quantity,

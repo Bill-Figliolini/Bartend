@@ -83,12 +83,44 @@ impl<'a> RecipeRepository for RecipeDB<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use rusqlite::Connection;
 
-    use crate::persistence::Database;
+    use crate::{
+        models::{CategoryBody, CategoryID, Ingredient, Quantity},
+        persistence::{Database, repositories::CategoryRepository},
+    };
 
     fn db_init() -> Database {
         Database::new(Connection::open_in_memory().unwrap()).unwrap()
+    }
+
+    fn create_categories(quantity: usize) -> Vec<CategoryBody> {
+        (0..quantity)
+            .map(|i| CategoryBody {
+                name: format!("Category {i}"),
+            })
+            .collect()
+    }
+
+    fn create_recipe(categories: &Vec<CategoryID>, name: String) -> RecipeBody {
+        let ingredients = categories
+            .iter()
+            .map(|id| Ingredient {
+                category: *id,
+                quantity: Quantity::Volume { quantity: 750.0 },
+            })
+            .collect();
+        RecipeBody { name, ingredients }
+    }
+
+    fn verify_recipe(in_db: &Recipe, input: &RecipeBody) {
+        assert_eq!(in_db.body.name, input.name);
+        for (ingredient_in_db, ingredient_input) in
+            in_db.body.ingredients.iter().zip(input.ingredients.iter())
+        {
+            assert_eq!(ingredient_in_db, ingredient_input)
+        }
     }
 
     #[test]
@@ -104,5 +136,107 @@ mod tests {
         for table in table_names {
             assert!(database.connection.table_exists(None, table).unwrap())
         }
+    }
+    mod insert {
+
+        use super::*;
+
+        #[test]
+        fn inserts_row_into_db() {
+            let db = db_init();
+            let category_bodies = create_categories(5);
+            let category_ids = category_bodies
+                .iter()
+                .map(|body| db.category_db().insert(body).unwrap())
+                .collect();
+            let recipe = create_recipe(&category_ids, "Recipe".to_string());
+
+            let result = db.recipe_db().insert(&recipe);
+
+            assert!(result.is_ok());
+            let recipe_id = result.unwrap();
+            let in_db = db
+                .connection
+                .query_one("SELECT * FROM recipes WHERE id=?1", (recipe_id,), |row| {
+                    RecipeDB::from_db(&db.connection, row)
+                })
+                .unwrap();
+            verify_recipe(&in_db, &recipe);
+        }
+    }
+    mod delete {
+        use rusqlite::OptionalExtension;
+
+        use super::*;
+        #[test]
+        fn removes_from_db() {
+            let db = db_init();
+            let category_bodies = create_categories(5);
+            let category_ids = category_bodies
+                .iter()
+                .map(|body| db.category_db().insert(body).unwrap())
+                .collect();
+            let recipe = create_recipe(&category_ids, "Recipe".to_string());
+            let id = db.recipe_db().insert(&recipe).unwrap();
+
+            let result = db.recipe_db().delete(id);
+
+            assert!(result.is_ok());
+            let in_db = db
+                .connection
+                .query_one("SELECT * FROM recipes WHERE id=?1", (id,), |row| {
+                    RecipeDB::from_db(&db.connection, row)
+                })
+                .optional()
+                .unwrap();
+
+            assert!(in_db.is_none());
+        }
+    }
+    mod update {
+        use super::*;
+
+        #[test]
+        fn updates_in_db() {
+            let db = db_init();
+            let category_bodies = create_categories(5);
+            let category_ids = category_bodies
+                .iter()
+                .map(|body| db.category_db().insert(body).unwrap())
+                .collect();
+            let recipe = create_recipe(&category_ids, "Recipe".to_string());
+            let updated_bodies = create_categories(10);
+            let updated_category_ids = updated_bodies
+                .iter()
+                .map(|body| db.category_db().insert(body).unwrap())
+                .collect();
+            let updated_recipe = create_recipe(&updated_category_ids, "THE BIG ONE".to_string());
+            let id = db.recipe_db().insert(&recipe).unwrap();
+
+            let result = db.recipe_db().update(&Recipe {
+                id,
+                body: updated_recipe.clone(),
+            });
+
+            assert!(result.is_ok());
+            let in_db = db
+                .connection
+                .query_one("SELECT * FROM recipes WHERE id=?1", (id,), |row| {
+                    RecipeDB::from_db(&db.connection, row)
+                })
+                .unwrap();
+            verify_recipe(&in_db, &updated_recipe);
+        }
+    }
+    mod get_all {
+        use super::*;
+        #[test]
+        fn gets_all_in_db() {}
+    }
+    mod foreign_key_constraints {
+        use super::*;
+
+        #[test]
+        fn ingredient_using_category_blocks_deletion() {}
     }
 }
