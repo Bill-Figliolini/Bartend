@@ -407,7 +407,6 @@ mod tests {
             }
         }
     }
-
     mod map {
         use super::*;
         use crate::{
