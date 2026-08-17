@@ -2,21 +2,33 @@ pub mod repositories;
 
 use std::{error::Error, fmt::Display, path::Path};
 
-use rusqlite::{Connection, ToSql, types::FromSql};
+use rusqlite::{
+    Connection,
+    Error::SqliteFailure,
+    ErrorCode::{self, ConstraintViolation},
+    ToSql,
+    types::FromSql,
+};
 
 use crate::{
     models::{CategoryID, ItemID, RecipeID},
     persistence::repositories::{CategoryDB, ItemDB, RecipeDB},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DBError {
+    RestrictViolation,
     External(rusqlite::Error),
 }
 
 impl From<rusqlite::Error> for DBError {
     fn from(value: rusqlite::Error) -> Self {
-        DBError::External(value)
+        match value {
+            SqliteFailure(e, _) if e.code == ErrorCode::ConstraintViolation => {
+                DBError::RestrictViolation
+            }
+            _ => DBError::External(value),
+        }
     }
 }
 
@@ -62,6 +74,7 @@ impl Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DBError::External(error) => write!(f, "External DB Error: {error}"),
+            DBError::RestrictViolation => write!(f, "Attempted to delete Restricted Value"),
         }
     }
 }

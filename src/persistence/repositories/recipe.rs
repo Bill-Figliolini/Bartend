@@ -279,6 +279,20 @@ mod tests {
         use super::*;
 
         #[test]
-        fn ingredient_using_category_blocks_deletion() {}
+        fn ingredient_using_category_blocks_deletion() {
+            let db = db_init();
+            let category_bodies = create_categories(4);
+            let category_ids: Vec<_> = category_bodies
+                .iter()
+                .map(|body| db.category_db().insert(body).unwrap())
+                .collect();
+            let recipe = create_recipe(&category_ids, "Recipe".to_string());
+            let _ = db.recipe_db().insert(&recipe).unwrap();
+
+            let result = db.category_db().delete(category_ids[2]);
+            eprintln!("{result:?}");
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err(), DBError::RestrictViolation);
+        }
     }
 }
