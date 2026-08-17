@@ -7,7 +7,7 @@ pub struct Category {
     pub id: CategoryID,
     pub body: CategoryBody,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CategoryBody {
     pub name: String,
 }

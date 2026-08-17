@@ -2,32 +2,41 @@ pub mod repositories;
 
 use std::{error::Error, fmt::Display, path::Path};
 
-use rusqlite::{Connection, ToSql, types::FromSql};
+use rusqlite::{Connection, Error::SqliteFailure, ErrorCode, ToSql, types::FromSql};
 
 use crate::{
     models::{CategoryID, ItemID, RecipeID},
-    persistence::repositories::{CategoryDB, ItemDB, RecipeDB, Repository},
+    persistence::repositories::{CategoryDB, ItemDB, RecipeDB},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DBError {
+    RestrictViolation,
     External(rusqlite::Error),
 }
 
 impl From<rusqlite::Error> for DBError {
     fn from(value: rusqlite::Error) -> Self {
-        DBError::External(value)
+        match value {
+            SqliteFailure(e, _) if e.code == ErrorCode::ConstraintViolation => {
+                DBError::RestrictViolation
+            }
+            _ => DBError::External(value),
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct Database {
-    pub connection: Connection,
+    pub(in crate::persistence) connection: Connection,
 }
 
-impl<'a> Database {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, DBError> {
+impl Database {
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, DBError> {
         let connection = Connection::open(path)?;
+        Database::new(connection)
+    }
+    pub fn new(connection: Connection) -> Result<Self, DBError> {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         let db = Self { connection };
         db.item_db().create_table()?;
@@ -36,19 +45,19 @@ impl<'a> Database {
         Ok(db)
     }
     #[must_use]
-    pub fn item_db(&'a self) -> ItemDB<'a> {
+    pub fn item_db(&self) -> ItemDB<'_> {
         ItemDB {
             connection: &self.connection,
         }
     }
     #[must_use]
-    pub fn category_db(&'a self) -> CategoryDB<'a> {
+    pub fn category_db(&self) -> CategoryDB<'_> {
         CategoryDB {
             connection: &self.connection,
         }
     }
     #[must_use]
-    pub fn recipe_db(&'a self) -> RecipeDB<'a> {
+    pub fn recipe_db(&self) -> RecipeDB<'_> {
         RecipeDB {
             connection: &self.connection,
         }
@@ -59,6 +68,7 @@ impl Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DBError::External(error) => write!(f, "External DB Error: {error}"),
+            DBError::RestrictViolation => write!(f, "Attempted to delete Restricted Value"),
         }
     }
 }

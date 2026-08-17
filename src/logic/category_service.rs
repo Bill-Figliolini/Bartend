@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     logic::{LogicError, graph::DirectedAcyclicGraph},
     models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
-    persistence::repositories::{CategoryRepository, GraphRepository, ItemMappingRepository},
+    persistence::repositories::CategoryRepository,
 };
 
 #[derive(Debug)]
@@ -43,7 +43,7 @@ impl CategoryService {
                 acc
             },
         );
-        let category_relations = db.graph().get().unwrap();
+        let category_relations = db.get_graph().unwrap();
         let graph = DirectedAcyclicGraph::load(category_relations);
         CategoryService {
             categories,
@@ -128,21 +128,15 @@ impl CategoryService {
         }
     }
     pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
+        let patch = self.graph.get_removal_patch(&category);
+        //TODO: THis can be further simplified into a single operation.
+        if let Err(e) = db.delete(&patch) {
+            panic!("{e}")
+        }
         self.categories.remove(&category);
-        let new_edges = self.graph.remove(category);
-        if let Err(e) = db.delete(category) {
-            panic!("{e}")
-        }
-        if let Err(e) = db.graph().delete_node(category) {
-            panic!("{e}")
-        }
-        if let Some(new_edges) = new_edges {
-            for (parent, child) in new_edges {
-                if let Err(e) = db.graph().insert(parent, child) {
-                    panic!("{e}");
-                }
-            }
-        }
+        self.graph.remove(patch);
+        self.category_mapping.remove(&category);
+        self.item_mapping.retain(|_, value| value != &category);
     }
     pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
@@ -163,8 +157,7 @@ impl CategoryService {
         item: &ItemID,
         category: &CategoryID,
     ) {
-        let db = db.mapping();
-        if let Err(e) = db.insert(item, category) {
+        if let Err(e) = db.map_insert(item, category) {
             panic!("{e}");
         }
         self.item_mapping.insert(*item, *category);
@@ -175,7 +168,6 @@ impl CategoryService {
         item: &ItemID,
         category: &Option<CategoryID>,
     ) {
-        let map_db = db.mapping();
         let mut old_category = self.item_category(item);
         match (old_category.take(), category) {
             (None, Some(new)) => {
@@ -183,15 +175,15 @@ impl CategoryService {
             }
             (Some(old), None) => {
                 self.item_mapping.remove(item);
-                if let Err(e) = map_db.delete(item, &old) {
+                if let Err(e) = db.map_delete(item, &old) {
                     panic!("{e}");
                 }
             }
             (Some(old), Some(new)) => {
-                if let Err(e) = map_db.delete(item, &old) {
+                if let Err(e) = db.map_delete(item, &old) {
                     panic!("{e}");
                 }
-                if let Err(e) = map_db.insert(item, &new) {
+                if let Err(e) = db.map_insert(item, new) {
                     panic!("{e}");
                 }
                 let old_mapping = self.item_mapping.get_mut(item).unwrap();
@@ -206,13 +198,13 @@ impl CategoryService {
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), LogicError> {
-        if let Err(_) = self.graph.insert_edge(parent, child) {
+        if self.graph.insert_edge(parent, child).is_err() {
             Err(LogicError::InvalidCategoryRelation {
                 parent: *parent,
                 child: *child,
             })
         } else {
-            if let Err(e) = db.graph().insert(*parent, *child) {
+            if let Err(e) = db.insert_relation(*parent, *child) {
                 panic!("{e}")
             };
             Ok(())
@@ -226,29 +218,26 @@ impl CategoryService {
     ) {
         self.graph.remove_edge(parent, child);
 
-        if let Err(e) = db.graph().delete_edge(*parent, *child) {
+        if let Err(e) = db.delete_edge(*parent, *child) {
             panic!("{e}")
         };
     }
     pub fn valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
-        match self.graph.get_non_cyclic_additions(category) {
-            Some(candidates) => candidates,
-            None => HashSet::new(),
-        }
+        self.graph
+            .get_non_cyclic_additions(category)
+            .unwrap_or_default()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::persistence::repositories::{GraphRepository, Repository};
+    use crate::logic::GraphPatch;
 
     use super::*;
 
     struct TestDB {
         counter: i64,
     }
-    struct TestMapDB {}
-    struct TestGraphDB {}
     impl TestDB {
         fn new() -> Self {
             Self { counter: 30 }
@@ -258,17 +247,6 @@ mod tests {
         }
         fn _update(&mut self) {
             self.counter += 1;
-        }
-        fn mapping_db(&self) -> TestMapDB {
-            TestMapDB {}
-        }
-        fn graph_db(&self) -> TestGraphDB {
-            TestGraphDB {}
-        }
-    }
-    impl Repository for TestDB {
-        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
-            Ok(())
         }
     }
     impl CategoryRepository for TestDB {
@@ -281,7 +259,10 @@ mod tests {
             Ok(())
         }
 
-        fn delete(&self, _item: CategoryID) -> Result<(), crate::persistence::DBError> {
+        fn delete(
+            &self,
+            _item: &GraphPatch<CategoryID>,
+        ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }
 
@@ -299,65 +280,17 @@ mod tests {
             }
             Ok(result)
         }
-        fn mapping(&self) -> impl ItemMappingRepository {
-            self.mapping_db()
-        }
-        fn graph(&self) -> impl GraphRepository {
-            self.graph_db()
-        }
-
-        fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
-            self.mapping().get_map()
-        }
-    }
-    impl Repository for TestMapDB {
-        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
-            Ok(())
-        }
-    }
-    impl ItemMappingRepository for TestMapDB {
-        fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
-            let map = HashMap::new();
-            Ok(map)
-        }
-
-        fn insert(
-            &self,
-            _item: &ItemID,
-            _category: &CategoryID,
-        ) -> Result<(), crate::persistence::DBError> {
-            Ok(())
-        }
-
-        fn delete(
-            &self,
-            _item: &ItemID,
-            _category: &CategoryID,
-        ) -> Result<(), crate::persistence::DBError> {
-            Ok(())
-        }
-    }
-    impl Repository for TestGraphDB {
-        fn create_table(&self) -> Result<(), crate::persistence::DBError> {
-            Ok(())
-        }
-    }
-    impl GraphRepository for TestGraphDB {
-        fn get(
+        fn get_graph(
             &self,
         ) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, crate::persistence::DBError> {
             Ok(HashMap::new())
         }
 
-        fn insert(
+        fn insert_relation(
             &self,
             _parent: CategoryID,
             _child: CategoryID,
         ) -> Result<(), crate::persistence::DBError> {
-            Ok(())
-        }
-
-        fn delete_node(&self, _node: CategoryID) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }
 
@@ -365,6 +298,25 @@ mod tests {
             &self,
             _parent: CategoryID,
             _child: CategoryID,
+        ) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+        fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, crate::persistence::DBError> {
+            let map = HashMap::new();
+            Ok(map)
+        }
+        fn map_insert(
+            &self,
+            _item: &ItemID,
+            _category: &CategoryID,
+        ) -> Result<(), crate::persistence::DBError> {
+            Ok(())
+        }
+
+        fn map_delete(
+            &self,
+            _item: &ItemID,
+            _category: &CategoryID,
         ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }

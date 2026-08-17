@@ -19,7 +19,7 @@ pub struct Item {
     pub body: ItemBody,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ItemBody {
     pub name: String,
     pub quantity: Quantity,
@@ -38,6 +38,7 @@ impl PartialEq for Item {
         self.id == other.id
     }
 }
+
 impl Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.body.name)
