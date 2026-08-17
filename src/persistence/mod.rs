@@ -2,13 +2,7 @@ pub mod repositories;
 
 use std::{error::Error, fmt::Display, path::Path};
 
-use rusqlite::{
-    Connection,
-    Error::SqliteFailure,
-    ErrorCode::{self, ConstraintViolation},
-    ToSql,
-    types::FromSql,
-};
+use rusqlite::{Connection, Error::SqliteFailure, ErrorCode, ToSql, types::FromSql};
 
 use crate::{
     models::{CategoryID, ItemID, RecipeID},

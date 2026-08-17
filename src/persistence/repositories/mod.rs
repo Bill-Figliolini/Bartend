@@ -34,13 +34,12 @@ pub trait ItemRepository {
 pub trait CategoryRepository {
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError>;
     fn update(&self, category: &Category) -> Result<(), DBError>;
-    fn delete(&self, category: CategoryID) -> Result<(), DBError>;
+    fn delete(&self, patch: &GraphPatch<CategoryID>) -> Result<(), DBError>;
     fn get_all(&self) -> Result<HashMap<CategoryID, CategoryBody>, DBError>;
     fn get_map(&self) -> Result<HashMap<ItemID, CategoryID>, DBError>;
 
     fn get_graph(&self) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, DBError>;
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
-    fn delete_node(&self, patch: &GraphPatch<CategoryID>) -> Result<(), DBError>;
     fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
     fn map_insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
     fn map_delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;

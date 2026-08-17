@@ -130,10 +130,7 @@ impl CategoryService {
     pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
         let patch = self.graph.get_removal_patch(&category);
         //TODO: THis can be further simplified into a single operation.
-        if let Err(e) = db.delete(category) {
-            panic!("{e}")
-        }
-        if let Err(e) = db.delete_node(&patch) {
+        if let Err(e) = db.delete(&patch) {
             panic!("{e}")
         }
         self.categories.remove(&category);
@@ -260,7 +257,10 @@ mod tests {
             Ok(())
         }
 
-        fn delete(&self, _item: CategoryID) -> Result<(), crate::persistence::DBError> {
+        fn delete(
+            &self,
+            _item: &GraphPatch<CategoryID>,
+        ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }
 
@@ -288,13 +288,6 @@ mod tests {
             &self,
             _parent: CategoryID,
             _child: CategoryID,
-        ) -> Result<(), crate::persistence::DBError> {
-            Ok(())
-        }
-
-        fn delete_node(
-            &self,
-            _patch: &GraphPatch<CategoryID>,
         ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }

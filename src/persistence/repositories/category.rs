@@ -73,9 +73,21 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         )?;
         Ok(())
     }
-    fn delete(&self, category: CategoryID) -> Result<(), DBError> {
-        self.connection
-            .execute("DELETE FROM category WHERE id=?1", (&category,))?;
+    fn delete(&self, patch: &GraphPatch<CategoryID>) -> Result<(), DBError> {
+        let query = "DELETE FROM graph WHERE parent_id=?1 OR child_id=?1";
+        let transaction = self.connection.unchecked_transaction()?;
+        transaction.execute("DELETE FROM category WHERE id=?1", (&patch.to_remove,))?;
+        transaction.execute(query, (patch.to_remove,))?;
+        if let Some(ref children) = patch.children
+            && let Some(ref parents) = patch.parents
+        {
+            for parent in parents {
+                for child in children {
+                    CategoryDB::internal_relation_insert(&transaction, parent, child)?
+                }
+            }
+        }
+        transaction.commit()?;
         Ok(())
     }
 
@@ -110,23 +122,6 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
 
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError> {
         CategoryDB::internal_relation_insert(self.connection, &parent, &child)
-    }
-
-    fn delete_node(&self, patch: &GraphPatch<CategoryID>) -> Result<(), DBError> {
-        let query = "DELETE FROM graph WHERE parent_id=?1 OR child_id=?1";
-        let transaction = self.connection.unchecked_transaction()?;
-        transaction.execute(query, (patch.to_remove,))?;
-        if let Some(ref children) = patch.children
-            && let Some(ref parents) = patch.parents
-        {
-            for parent in parents {
-                for child in children {
-                    CategoryDB::internal_relation_insert(&transaction, parent, child)?
-                }
-            }
-        }
-        transaction.commit()?;
-        Ok(())
     }
 
     fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError> {
@@ -255,7 +250,11 @@ mod tests {
                 assert!(result.is_ok());
                 let id = result.unwrap();
 
-                let _ = db.category_db().delete(id);
+                let _ = db.category_db().delete(&GraphPatch {
+                    to_remove: id,
+                    parents: None,
+                    children: None,
+                });
 
                 let in_db = db
                     .connection
@@ -396,7 +395,7 @@ mod tests {
                     children: Some(HashSet::from([ids[3]])),
                 };
 
-                let delete_result = db.category_db().delete_node(&patch);
+                let delete_result = db.category_db().delete(&patch);
                 assert!(delete_result.is_ok());
 
                 let after_edges = db.category_db().get_graph().unwrap();
@@ -485,7 +484,13 @@ mod tests {
 
                 assert!(result.is_ok());
 
-                db.category_db().delete(category_id).unwrap();
+                db.category_db()
+                    .delete(&GraphPatch {
+                        to_remove: category_id,
+                        parents: None,
+                        children: None,
+                    })
+                    .unwrap();
 
                 let in_db = db.category_db().get_map().unwrap();
 

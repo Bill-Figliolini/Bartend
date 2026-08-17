@@ -289,7 +289,11 @@ mod tests {
             let recipe = create_recipe(&category_ids, "Recipe".to_string());
             let _ = db.recipe_db().insert(&recipe).unwrap();
 
-            let result = db.category_db().delete(category_ids[2]);
+            let result = db.category_db().delete(&crate::logic::GraphPatch {
+                to_remove: category_ids[2],
+                parents: None,
+                children: None,
+            });
             eprintln!("{result:?}");
             assert!(result.is_err());
             assert_eq!(result.unwrap_err(), DBError::RestrictViolation);

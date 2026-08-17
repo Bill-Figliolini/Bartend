@@ -76,7 +76,6 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
             parents: self.get_immediate_ancestors(vertex),
             children: self.get_edges(vertex),
         };
-        eprintln!("{patch:?}");
         patch
     }
     pub fn remove_edge(&mut self, parent: &T, child: &T) {
