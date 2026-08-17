@@ -25,7 +25,7 @@ impl<'a> CategoryDB<'a> {
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), DBError> {
-        let query = "INSERT INTO graph(parent_id, child_id) VALUES (?1, ?2);";
+        let query = "INSERT OR IGNORE INTO graph(parent_id, child_id) VALUES (?1, ?2);";
         connection.execute(query, (parent, child))?;
         Ok(())
     }
@@ -383,6 +383,34 @@ mod tests {
                 let db = db_init();
                 let length = 5;
                 let ids = line_graph_builder(&db, length);
+                let initial_edge_result = db.category_db().get_graph();
+                assert!(initial_edge_result.is_ok());
+                let inital_edges = initial_edge_result.unwrap();
+                for i in 0..length {
+                    assert!(*&inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
+                }
+                let patch = GraphPatch {
+                    to_remove: ids[2],
+                    parents: Some(HashSet::from([ids[1]])),
+                    children: Some(HashSet::from([ids[3]])),
+                };
+
+                let delete_result = db.category_db().delete(&patch);
+                assert!(delete_result.is_ok());
+
+                let after_edges = db.category_db().get_graph().unwrap();
+                for edge in after_edges {
+                    assert_ne!(edge.0, ids[2]);
+                    assert!(!edge.1.contains(&ids[2]));
+                }
+            }
+            #[test]
+            fn node_delete_perserves_existing_diamond() {
+                //Set up
+                let db = db_init();
+                let length = 5;
+                let ids = line_graph_builder(&db, length);
+                db.category_db().insert_relation(ids[1], ids[3]).unwrap();
                 let initial_edge_result = db.category_db().get_graph();
                 assert!(initial_edge_result.is_ok());
                 let inital_edges = initial_edge_result.unwrap();
