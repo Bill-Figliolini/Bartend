@@ -135,6 +135,8 @@ impl CategoryService {
         }
         self.categories.remove(&category);
         self.graph.remove(patch);
+        self.category_mapping.remove(&category);
+        self.item_mapping.retain(|_, value| value != &category);
     }
     pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
