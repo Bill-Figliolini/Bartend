@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     logic::{LogicError, graph::DirectedAcyclicGraph},
-    models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
+    models::{BartendError, Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
     persistence::repositories::CategoryRepository,
 };
 
@@ -16,16 +16,10 @@ pub struct CategoryService {
 
 impl CategoryService {
     //bulk load data at start
-    pub fn new(db: &impl CategoryRepository) -> Self {
-        let categories = match db.get_all() {
-            Ok(map) => map,
-            Err(_) => panic!("Error reading category DB"),
-        };
+    pub fn new(db: &impl CategoryRepository) -> Result<Self, BartendError> {
+        let categories = db.get_all()?;
 
-        let item_mapping = match db.get_map() {
-            Ok(map) => map,
-            Err(_) => panic!("Error reading mapping DB"),
-        };
+        let item_mapping = db.get_map()?;
 
         let category_mapping = item_mapping.iter().fold(
             HashMap::new(),
@@ -43,14 +37,14 @@ impl CategoryService {
                 acc
             },
         );
-        let category_relations = db.get_graph().unwrap();
+        let category_relations = db.get_graph()?;
         let graph = DirectedAcyclicGraph::load(category_relations);
-        CategoryService {
+        Ok(CategoryService {
             categories,
             item_mapping,
             category_mapping,
             graph,
-        }
+        })
     }
     pub fn item_category(&self, item: &ItemID) -> Option<CategoryID> {
         self.item_mapping.get(item).copied()
@@ -73,6 +67,7 @@ impl CategoryService {
         match self.graph.get_edges(category) {
             Some(children) => children,
             None => panic!(
+                //turn this into a logic error
                 "Something has gone wrong, attempted to get category: {:?}\n current state of the graph: {:?}\nstate of categories: {:?}",
                 *category, self.graph, self.categories
             ),
@@ -92,6 +87,7 @@ impl CategoryService {
 
     pub fn get(&self, id: &CategoryID) -> &CategoryBody {
         match self.categories.get(id) {
+            //another logic error
             Some(body) => body,
             None => panic!("Invalid CategoryID in cirulation!"),
         }
@@ -328,7 +324,7 @@ mod tests {
     #[test]
     fn category_service_loads_in_all_data() {
         let db = TestDB::new();
-        let category_service = CategoryService::new(&db);
+        let category_service = CategoryService::new(&db).unwrap();
 
         assert_eq!(category_service.categories.len(), 30);
     }
@@ -340,7 +336,7 @@ mod tests {
             #[test]
             fn initializes_id_in_table_and_graph() {
                 let db = TestDB::new();
-                let mut service = CategoryService::new(&db);
+                let mut service = CategoryService::new(&db).unwrap();
                 let stub_body = CategoryBody {
                     name: "test".to_string(),
                 };
@@ -359,7 +355,7 @@ mod tests {
             #[test]
             fn removes_id_from_table_and_graph() {
                 let db = TestDB::new();
-                let mut service = CategoryService::new(&db);
+                let mut service = CategoryService::new(&db).unwrap();
                 let stub_body = CategoryBody {
                     name: "test".to_string(),
                 };
@@ -378,7 +374,7 @@ mod tests {
             #[test]
             fn updates_in_table() {
                 let db = TestDB::new();
-                let mut service = CategoryService::new(&db);
+                let mut service = CategoryService::new(&db).unwrap();
                 let initial_body = CategoryBody {
                     name: "test".to_string(),
                 };
@@ -409,7 +405,7 @@ mod tests {
         #[test]
         fn addition_updates_both_mappings() {
             let db = &TestDB::new();
-            let mut service = CategoryService::new(db);
+            let mut service = CategoryService::new(db).unwrap();
             let item = ItemID(0);
             let category = CategoryID(0);
 
