@@ -160,6 +160,10 @@ impl CategoryService {
         if let Err(e) = db.map_insert(item, category) {
             panic!("{e}");
         }
+        self.category_mapping
+            .entry(*category)
+            .or_default()
+            .insert(*item);
         self.item_mapping.insert(*item, *category);
     }
     pub fn update_item_mapping(
@@ -398,8 +402,28 @@ mod tests {
         }
     }
     mod item_mapping {
+
         //mapping specific behavior
         use super::*;
+
+        #[test]
+        fn addition_updates_both_mappings() {
+            let db = &TestDB::new();
+            let mut service = CategoryService::new(db);
+            let item = ItemID(0);
+            let category = CategoryID(0);
+
+            let result = service.add_item_mapping(db, &item, &category);
+
+            assert!(
+                service
+                    .category_mapping
+                    .get(&category)
+                    .unwrap()
+                    .contains(&item)
+            );
+            assert_eq!(service.item_mapping.get(&item).unwrap(), &category);
+        }
     }
     mod category_resolution {
         //graph specific behavior
