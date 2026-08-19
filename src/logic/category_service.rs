@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use crate::{
     logic::{LogicError, graph::DirectedAcyclicGraph},
@@ -152,45 +152,48 @@ impl CategoryService {
         db: &impl CategoryRepository,
         item: &ItemID,
         category: &CategoryID,
-    ) {
-        if let Err(e) = db.map_insert(item, category) {
-            panic!("{e}");
-        }
+    ) -> Result<(), BartendError> {
+        db.map_insert(item, category)?;
         self.category_mapping
             .entry(*category)
             .or_default()
             .insert(*item);
         self.item_mapping.insert(*item, *category);
+        Ok(())
     }
     pub fn update_item_mapping(
         &mut self,
         db: &impl CategoryRepository,
         item: &ItemID,
         category: &Option<CategoryID>,
-    ) {
+    ) -> Result<(), BartendError> {
         let mut old_category = self.item_category(item);
         match (old_category.take(), category) {
             (None, Some(new)) => {
-                self.add_item_mapping(db, item, new);
+                self.add_item_mapping(db, item, new)?;
             }
             (Some(old), None) => {
                 self.item_mapping.remove(item);
-                if let Err(e) = db.map_delete(item, &old) {
-                    panic!("{e}");
+                match self.category_mapping.entry(old) {
+                    Entry::Occupied(mut items) => {
+                        items.get_mut().remove(item);
+                    }
+                    Entry::Vacant(_) => {
+                        Err(LogicError::NonExistentCategoryAccess(old))?;
+                    }
                 }
             }
             (Some(old), Some(new)) => {
-                if let Err(e) = db.map_delete(item, &old) {
-                    panic!("{e}");
+                db.map_delete(item, &old)?;
+                db.map_insert(item, new)?;
+                match self.item_mapping.get_mut(item) {
+                    Some(old_mapping) => *old_mapping = *new,
+                    None => todo!(),
                 }
-                if let Err(e) = db.map_insert(item, new) {
-                    panic!("{e}");
-                }
-                let old_mapping = self.item_mapping.get_mut(item).unwrap();
-                *old_mapping = *new;
             }
             (None, None) => {}
         }
+        Ok(())
     }
     pub fn add_category_relation(
         &mut self,

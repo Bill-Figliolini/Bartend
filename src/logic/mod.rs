@@ -30,10 +30,11 @@ impl BarCollection {
         Self { db }
     }
 }
-
+#[derive(Debug)]
 pub enum LogicError {
     InvalidCategoryRelation {
         parent: CategoryID,
         child: CategoryID,
     },
+    NonExistentCategoryAccess(CategoryID),
 }
