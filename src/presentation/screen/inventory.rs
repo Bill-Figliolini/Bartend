@@ -128,7 +128,7 @@ impl Inventory {
             table::column(
                 text("Category").width(200),
                 |item: ItemID| match category_service.item_category(&item) {
-                    Some(cat_id) => text(category_service.get(&cat_id).name.clone()),
+                    Some(cat_id) => text(category_service.get(&cat_id).unwrap().name.clone()),
                     None => text!("None"),
                 },
             );
@@ -142,7 +142,7 @@ impl Inventory {
                         .item_category(&item)
                         .map(|id_ref| Category {
                             id: id_ref,
-                            body: category_service.get(&id_ref).clone(),
+                            body: category_service.get(&id_ref).unwrap().clone(),
                         });
                     iced::widget::Button::new(text("Edit").center()).on_press(
                         application::Message::Inventory(Message::BeginEdit(item, category)),

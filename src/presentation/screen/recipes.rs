@@ -198,7 +198,11 @@ fn view_ingredient<'a>(
     category_service: &CategoryService,
     unit_system: &'a UnitSystem,
 ) -> Element<'a, application::Message> {
-    let category_name = category_service.get(&ingredient.category).name.clone();
+    let category_name = category_service
+        .get(&ingredient.category)
+        .unwrap()
+        .name
+        .clone();
     let category = text!("{category_name}: ");
     let quantity_value = text(ingredient.quantity.value(*unit_system));
     let quantity_unit = text(ingredient.quantity.unit(*unit_system).to_string());
