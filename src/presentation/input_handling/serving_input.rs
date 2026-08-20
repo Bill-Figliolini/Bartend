@@ -148,7 +148,7 @@ impl IngredientUseInput {
     ) -> iced::Element<'_, application::Message> {
         let category = text!(
             "{}: ID: {}",
-            category_service.get(&self.category).name.clone(),
+            category_service.get(&self.category).unwrap().name.clone(),
             self.category.0
         );
         let quantity = text(self.quantity.readable(unit_system));
