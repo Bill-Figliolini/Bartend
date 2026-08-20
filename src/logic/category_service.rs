@@ -63,14 +63,13 @@ impl CategoryService {
         items
     }
 
-    pub fn child_categories(&self, category: &CategoryID) -> HashSet<CategoryID> {
+    pub fn child_categories(
+        &self,
+        category: &CategoryID,
+    ) -> Result<HashSet<CategoryID>, BartendError> {
         match self.graph.get_edges(category) {
-            Some(children) => children,
-            None => panic!(
-                //turn this into a logic error
-                "Something has gone wrong, attempted to get category: {:?}\n current state of the graph: {:?}\nstate of categories: {:?}",
-                *category, self.graph, self.categories
-            ),
+            Some(children) => Ok(children),
+            None => Err(LogicError::CategoryNotInGraph(*category))?,
         }
     }
 
@@ -85,11 +84,11 @@ impl CategoryService {
             .collect()
     }
 
-    pub fn get(&self, id: &CategoryID) -> &CategoryBody {
+    pub fn get(&self, id: &CategoryID) -> Result<&CategoryBody, BartendError> {
         match self.categories.get(id) {
             //another logic error
-            Some(body) => body,
-            None => panic!("Invalid CategoryID in cirulation!"),
+            Some(body) => Ok(body),
+            None => Err(LogicError::InvalidCategory(*id))?,
         }
     }
 
@@ -113,38 +112,40 @@ impl CategoryService {
     }
 
     //Writes, cache invalidating
-    pub fn insert(&mut self, db: &impl CategoryRepository, body: &CategoryBody) -> CategoryID {
-        match db.insert(body) {
-            Ok(id) => {
-                self.categories.insert(id, body.clone());
-                self.graph.insert_vertex(id);
-                id
-            }
-            Err(e) => panic!("{e}"),
-        }
+    pub fn insert(
+        &mut self,
+        db: &impl CategoryRepository,
+        body: &CategoryBody,
+    ) -> Result<CategoryID, BartendError> {
+        let id = db.insert(body)?;
+        self.categories.insert(id, body.clone());
+        self.graph.insert_vertex(id);
+        Ok(id)
     }
-    pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
+    pub fn delete(
+        &mut self,
+        db: &impl CategoryRepository,
+        category: CategoryID,
+    ) -> Result<(), BartendError> {
         let patch = self.graph.get_removal_patch(&category);
-        //TODO: THis can be further simplified into a single operation.
-        if let Err(e) = db.delete(&patch) {
-            panic!("{e}")
-        }
+        db.delete(&patch)?;
         self.categories.remove(&category);
         self.graph.remove(patch);
         self.category_mapping.remove(&category);
         self.item_mapping.retain(|_, value| value != &category);
+        Ok(())
     }
-    pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
+    pub fn update(
+        &mut self,
+        db: &impl CategoryRepository,
+        category: &Category,
+    ) -> Result<(), BartendError> {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
             *cached_copy = category.body.clone();
-            if let Err(e) = db.update(category) {
-                panic!("{e}")
-            }
+            db.update(category)?;
+            Ok(())
         } else {
-            panic!(
-                "Categories attempted to update nonexistent category {}",
-                category
-            );
+            Err(LogicError::InvalidCategory(category.id))?
         }
     }
     pub fn add_item_mapping(
@@ -179,7 +180,7 @@ impl CategoryService {
                         items.get_mut().remove(item);
                     }
                     Entry::Vacant(_) => {
-                        Err(LogicError::NonExistentCategoryAccess(old))?;
+                        Err(LogicError::InvalidCategory(old))?;
                     }
                 }
             }
@@ -188,7 +189,7 @@ impl CategoryService {
                 db.map_insert(item, new)?;
                 match self.item_mapping.get_mut(item) {
                     Some(old_mapping) => *old_mapping = *new,
-                    None => todo!(),
+                    None => Err(LogicError::InvalidCategory(old))?,
                 }
             }
             (None, None) => {}
@@ -200,16 +201,14 @@ impl CategoryService {
         db: &impl CategoryRepository,
         parent: &CategoryID,
         child: &CategoryID,
-    ) -> Result<(), LogicError> {
+    ) -> Result<(), BartendError> {
         if self.graph.insert_edge(parent, child).is_err() {
             Err(LogicError::InvalidCategoryRelation {
                 parent: *parent,
                 child: *child,
-            })
+            })?
         } else {
-            if let Err(e) = db.insert_relation(*parent, *child) {
-                panic!("{e}")
-            };
+            db.insert_relation(*parent, *child)?;
             Ok(())
         }
     }
@@ -218,12 +217,10 @@ impl CategoryService {
         db: &impl CategoryRepository,
         parent: &CategoryID,
         child: &CategoryID,
-    ) {
+    ) -> Result<(), BartendError> {
+        db.delete_edge(*parent, *child)?;
         self.graph.remove_edge(parent, child);
-
-        if let Err(e) = db.delete_edge(*parent, *child) {
-            panic!("{e}")
-        };
+        Ok(())
     }
     pub fn valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
         self.graph

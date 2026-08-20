@@ -36,5 +36,6 @@ pub enum LogicError {
         parent: CategoryID,
         child: CategoryID,
     },
-    NonExistentCategoryAccess(CategoryID),
+    InvalidCategory(CategoryID),
+    CategoryNotInGraph(CategoryID),
 }
