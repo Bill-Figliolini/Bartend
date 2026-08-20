@@ -343,7 +343,7 @@ mod tests {
                 let next_id = db._get_next();
                 assert!(!service.graph.contains_vertex(&next_id));
 
-                let id = service.insert(&db, &stub_body);
+                let id = service.insert(&db, &stub_body).expect("Should be valid");
 
                 assert!(service.categories.contains_key(&id));
                 assert!(service.graph.contains_vertex(&id));
@@ -359,11 +359,11 @@ mod tests {
                 let stub_body = CategoryBody {
                     name: "test".to_string(),
                 };
-                let id = service.insert(&db, &stub_body);
+                let id = service.insert(&db, &stub_body).expect("should be valid");
                 assert!(service.categories.contains_key(&id));
                 assert!(service.graph.contains_vertex(&id));
 
-                service.delete(&db, id.clone());
+                _ = service.delete(&db, id.clone());
 
                 assert!(!service.categories.contains_key(&id));
                 assert!(!service.graph.contains_vertex(&id));
@@ -381,11 +381,11 @@ mod tests {
                 let updated_body = CategoryBody {
                     name: "next".to_string(),
                 };
-                let id = service.insert(&db, &initial_body);
+                let id = service.insert(&db, &initial_body).expect("valid for test");
                 assert!(service.categories.contains_key(&id));
                 assert_eq!(service.categories.get(&id).unwrap().name, initial_body.name);
 
-                service.update(
+                _ = service.update(
                     &db,
                     &Category {
                         id,
@@ -409,7 +409,7 @@ mod tests {
             let item = ItemID(0);
             let category = CategoryID(0);
 
-            let result = service.add_item_mapping(db, &item, &category);
+            _ = service.add_item_mapping(db, &item, &category);
 
             assert!(
                 service
