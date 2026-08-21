@@ -29,7 +29,8 @@ impl Command {
         match self {
             Command::UseItems(items) => {
                 ctx.item_service
-                    .use_items(&ctx.bar_collection.db.item_db(), items);
+                    .use_items(&ctx.bar_collection.db.item_db(), items)
+                    .unwrap();
                 Task::none()
             }
         }

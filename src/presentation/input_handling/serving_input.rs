@@ -126,7 +126,7 @@ impl IngredientUseInput {
             .into_iter()
             .map(|id| Item {
                 id,
-                body: item_service.get(&id).clone(),
+                body: item_service.get(&id).unwrap().clone(),
             })
             .filter(|item| item.body.quantity >= ingredient.quantity)
             .collect();
