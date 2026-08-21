@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    models::{Recipe, RecipeBody, RecipeID},
+    logic::LogicError,
+    models::{BartendError, Recipe, RecipeBody, RecipeID},
     persistence::repositories::RecipeRepository,
 };
 
@@ -12,13 +13,10 @@ pub struct RecipeService {
 }
 
 impl RecipeService {
-    pub fn new(db: &impl RecipeRepository) -> Self {
-        let recipes = match db.get_all() {
-            Ok(recipes) => recipes,
-            Err(e) => panic!("{e}"),
-        };
+    pub fn new(db: &impl RecipeRepository) -> Result<Self, BartendError> {
+        let recipes = db.get_all()?;
         let page_size = 15;
-        RecipeService { recipes, page_size }
+        Ok(RecipeService { recipes, page_size })
     }
 
     pub fn get_page(&self, page: usize) -> Vec<RecipeID> {
@@ -42,33 +40,40 @@ impl RecipeService {
             },
         )
     }
-    pub fn get(&self, id: &RecipeID) -> RecipeBody {
+    pub fn get(&self, id: &RecipeID) -> Result<RecipeBody, BartendError> {
         match self.recipes.get(id) {
-            Some(body) => body.clone(),
-            None => panic!("Invalid Recipe ID"),
+            Some(body) => Ok(body.clone()),
+            None => Err(LogicError::InvalidRecipe(*id))?,
         }
     }
-    pub fn add(&mut self, db: &impl RecipeRepository, body: RecipeBody) -> RecipeID {
-        let id = match db.insert(&body) {
-            Ok(id) => id,
-            Err(e) => panic!("{e}"),
-        };
+    pub fn add(
+        &mut self,
+        db: &impl RecipeRepository,
+        body: RecipeBody,
+    ) -> Result<RecipeID, BartendError> {
+        let id = db.insert(&body)?;
         self.recipes.insert(id, body);
-        id
+        Ok(id)
     }
-    pub fn delete(&mut self, db: &impl RecipeRepository, recipe: RecipeID) {
-        if let Err(e) = db.delete(recipe) {
-            panic!("{e}");
-        }
+    pub fn delete(
+        &mut self,
+        db: &impl RecipeRepository,
+        recipe: RecipeID,
+    ) -> Result<(), BartendError> {
+        db.delete(recipe)?;
         self.recipes.remove(&recipe);
+        Ok(())
     }
-    pub fn update(&mut self, db: &impl RecipeRepository, recipe: Recipe) {
-        if let Err(e) = db.update(&recipe) {
-            panic!("{e}");
-        }
+    pub fn update(
+        &mut self,
+        db: &impl RecipeRepository,
+        recipe: Recipe,
+    ) -> Result<(), BartendError> {
+        db.update(&recipe)?;
         match self.recipes.get_mut(&recipe.id) {
             Some(slot) => *slot = recipe.body,
-            None => panic!("Invalid Recipe ID in circulaton"),
+            None => Err(LogicError::InvalidRecipe(recipe.id))?,
         };
+        Ok(())
     }
 }

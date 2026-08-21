@@ -52,25 +52,31 @@ impl Command {
             Command::AddItem(item_body, category_id) => {
                 let item_id = ctx
                     .item_service
-                    .add(&ctx.bar_collection.db.item_db(), &item_body);
+                    .add(&ctx.bar_collection.db.item_db(), &item_body)
+                    .unwrap();
                 if let Some(category_id) = category_id {
-                    ctx.category_service.add_item_mapping(
-                        &ctx.bar_collection.db.category_db(),
-                        &item_id,
-                        &category_id,
-                    );
+                    ctx.category_service
+                        .add_item_mapping(
+                            &ctx.bar_collection.db.category_db(),
+                            &item_id,
+                            &category_id,
+                        )
+                        .unwrap();
                 }
                 Task::done(application::Message::ReloadScreen)
             }
             Command::UpdateItem(item, category_id) => {
                 let item_id = item.id;
                 ctx.item_service
-                    .update(&ctx.bar_collection.db.item_db(), item);
-                ctx.category_service.update_item_mapping(
-                    &ctx.bar_collection.db.category_db(),
-                    &item_id,
-                    &category_id,
-                );
+                    .update(&ctx.bar_collection.db.item_db(), item)
+                    .unwrap();
+                ctx.category_service
+                    .update_item_mapping(
+                        &ctx.bar_collection.db.category_db(),
+                        &item_id,
+                        &category_id,
+                    )
+                    .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }
         }
@@ -114,10 +120,10 @@ impl Inventory {
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(Fill), |item: ItemID| {
-            text(item_service.get(&item).name.clone())
+            text(item_service.get(&item).unwrap().name.clone())
         });
         let quantity_column = table::column(text("Quantity"), |item: ItemID| {
-            let item = item_service.get(&item);
+            let item = item_service.get(&item).unwrap();
             text!(
                 "{:.0} {}",
                 item.quantity.value(self.unit_system),
@@ -128,7 +134,7 @@ impl Inventory {
             table::column(
                 text("Category").width(200),
                 |item: ItemID| match category_service.item_category(&item) {
-                    Some(cat_id) => text(category_service.get(&cat_id).name.clone()),
+                    Some(cat_id) => text(category_service.get(&cat_id).unwrap().name.clone()),
                     None => text!("None"),
                 },
             );
@@ -142,7 +148,7 @@ impl Inventory {
                         .item_category(&item)
                         .map(|id_ref| Category {
                             id: id_ref,
-                            body: category_service.get(&id_ref).clone(),
+                            body: category_service.get(&id_ref).unwrap().clone(),
                         });
                     iced::widget::Button::new(text("Edit").center()).on_press(
                         application::Message::Inventory(Message::BeginEdit(item, category)),
@@ -220,7 +226,7 @@ impl Inventory {
                 EditState::None => {
                     self.edit_state = EditState::Editing(item);
                     self.input.begin_edit(
-                        &(item_service.get(&item).clone(), category),
+                        &(item_service.get(&item).unwrap().clone(), category),
                         self.unit_system,
                     );
                     None

@@ -77,9 +77,9 @@ impl Bartend {
         };
 
         let bar_collection = BarCollection::new(config.db_path());
-        let item_service = ItemService::new(&bar_collection.db.item_db());
-        let category_service = CategoryService::new(&bar_collection.db.category_db());
-        let recipe_service = RecipeService::new(&bar_collection.db.recipe_db());
+        let item_service = ItemService::new(&bar_collection.db.item_db()).unwrap();
+        let category_service = CategoryService::new(&bar_collection.db.category_db()).unwrap();
+        let recipe_service = RecipeService::new(&bar_collection.db.recipe_db()).unwrap();
         let screen = Screen::start(&config, &category_service);
 
         Self {
@@ -132,7 +132,8 @@ impl Bartend {
             }
             Message::DeleteItem(id) => {
                 self.item_service
-                    .delete(&self.bar_collection.db.item_db(), id);
+                    .delete(&self.bar_collection.db.item_db(), id)
+                    .unwrap();
                 Task::done(Message::ReloadScreen)
             }
 
@@ -155,13 +156,15 @@ impl Bartend {
 
             Message::DeleteCategory(category) => {
                 self.category_service
-                    .delete(&self.bar_collection.db.category_db(), category);
+                    .delete(&self.bar_collection.db.category_db(), category)
+                    .unwrap();
                 Task::done(Message::ReloadScreen)
             }
 
             Message::DeleteRecipe(recipe) => {
                 self.recipe_service
-                    .delete(&self.bar_collection.db.recipe_db(), recipe);
+                    .delete(&self.bar_collection.db.recipe_db(), recipe)
+                    .unwrap();
                 Task::done(Message::ReloadScreen)
             }
 

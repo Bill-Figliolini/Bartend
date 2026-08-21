@@ -42,12 +42,14 @@ impl Command {
         match self {
             Command::AddCategory(body) => {
                 ctx.category_service
-                    .insert(&ctx.bar_collection.db.category_db(), &body);
+                    .insert(&ctx.bar_collection.db.category_db(), &body)
+                    .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }
             Command::UpdateCategory(category) => {
                 ctx.category_service
-                    .update(&ctx.bar_collection.db.category_db(), &category);
+                    .update(&ctx.bar_collection.db.category_db(), &category)
+                    .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }
             Command::AddRelation(parent, child) => {
@@ -98,7 +100,7 @@ impl Categories {
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |category: CategoryID| {
-            text(category_service.get(&category).name.clone())
+            text(category_service.get(&category).unwrap().name.clone())
         });
         let add_relation_column = table::column("Addable Relations", |category: CategoryID| {
             self.relation_add_view(category, category_service)
@@ -114,7 +116,7 @@ impl Categories {
                     .on_press(application::Message::Categories(Message::BeginEdit(
                         Category {
                             id: category,
-                            body: category_service.get(&category).clone(),
+                            body: category_service.get(&category).unwrap().clone(),
                         },
                     )))
                     .width(edit_column_width),
@@ -202,7 +204,7 @@ impl Categories {
             .fold(Vec::new(), |mut acc, id| {
                 acc.push(Category {
                     id,
-                    body: service.get(&id).clone(),
+                    body: service.get(&id).unwrap().clone(),
                 });
                 acc
             });
@@ -218,16 +220,18 @@ impl Categories {
         id: CategoryID,
         service: &CategoryService,
     ) -> Element<'_, application::Message> {
-        let options = service
-            .child_categories(&id)
-            .into_iter()
-            .fold(Vec::new(), |mut acc, id| {
-                acc.push(Category {
-                    id,
-                    body: service.get(&id).clone(),
+        let options =
+            service
+                .child_categories(&id)
+                .unwrap()
+                .into_iter()
+                .fold(Vec::new(), |mut acc, id| {
+                    acc.push(Category {
+                        id,
+                        body: service.get(&id).unwrap().clone(),
+                    });
+                    acc
                 });
-                acc
-            });
         pick_list(options, self.stub.clone(), move |selected| {
             category_remove_msg(id, selected.id)
         })

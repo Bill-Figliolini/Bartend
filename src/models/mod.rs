@@ -6,6 +6,7 @@ mod quantity;
 mod recipe;
 
 pub use {
+    bartend_error::BartendError,
     category::{Category, CategoryBody, CategoryFilter, CategoryID},
     config::{Config, ConfigError, EditableConfig},
     item::{Item, ItemBody, ItemID, ItemUse},

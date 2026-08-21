@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    models::{Item, ItemBody, ItemID, ItemUse},
+    logic::LogicError,
+    models::{BartendError, Item, ItemBody, ItemID, ItemUse},
     persistence::repositories::ItemRepository,
 };
 
@@ -12,15 +13,12 @@ pub struct ItemService {
 }
 
 impl ItemService {
-    pub fn new(db: &impl ItemRepository) -> Self {
-        let items = match db.get_all() {
-            Ok(items) => items,
-            Err(e) => panic!("Error loading Items: {e}"),
-        };
-        ItemService {
+    pub fn new(db: &impl ItemRepository) -> Result<Self, BartendError> {
+        let items = db.get_all()?;
+        Ok(ItemService {
             items,
             page_size: 15,
-        }
+        })
     }
 
     pub fn get_page(&self, page: usize) -> Vec<ItemID> {
@@ -34,52 +32,56 @@ impl ItemService {
     }
 
     #[must_use]
-    pub fn get(&self, item: &ItemID) -> &ItemBody {
+    pub fn get(&self, item: &ItemID) -> Result<&ItemBody, BartendError> {
         match self.items.get(item) {
-            Some(body) => body,
-            None => panic!("Invalid Item in circulation!"),
+            Some(body) => Ok(body),
+            None => Err(LogicError::InvalidItem(*item))?,
         }
     }
 
-    fn get_mut(&mut self, item: &ItemID) -> &mut ItemBody {
+    fn get_mut(&mut self, item: &ItemID) -> Result<&mut ItemBody, BartendError> {
         match self.items.get_mut(item) {
-            Some(body) => body,
-            None => panic!("Invalid Item in circulation!"),
+            Some(body) => Ok(body),
+            None => Err(LogicError::InvalidItem(*item))?,
         }
     }
 
-    pub fn use_items(&mut self, db: &impl ItemRepository, used_items: Vec<ItemUse>) {
+    pub fn use_items(
+        &mut self,
+        db: &impl ItemRepository,
+        used_items: Vec<ItemUse>,
+    ) -> Result<(), BartendError> {
         for usage in used_items {
-            let updated_item = self.get_mut(&usage.id);
+            let updated_item = self.get_mut(&usage.id)?;
             updated_item.quantity -= usage.quantity;
             let item = Item {
                 id: usage.id,
-                body: self.get(&usage.id).clone(),
+                body: self.get(&usage.id)?.clone(),
             };
-            self.update(db, item);
+            self.update(db, item)?;
         }
+        Ok(())
     }
 
-    pub fn add(&mut self, db: &impl ItemRepository, item: &ItemBody) -> ItemID {
-        let id = match db.insert(item) {
-            Ok(id) => id,
-            Err(e) => panic!("{e}"),
-        };
+    pub fn add(
+        &mut self,
+        db: &impl ItemRepository,
+        item: &ItemBody,
+    ) -> Result<ItemID, BartendError> {
+        let id = db.insert(item)?;
         self.items.insert(id, item.clone());
-        id
+        Ok(id)
     }
-    pub fn update(&mut self, db: &impl ItemRepository, item: Item) {
-        if let Err(e) = db.update(&item) {
-            panic!("{e}");
-        };
+    pub fn update(&mut self, db: &impl ItemRepository, item: Item) -> Result<(), BartendError> {
+        db.update(&item)?;
         let item_location = self.items.get_mut(&item.id).unwrap();
         *item_location = item.body;
+        Ok(())
     }
-    pub fn delete(&mut self, db: &impl ItemRepository, item: ItemID) {
-        if let Err(e) = db.delete(item) {
-            panic!("{e}");
-        };
+    pub fn delete(&mut self, db: &impl ItemRepository, item: ItemID) -> Result<(), BartendError> {
+        db.delete(item)?;
         self.items.remove(&item);
+        Ok(())
     }
 }
 
@@ -131,7 +133,7 @@ mod tests {
     #[test]
     fn new_loads_in_whole_db() {
         let db = TestDB::new();
-        let item_service = ItemService::new(&db);
+        let item_service = ItemService::new(&db).unwrap();
 
         assert_eq!(item_service.items.len(), 30);
     }
@@ -139,10 +141,10 @@ mod tests {
     #[test]
     fn delete_removes_value() {
         let db = TestDB::new();
-        let mut item_service = ItemService::new(&db);
+        let mut item_service = ItemService::new(&db).unwrap();
         let item = ItemID(0);
 
-        item_service.delete(&db, item);
+        item_service.delete(&db, item).unwrap();
 
         assert!(!item_service.items.contains_key(&item));
     }

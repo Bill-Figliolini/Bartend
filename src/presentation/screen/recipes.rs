@@ -48,12 +48,14 @@ impl Command {
         match self {
             Command::AddRecipe(body) => {
                 ctx.recipe_service
-                    .add(&ctx.bar_collection.db.recipe_db(), body);
+                    .add(&ctx.bar_collection.db.recipe_db(), body)
+                    .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }
             Command::UpdateRecipe(recipe) => {
                 ctx.recipe_service
-                    .update(&ctx.bar_collection.db.recipe_db(), recipe);
+                    .update(&ctx.bar_collection.db.recipe_db(), recipe)
+                    .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }
         }
@@ -98,12 +100,13 @@ impl Recipes {
         recipe_service: &RecipeService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name"), |recipe: RecipeID| {
-            text(recipe_service.get(&recipe).name.clone())
+            text(recipe_service.get(&recipe).unwrap().name.clone())
         });
         let ingredient_column = table::column(text("Ingredients"), |recipe: RecipeID| {
             column(
                 recipe_service
                     .get(&recipe)
+                    .unwrap()
                     .ingredients
                     .iter()
                     .map(|ingredient| {
@@ -120,7 +123,7 @@ impl Recipes {
             EditState::None => {
                 button("Edit").on_press(application::Message::Recipes(Message::BeginEdit(Recipe {
                     id: recipe,
-                    body: recipe_service.get(&recipe).clone(),
+                    body: recipe_service.get(&recipe).unwrap().clone(),
                 })))
             }
         });
@@ -198,7 +201,11 @@ fn view_ingredient<'a>(
     category_service: &CategoryService,
     unit_system: &'a UnitSystem,
 ) -> Element<'a, application::Message> {
-    let category_name = category_service.get(&ingredient.category).name.clone();
+    let category_name = category_service
+        .get(&ingredient.category)
+        .unwrap()
+        .name
+        .clone();
     let category = text!("{category_name}: ");
     let quantity_value = text(ingredient.quantity.value(*unit_system));
     let quantity_unit = text(ingredient.quantity.unit(*unit_system).to_string());

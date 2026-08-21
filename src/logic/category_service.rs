@@ -1,8 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use crate::{
     logic::{LogicError, graph::DirectedAcyclicGraph},
-    models::{Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
+    models::{BartendError, Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
     persistence::repositories::CategoryRepository,
 };
 
@@ -16,16 +16,10 @@ pub struct CategoryService {
 
 impl CategoryService {
     //bulk load data at start
-    pub fn new(db: &impl CategoryRepository) -> Self {
-        let categories = match db.get_all() {
-            Ok(map) => map,
-            Err(_) => panic!("Error reading category DB"),
-        };
+    pub fn new(db: &impl CategoryRepository) -> Result<Self, BartendError> {
+        let categories = db.get_all()?;
 
-        let item_mapping = match db.get_map() {
-            Ok(map) => map,
-            Err(_) => panic!("Error reading mapping DB"),
-        };
+        let item_mapping = db.get_map()?;
 
         let category_mapping = item_mapping.iter().fold(
             HashMap::new(),
@@ -43,14 +37,14 @@ impl CategoryService {
                 acc
             },
         );
-        let category_relations = db.get_graph().unwrap();
+        let category_relations = db.get_graph()?;
         let graph = DirectedAcyclicGraph::load(category_relations);
-        CategoryService {
+        Ok(CategoryService {
             categories,
             item_mapping,
             category_mapping,
             graph,
-        }
+        })
     }
     pub fn item_category(&self, item: &ItemID) -> Option<CategoryID> {
         self.item_mapping.get(item).copied()
@@ -69,13 +63,13 @@ impl CategoryService {
         items
     }
 
-    pub fn child_categories(&self, category: &CategoryID) -> HashSet<CategoryID> {
+    pub fn child_categories(
+        &self,
+        category: &CategoryID,
+    ) -> Result<HashSet<CategoryID>, BartendError> {
         match self.graph.get_edges(category) {
-            Some(children) => children,
-            None => panic!(
-                "Something has gone wrong, attempted to get category: {:?}\n current state of the graph: {:?}\nstate of categories: {:?}",
-                *category, self.graph, self.categories
-            ),
+            Some(children) => Ok(children),
+            None => Err(LogicError::CategoryNotInGraph(*category))?,
         }
     }
 
@@ -90,10 +84,11 @@ impl CategoryService {
             .collect()
     }
 
-    pub fn get(&self, id: &CategoryID) -> &CategoryBody {
+    pub fn get(&self, id: &CategoryID) -> Result<&CategoryBody, BartendError> {
         match self.categories.get(id) {
-            Some(body) => body,
-            None => panic!("Invalid CategoryID in cirulation!"),
+            //another logic error
+            Some(body) => Ok(body),
+            None => Err(LogicError::InvalidCategory(*id))?,
         }
     }
 
@@ -117,38 +112,40 @@ impl CategoryService {
     }
 
     //Writes, cache invalidating
-    pub fn insert(&mut self, db: &impl CategoryRepository, body: &CategoryBody) -> CategoryID {
-        match db.insert(body) {
-            Ok(id) => {
-                self.categories.insert(id, body.clone());
-                self.graph.insert_vertex(id);
-                id
-            }
-            Err(e) => panic!("{e}"),
-        }
+    pub fn insert(
+        &mut self,
+        db: &impl CategoryRepository,
+        body: &CategoryBody,
+    ) -> Result<CategoryID, BartendError> {
+        let id = db.insert(body)?;
+        self.categories.insert(id, body.clone());
+        self.graph.insert_vertex(id);
+        Ok(id)
     }
-    pub fn delete(&mut self, db: &impl CategoryRepository, category: CategoryID) {
+    pub fn delete(
+        &mut self,
+        db: &impl CategoryRepository,
+        category: CategoryID,
+    ) -> Result<(), BartendError> {
         let patch = self.graph.get_removal_patch(&category);
-        //TODO: THis can be further simplified into a single operation.
-        if let Err(e) = db.delete(&patch) {
-            panic!("{e}")
-        }
+        db.delete(&patch)?;
         self.categories.remove(&category);
         self.graph.remove(patch);
         self.category_mapping.remove(&category);
         self.item_mapping.retain(|_, value| value != &category);
+        Ok(())
     }
-    pub fn update(&mut self, db: &impl CategoryRepository, category: &Category) {
+    pub fn update(
+        &mut self,
+        db: &impl CategoryRepository,
+        category: &Category,
+    ) -> Result<(), BartendError> {
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
             *cached_copy = category.body.clone();
-            if let Err(e) = db.update(category) {
-                panic!("{e}")
-            }
+            db.update(category)?;
+            Ok(())
         } else {
-            panic!(
-                "Categories attempted to update nonexistent category {}",
-                category
-            );
+            Err(LogicError::InvalidCategory(category.id))?
         }
     }
     pub fn add_item_mapping(
@@ -156,57 +153,62 @@ impl CategoryService {
         db: &impl CategoryRepository,
         item: &ItemID,
         category: &CategoryID,
-    ) {
-        if let Err(e) = db.map_insert(item, category) {
-            panic!("{e}");
-        }
+    ) -> Result<(), BartendError> {
+        db.map_insert(item, category)?;
+        self.category_mapping
+            .entry(*category)
+            .or_default()
+            .insert(*item);
         self.item_mapping.insert(*item, *category);
+        Ok(())
     }
     pub fn update_item_mapping(
         &mut self,
         db: &impl CategoryRepository,
         item: &ItemID,
         category: &Option<CategoryID>,
-    ) {
+    ) -> Result<(), BartendError> {
         let mut old_category = self.item_category(item);
         match (old_category.take(), category) {
             (None, Some(new)) => {
-                self.add_item_mapping(db, item, new);
+                self.add_item_mapping(db, item, new)?;
             }
             (Some(old), None) => {
                 self.item_mapping.remove(item);
-                if let Err(e) = db.map_delete(item, &old) {
-                    panic!("{e}");
+                match self.category_mapping.entry(old) {
+                    Entry::Occupied(mut items) => {
+                        items.get_mut().remove(item);
+                    }
+                    Entry::Vacant(_) => {
+                        Err(LogicError::InvalidCategory(old))?;
+                    }
                 }
             }
             (Some(old), Some(new)) => {
-                if let Err(e) = db.map_delete(item, &old) {
-                    panic!("{e}");
+                db.map_delete(item, &old)?;
+                db.map_insert(item, new)?;
+                match self.item_mapping.get_mut(item) {
+                    Some(old_mapping) => *old_mapping = *new,
+                    None => Err(LogicError::InvalidCategory(old))?,
                 }
-                if let Err(e) = db.map_insert(item, new) {
-                    panic!("{e}");
-                }
-                let old_mapping = self.item_mapping.get_mut(item).unwrap();
-                *old_mapping = *new;
             }
             (None, None) => {}
         }
+        Ok(())
     }
     pub fn add_category_relation(
         &mut self,
         db: &impl CategoryRepository,
         parent: &CategoryID,
         child: &CategoryID,
-    ) -> Result<(), LogicError> {
+    ) -> Result<(), BartendError> {
         if self.graph.insert_edge(parent, child).is_err() {
             Err(LogicError::InvalidCategoryRelation {
                 parent: *parent,
                 child: *child,
-            })
+            })?
         } else {
-            if let Err(e) = db.insert_relation(*parent, *child) {
-                panic!("{e}")
-            };
+            db.insert_relation(*parent, *child)?;
             Ok(())
         }
     }
@@ -215,12 +217,10 @@ impl CategoryService {
         db: &impl CategoryRepository,
         parent: &CategoryID,
         child: &CategoryID,
-    ) {
+    ) -> Result<(), BartendError> {
+        db.delete_edge(*parent, *child)?;
         self.graph.remove_edge(parent, child);
-
-        if let Err(e) = db.delete_edge(*parent, *child) {
-            panic!("{e}")
-        };
+        Ok(())
     }
     pub fn valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
         self.graph
@@ -324,7 +324,7 @@ mod tests {
     #[test]
     fn category_service_loads_in_all_data() {
         let db = TestDB::new();
-        let category_service = CategoryService::new(&db);
+        let category_service = CategoryService::new(&db).unwrap();
 
         assert_eq!(category_service.categories.len(), 30);
     }
@@ -336,14 +336,14 @@ mod tests {
             #[test]
             fn initializes_id_in_table_and_graph() {
                 let db = TestDB::new();
-                let mut service = CategoryService::new(&db);
+                let mut service = CategoryService::new(&db).unwrap();
                 let stub_body = CategoryBody {
                     name: "test".to_string(),
                 };
                 let next_id = db._get_next();
                 assert!(!service.graph.contains_vertex(&next_id));
 
-                let id = service.insert(&db, &stub_body);
+                let id = service.insert(&db, &stub_body).expect("Should be valid");
 
                 assert!(service.categories.contains_key(&id));
                 assert!(service.graph.contains_vertex(&id));
@@ -355,15 +355,15 @@ mod tests {
             #[test]
             fn removes_id_from_table_and_graph() {
                 let db = TestDB::new();
-                let mut service = CategoryService::new(&db);
+                let mut service = CategoryService::new(&db).unwrap();
                 let stub_body = CategoryBody {
                     name: "test".to_string(),
                 };
-                let id = service.insert(&db, &stub_body);
+                let id = service.insert(&db, &stub_body).expect("should be valid");
                 assert!(service.categories.contains_key(&id));
                 assert!(service.graph.contains_vertex(&id));
 
-                service.delete(&db, id.clone());
+                _ = service.delete(&db, id.clone());
 
                 assert!(!service.categories.contains_key(&id));
                 assert!(!service.graph.contains_vertex(&id));
@@ -374,18 +374,18 @@ mod tests {
             #[test]
             fn updates_in_table() {
                 let db = TestDB::new();
-                let mut service = CategoryService::new(&db);
+                let mut service = CategoryService::new(&db).unwrap();
                 let initial_body = CategoryBody {
                     name: "test".to_string(),
                 };
                 let updated_body = CategoryBody {
                     name: "next".to_string(),
                 };
-                let id = service.insert(&db, &initial_body);
+                let id = service.insert(&db, &initial_body).expect("valid for test");
                 assert!(service.categories.contains_key(&id));
                 assert_eq!(service.categories.get(&id).unwrap().name, initial_body.name);
 
-                service.update(
+                _ = service.update(
                     &db,
                     &Category {
                         id,
@@ -398,11 +398,30 @@ mod tests {
         }
     }
     mod item_mapping {
+
         //mapping specific behavior
         use super::*;
+
+        #[test]
+        fn addition_updates_both_mappings() {
+            let db = &TestDB::new();
+            let mut service = CategoryService::new(db).unwrap();
+            let item = ItemID(0);
+            let category = CategoryID(0);
+
+            _ = service.add_item_mapping(db, &item, &category);
+
+            assert!(
+                service
+                    .category_mapping
+                    .get(&category)
+                    .unwrap()
+                    .contains(&item)
+            );
+            assert_eq!(service.item_mapping.get(&item).unwrap(), &category);
+        }
     }
     mod category_resolution {
         //graph specific behavior
-        use super::*;
     }
 }

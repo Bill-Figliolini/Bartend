@@ -5,7 +5,10 @@ mod recipe_service;
 
 use std::path::Path;
 
-use crate::{models::CategoryID, persistence::Database};
+use crate::{
+    models::{CategoryID, ItemID, RecipeID},
+    persistence::Database,
+};
 
 pub use self::{
     category_service::CategoryService, graph::GraphPatch, item_service::ItemService,
@@ -30,10 +33,14 @@ impl BarCollection {
         Self { db }
     }
 }
-
+#[derive(Debug)]
 pub enum LogicError {
     InvalidCategoryRelation {
         parent: CategoryID,
         child: CategoryID,
     },
+    InvalidCategory(CategoryID),
+    InvalidItem(ItemID),
+    InvalidRecipe(RecipeID),
+    CategoryNotInGraph(CategoryID),
 }
