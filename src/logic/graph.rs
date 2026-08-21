@@ -157,15 +157,14 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
         Some(ancestors)
     }
     pub fn get_non_cyclic_additions(&self, search_vertex: &T) -> Option<HashSet<T>> {
-        if !self.contains_vertex(search_vertex) {
-            return None;
-        }
-        let parents_of_search = self
-            .get_ancestors(search_vertex)
-            .expect("Search node should be in graph");
-        let children_of_search = self
-            .get_edges(search_vertex)
-            .expect("Search node should be in graph");
+        let parents_of_search = match self.get_ancestors(search_vertex) {
+            Some(edges) => edges,
+            None => return None,
+        };
+        let children_of_search = match self.get_edges(search_vertex) {
+            Some(edges) => edges,
+            None => return None,
+        };
         let non_cyclic = self
             .graph
             .keys()

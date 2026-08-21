@@ -423,6 +423,5 @@ mod tests {
     }
     mod category_resolution {
         //graph specific behavior
-        use super::*;
     }
 }
