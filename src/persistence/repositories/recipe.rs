@@ -108,7 +108,7 @@ mod tests {
         let ingredients = categories
             .iter()
             .map(|id| {
-                let quantity = match rand::random_range(0..3) {
+                let quantity = match random_range(0..3) {
                     0 => Quantity::Count {
                         quantity: random_range(0.0..=750.0),
                         name: Dash,
@@ -253,7 +253,7 @@ mod tests {
             let num_recipes = 100;
             let mut recipes = Vec::with_capacity(num_recipes);
             for i in 0..=num_recipes {
-                let ingredient_count: usize = rand::random_range(0..=100);
+                let ingredient_count: usize = random_range(0..=100);
                 let category_bodies = create_categories(ingredient_count);
                 let category_ids = category_bodies
                     .iter()

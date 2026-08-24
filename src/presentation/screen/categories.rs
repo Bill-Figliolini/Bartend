@@ -87,8 +87,8 @@ impl Categories {
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
         let header = match self.edit_state {
-            EditState::None => iced::widget::text("New Category:"),
-            EditState::Editing(_) => iced::widget::text("Edit Category:"),
+            EditState::None => text("New Category:"),
+            EditState::Editing(_) => text("Edit Category:"),
         };
         let save_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));

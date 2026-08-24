@@ -3,12 +3,7 @@ mod graph;
 mod item_service;
 mod recipe_service;
 
-use std::path::Path;
-
-use crate::{
-    models::{CategoryID, ItemID, RecipeID},
-    persistence::Database,
-};
+use crate::models::{CategoryID, ItemID, RecipeID};
 
 pub use self::{
     category_service::CategoryService, graph::GraphPatch, item_service::ItemService,

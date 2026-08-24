@@ -31,9 +31,9 @@ impl<'a, Message: Clone + 'a> Sidebar<'a, Message> {
         self
     }
     pub fn into(self) -> Element<'a, Message> {
-        let sidebar_buttons = iced::widget::Column::from_iter(self.buttons);
+        let sidebar_buttons = widget::Column::from_iter(self.buttons);
         let sidebar_contents = sidebar_buttons.width(150).height(Fill);
-        let sidebar_div = iced::widget::rule::vertical(constants::DIV_SIZE);
-        iced::widget::container(row![sidebar_contents, sidebar_div]).into()
+        let sidebar_div = widget::rule::vertical(constants::DIV_SIZE);
+        widget::container(row![sidebar_contents, sidebar_div]).into()
     }
 }

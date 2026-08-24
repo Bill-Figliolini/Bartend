@@ -120,7 +120,7 @@ impl Bartend {
         };
     }
 
-    fn update(&mut self, message: Message) -> iced::Task<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::NoOp => Task::none(),
             Message::ReloadScreen => {
