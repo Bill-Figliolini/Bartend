@@ -21,8 +21,8 @@ pub enum Screen {
     Inventory(Box<inventory::Inventory>),
     Settings(settings::Settings),
     Categories(categories::Categories),
-    Recipes(recipes::Recipes),
-    Serving(serving::Serving),
+    Recipes(Recipes),
+    Serving(Serving),
 }
 
 //Screen Labels
@@ -44,7 +44,7 @@ pub enum ScreenCommand {
     Serving(serving::Command),
 }
 impl ScreenCommand {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context) -> Task<Message> {
         match self {
             ScreenCommand::Inventory(cmd) => cmd.apply(ctx),
             ScreenCommand::Settings(cmd) => cmd.apply(ctx),

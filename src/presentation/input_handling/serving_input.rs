@@ -1,7 +1,6 @@
 use iced::widget::{column, row, text};
 
 use crate::{
-    application,
     logic::{CategoryService, ItemService, RecipeService},
     models::{CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, UnitSystem},
     presentation::{
