@@ -16,3 +16,33 @@ serde_json = "1.0.149"
 [dev-dependencies]
 rand = "0.10.2"
 tempfile = "3.24.0"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+unused_qualifications = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+# groups first, negative priority so individual entries below override
+pedantic = { level = "warn", priority = -1 }
+
+# --- deny: Should always be avoided ---
+dbg_macro = "deny"
+mem_forget = "deny"
+undocumented_unsafe_blocks = "deny"
+float_cmp = "deny"
+lossy_float_literal = "deny"
+rest_pat_in_fully_bound_structs = "deny"
+
+# --- warn: contingently allowed ---
+unwrap_used = "warn"
+todo = "warn"
+unimplemented = "warn"
+clone_on_ref_ptr = "warn"
+str_to_string = "warn"
+string_to_string = "warn"
+verbose_file_reads = "warn"
+exit = "warn"
+assertions_on_result_states = "warn"
+semicolon_if_nothing_returned = "warn"
