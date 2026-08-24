@@ -9,8 +9,9 @@ use iced::{
 use rfd::AsyncFileDialog;
 
 use crate::{
-    logic::{BarCollection, CategoryService, ItemService, RecipeService},
+    logic::{CategoryService, ItemService, RecipeService},
     models::{CategoryID, Config, ItemID, RecipeID},
+    persistence::Database,
     presentation::{
         screen::{self, Screen, ScreenKind},
         widget::sidebar,
@@ -29,7 +30,7 @@ pub fn run() -> iced::Result {
 struct Bartend {
     screen: Screen,
     config: Config,
-    bar_collection: BarCollection,
+    database: Database,
     category_service: CategoryService,
     item_service: ItemService,
     recipe_service: RecipeService,
@@ -59,7 +60,7 @@ pub(in crate::presentation) enum Message {
 
 //The mutable app state every screen's Command needs in order to apply itself.
 pub(in crate::presentation) struct Context<'a> {
-    pub(in crate::presentation) bar_collection: &'a mut BarCollection,
+    pub(in crate::presentation) database: &'a mut Database,
     pub(in crate::presentation) item_service: &'a mut ItemService,
     pub(in crate::presentation) category_service: &'a mut CategoryService,
     pub(in crate::presentation) recipe_service: &'a mut RecipeService,
@@ -76,16 +77,16 @@ impl Bartend {
             }
         };
 
-        let bar_collection = BarCollection::new(config.db_path());
-        let item_service = ItemService::new(&bar_collection.db.item_db()).unwrap();
-        let category_service = CategoryService::new(&bar_collection.db.category_db()).unwrap();
-        let recipe_service = RecipeService::new(&bar_collection.db.recipe_db()).unwrap();
+        let database = Database::load(config.db_path()).unwrap();
+        let item_service = ItemService::new(&database.item_db()).unwrap();
+        let category_service = CategoryService::new(&database.category_db()).unwrap();
+        let recipe_service = RecipeService::new(&database.recipe_db()).unwrap();
         let screen = Screen::start(&config, &category_service);
 
         Self {
             screen,
             config,
-            bar_collection,
+            database,
             category_service,
             item_service,
             recipe_service,
@@ -98,7 +99,7 @@ impl Bartend {
 
     fn context(&mut self) -> Context<'_> {
         Context {
-            bar_collection: &mut self.bar_collection,
+            database: &mut self.database,
             item_service: &mut self.item_service,
             category_service: &mut self.category_service,
             recipe_service: &mut self.recipe_service,
@@ -132,7 +133,7 @@ impl Bartend {
             }
             Message::DeleteItem(id) => {
                 self.item_service
-                    .delete(&self.bar_collection.db.item_db(), id)
+                    .delete(&self.database.item_db(), id)
                     .unwrap();
                 Task::done(Message::ReloadScreen)
             }
@@ -156,14 +157,14 @@ impl Bartend {
 
             Message::DeleteCategory(category) => {
                 self.category_service
-                    .delete(&self.bar_collection.db.category_db(), category)
+                    .delete(&self.database.category_db(), category)
                     .unwrap();
                 Task::done(Message::ReloadScreen)
             }
 
             Message::DeleteRecipe(recipe) => {
                 self.recipe_service
-                    .delete(&self.bar_collection.db.recipe_db(), recipe)
+                    .delete(&self.database.recipe_db(), recipe)
                     .unwrap();
                 Task::done(Message::ReloadScreen)
             }

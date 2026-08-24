@@ -8,8 +8,8 @@ use iced::{
 };
 
 use crate::{
-    logic::BarCollection,
     models::{Config, EditableConfig, UnitSystem},
+    persistence::Database,
     presentation::{
         application::{self, Context},
         constants,
@@ -43,7 +43,7 @@ impl Command {
                     panic!("{e:?}")
                 }
                 if db_changed {
-                    *ctx.bar_collection = BarCollection::new(ctx.config.db_path());
+                    *ctx.database = Database::load(ctx.config.db_path()).unwrap();
                 }
                 Task::done(application::Message::ReloadScreen)
             }

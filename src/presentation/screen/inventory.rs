@@ -52,15 +52,11 @@ impl Command {
             Command::AddItem(item_body, category_id) => {
                 let item_id = ctx
                     .item_service
-                    .add(&ctx.bar_collection.db.item_db(), &item_body)
+                    .add(&ctx.database.item_db(), &item_body)
                     .unwrap();
                 if let Some(category_id) = category_id {
                     ctx.category_service
-                        .add_item_mapping(
-                            &ctx.bar_collection.db.category_db(),
-                            &item_id,
-                            &category_id,
-                        )
+                        .add_item_mapping(&ctx.database.category_db(), &item_id, &category_id)
                         .unwrap();
                 }
                 Task::done(application::Message::ReloadScreen)
@@ -68,14 +64,10 @@ impl Command {
             Command::UpdateItem(item, category_id) => {
                 let item_id = item.id;
                 ctx.item_service
-                    .update(&ctx.bar_collection.db.item_db(), item)
+                    .update(&ctx.database.item_db(), item)
                     .unwrap();
                 ctx.category_service
-                    .update_item_mapping(
-                        &ctx.bar_collection.db.category_db(),
-                        &item_id,
-                        &category_id,
-                    )
+                    .update_item_mapping(&ctx.database.category_db(), &item_id, &category_id)
                     .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }

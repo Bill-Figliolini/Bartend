@@ -42,19 +42,19 @@ impl Command {
         match self {
             Command::AddCategory(body) => {
                 ctx.category_service
-                    .insert(&ctx.bar_collection.db.category_db(), &body)
+                    .insert(&ctx.database.category_db(), &body)
                     .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }
             Command::UpdateCategory(category) => {
                 ctx.category_service
-                    .update(&ctx.bar_collection.db.category_db(), &category)
+                    .update(&ctx.database.category_db(), &category)
                     .unwrap();
                 Task::done(application::Message::ReloadScreen)
             }
             Command::AddRelation(parent, child) => {
                 let _result = ctx.category_service.add_category_relation(
-                    &ctx.bar_collection.db.category_db(),
+                    &ctx.database.category_db(),
                     &parent,
                     &child,
                 );
@@ -62,7 +62,7 @@ impl Command {
             }
             Command::RemoveRelation(parent, child) => {
                 let _result = ctx.category_service.remove_category_relation(
-                    &ctx.bar_collection.db.category_db(),
+                    &ctx.database.category_db(),
                     &parent,
                     &child,
                 );
