@@ -34,7 +34,7 @@ pub enum Command {
     UpdateConfig(Config),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::UpdateConfig(config) => {
                 let db_changed = ctx.config.db_path() != config.db_path();

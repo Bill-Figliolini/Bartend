@@ -8,7 +8,7 @@ use crate::{
 };
 
 impl<'a> ItemDB<'a> {
-    fn from_db(row: &Row) -> Result<Item, rusqlite::Error> {
+    fn from_db(row: &Row<'_>) -> Result<Item, rusqlite::Error> {
         let id = row.get(0)?;
         let name = row.get(1)?;
         let quantity = Quantity::from_db(row.get(3)?, row.get(2)?);

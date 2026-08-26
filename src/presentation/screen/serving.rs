@@ -25,7 +25,7 @@ pub(in crate::presentation) enum Command {
     UseItems(Vec<ItemUse>),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::UseItems(items) => {
                 ctx.item_service

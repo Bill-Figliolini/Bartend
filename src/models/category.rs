@@ -31,4 +31,5 @@ impl Display for CategoryID {
     }
 }
 
+#[derive(Debug)]
 pub struct CategoryFilter {}

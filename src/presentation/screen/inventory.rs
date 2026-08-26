@@ -47,7 +47,7 @@ pub enum Command {
     UpdateItem(Item, Option<CategoryID>),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::AddItem(item_body, category_id) => {
                 let item_id = ctx

@@ -10,7 +10,10 @@ use crate::{
 };
 
 impl<'a> RecipeDB<'a> {
-    fn from_db(connection: &Connection, row: &rusqlite::Row) -> Result<Recipe, rusqlite::Error> {
+    fn from_db(
+        connection: &Connection,
+        row: &rusqlite::Row<'_>,
+    ) -> Result<Recipe, rusqlite::Error> {
         let id = row.get(0)?;
         let name = row.get(1)?;
         let ingredients = ingredients::get(connection, &id)?;

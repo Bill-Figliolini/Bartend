@@ -44,7 +44,7 @@ pub enum ScreenCommand {
     Serving(serving::Command),
 }
 impl ScreenCommand {
-    pub fn apply(self, ctx: &mut Context) -> Task<Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<Message> {
         match self {
             ScreenCommand::Inventory(cmd) => cmd.apply(ctx),
             ScreenCommand::Settings(cmd) => cmd.apply(ctx),

@@ -38,7 +38,7 @@ pub enum Command {
     RemoveRelation(CategoryID, CategoryID),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::AddCategory(body) => {
                 ctx.category_service

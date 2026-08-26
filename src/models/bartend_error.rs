@@ -1,7 +1,4 @@
-use std::{
-    error::Error,
-    fmt::{Display, write},
-};
+use std::{error::Error, fmt::Display};
 
 use crate::{logic::LogicError, persistence::DBError};
 #[derive(Debug)]

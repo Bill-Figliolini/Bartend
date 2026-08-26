@@ -12,7 +12,7 @@ use crate::{
 };
 
 impl<'a> CategoryDB<'a> {
-    fn from_db(row: &Row) -> Result<Category, rusqlite::Error> {
+    fn from_db(row: &Row<'_>) -> Result<Category, rusqlite::Error> {
         let id = row.get(0)?;
         let name = row.get(1)?;
         Ok(Category {

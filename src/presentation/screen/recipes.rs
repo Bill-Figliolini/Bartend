@@ -44,7 +44,7 @@ pub enum Command {
     UpdateRecipe(Recipe),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::AddRecipe(body) => {
                 ctx.recipe_service
