@@ -10,7 +10,7 @@ use crate::{
     logic::{CategoryService, ItemService, RecipeService},
     models::Config,
     presentation::{
-        application::{self, Context, Message},
+        application::{Context, Message},
         screen::{recipes::Recipes, serving::Serving},
     },
 };

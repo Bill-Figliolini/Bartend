@@ -35,3 +35,9 @@ impl PartialEq for Recipe {
         self.id == other.id
     }
 }
+
+impl Display for RecipeID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}

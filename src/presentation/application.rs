@@ -77,10 +77,22 @@ impl Bartend {
             }
         };
 
-        let database = Database::load(config.db_path()).unwrap();
-        let item_service = ItemService::new(&database.item_db()).unwrap();
-        let category_service = CategoryService::new(&database.category_db()).unwrap();
-        let recipe_service = RecipeService::new(&database.recipe_db()).unwrap();
+        let database = match Database::load(config.db_path()) {
+            Ok(db) => db,
+            Err(e) => panic!("START UP ERROR: {e}"),
+        };
+        let item_service = match ItemService::new(&database.item_db()) {
+            Ok(items) => items,
+            Err(e) => panic!("START UP ERROR: {e}"),
+        };
+        let category_service = match CategoryService::new(&database.category_db()) {
+            Ok(categories) => categories,
+            Err(e) => panic!("START UP ERROR: {e}"),
+        };
+        let recipe_service = match RecipeService::new(&database.recipe_db()) {
+            Ok(recipes) => recipes,
+            Err(e) => panic!("START UP ERROR: {e}"),
+        };
         let screen = Screen::start(&config, &category_service);
 
         Self {

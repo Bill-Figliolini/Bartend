@@ -66,6 +66,7 @@ impl Database {
 
 impl Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DB ERROR: ")?;
         match self {
             DBError::External(error) => write!(f, "External DB Error: {error}"),
             DBError::RestrictViolation => write!(f, "Attempted to delete Restricted Value"),

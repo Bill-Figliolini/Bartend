@@ -44,3 +44,9 @@ impl Display for Item {
         write!(f, "{}", self.body.name)
     }
 }
+
+impl Display for ItemID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
