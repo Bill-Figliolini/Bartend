@@ -100,9 +100,9 @@ impl Screen {
             (Self::Settings(settings), Message::Settings(message)) => {
                 settings.update(message).map(ScreenCommand::Settings)
             }
-            (Self::Categories(categories), Message::Categories(message)) => {
-                categories.update(message).map(ScreenCommand::Categories)
-            }
+            (Self::Categories(categories), Message::Categories(message)) => categories
+                .update(message, category_service)
+                .map(ScreenCommand::Categories),
             (Self::Recipes(recipes), Message::Recipes(message)) => {
                 recipes.update(message).map(ScreenCommand::Recipes)
             }

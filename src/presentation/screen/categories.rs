@@ -26,7 +26,7 @@ pub struct Categories {
 pub enum Message {
     Reload,
     Input(InputMessage),
-    BeginEdit(Category),
+    Edit(CategoryID),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
     DeleteCategory(CategoryID),
@@ -131,16 +131,11 @@ impl Categories {
             text("Edit").width(edit_column_width).center(),
             |category: CategoryID| match self.edit_state {
                 EditState::None => iced::widget::Button::new(text("Edit").center())
-                    .on_press(application::Message::Categories(Message::BeginEdit(
-                        Category {
-                            id: category,
-                            body: category_service.get(&category).unwrap().clone(),
-                        },
-                    )))
+                    .on_press(application::Message::Categories(Message::Edit(category)))
                     .width(edit_column_width),
                 EditState::Editing(category_id) if category == category_id => {
                     iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::ReloadScreen)
+                        .on_press(application::Message::Categories(Message::Edit(category_id)))
                         .width(edit_column_width)
                 }
                 EditState::Editing(_) => {
@@ -174,19 +169,24 @@ impl Categories {
         let body = column![category_entry, categories];
         column![header, body].into()
     }
-    pub fn update(&mut self, message: Message) -> Option<Command> {
+    pub fn update(
+        &mut self,
+        message: Message,
+        category_service: &CategoryService,
+    ) -> Option<Command> {
         match message {
             Message::Input(msg) => {
                 self.input.update(msg);
                 None
             }
-            Message::BeginEdit(category) => {
+            Message::Edit(category) => {
                 match self.edit_state {
                     EditState::None => {
-                        self.edit_state = EditState::Editing(category.id);
-                        self.input.begin_edit(&category.body, UnitSystem::Metric);
+                        self.edit_state = EditState::Editing(category);
+                        let body = category_service.get(&category).unwrap();
+                        self.input.begin_edit(&body, UnitSystem::Metric);
                     }
-                    EditState::Editing(category_id) if category_id == category.id => {
+                    EditState::Editing(category_id) if category_id == category => {
                         self.input.clear();
                         self.edit_state = EditState::None;
                     }
