@@ -4,7 +4,7 @@ use iced::{
     Element,
     Length::Fill,
     Task, Theme,
-    widget::{container, row},
+    widget::{button, column, container, row, text},
 };
 use rfd::AsyncFileDialog;
 
@@ -41,6 +41,7 @@ struct Bartend {
 pub(in crate::presentation) enum Message {
     NoOp,
     ReloadScreen,
+    ClearError,
 
     OpenScreen(ScreenKind),
     Error(BartendError),
@@ -137,6 +138,10 @@ impl Bartend {
                 let reload_message = self.screen.reload_message(&self.config);
                 self.update(reload_message)
             }
+            Message::ClearError => {
+                self.error = None;
+                Task::none()
+            }
             Message::OpenScreen(kind) => {
                 self.open_screen(kind);
                 Task::none()
@@ -194,12 +199,20 @@ impl Bartend {
             .button("Settings", || Message::OpenScreen(ScreenKind::Settings))
             .into();
 
+        let mut body = Vec::new();
         let screen_contents = self.screen.view(
             &self.item_service,
             &self.category_service,
             &self.recipe_service,
         );
-        let screen = container(screen_contents).width(Fill).height(Fill);
+        if let Some(error) = &self.error {
+            let error_text = text(error.to_string());
+            let error_clear_button = button(text("X")).on_press(Message::ClearError);
+            let error_row = row![error_text, error_clear_button];
+            body.push(error_row.into());
+        }
+        body.push(screen_contents);
+        let screen = container(column(body)).width(Fill).height(Fill);
 
         container(row![sidebar, screen])
             .height(Fill)
