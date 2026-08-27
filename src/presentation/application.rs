@@ -10,7 +10,7 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, CategoryID, Config, ItemID, RecipeID},
+    models::{BartendError, Config, ItemID, RecipeID},
     persistence::Database,
     presentation::{
         screen::{self, Screen, ScreenKind},
