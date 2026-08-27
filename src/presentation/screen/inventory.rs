@@ -37,6 +37,7 @@ pub enum Message {
     BeginEdit(ItemID, Option<Category>),
     CancelEdit,
     Input(InputMessage),
+    DeleteItem(ItemID),
 
     //Variants for Application's use
     Reload,
@@ -45,6 +46,7 @@ pub enum Message {
 pub enum Command {
     AddItem(ItemBody, Option<CategoryID>),
     UpdateItem(Item, Option<CategoryID>),
+    DeleteItem(ItemID),
 }
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
@@ -84,6 +86,10 @@ impl Command {
                 }
                 Task::batch(tasks)
             }
+            Command::DeleteItem(id) => match ctx.item_service.delete(&ctx.database.item_db(), id) {
+                Ok(_) => Task::done(application::Message::ReloadScreen),
+                Err(e) => Task::done(application::Message::Error(e)),
+            },
         }
     }
 }
@@ -175,7 +181,7 @@ impl Inventory {
             text("Delete").width(delete_column_width).center(),
             |item: ItemID| {
                 iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteItem(item))
+                    .on_press(application::Message::Inventory(Message::DeleteItem(item)))
             },
         );
         let columns = vec![
@@ -271,6 +277,7 @@ impl Inventory {
                 self.edit_state = EditState::None;
                 None
             }
+            Message::DeleteItem(item) => Some(Command::DeleteItem(item)),
         }
     }
 }
