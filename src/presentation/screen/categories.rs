@@ -29,6 +29,7 @@ pub enum Message {
     BeginEdit(Category),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
+    DeleteCategory(CategoryID),
     Save,
 }
 pub enum Command {
@@ -36,6 +37,7 @@ pub enum Command {
     UpdateCategory(Category),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
+    DeleteCategory(CategoryID),
 }
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
@@ -77,6 +79,12 @@ impl Command {
                     Ok(_) => Task::none(),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
+            }
+            Command::DeleteCategory(category) => {
+                ctx.category_service
+                    .delete(&ctx.database.category_db(), category)
+                    .unwrap();
+                Task::done(application::Message::ReloadScreen)
             }
         }
     }
@@ -144,8 +152,9 @@ impl Categories {
         let delete_column = table::column(
             text("Delete").width(delete_column_width).center(),
             |category: CategoryID| {
-                iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteCategory(category))
+                iced::widget::Button::new(text("X").width(delete_column_width).center()).on_press(
+                    application::Message::Categories(Message::DeleteCategory(category)),
+                )
             },
         );
         let columns = vec![
@@ -201,6 +210,7 @@ impl Categories {
             }
             Message::AddRelation(parent, child) => Some(Command::AddRelation(parent, child)),
             Message::RemoveRelation(parent, child) => Some(Command::RemoveRelation(parent, child)),
+            Message::DeleteCategory(category) => Some(Command::DeleteCategory(category)),
         }
     }
     fn relation_add_view(

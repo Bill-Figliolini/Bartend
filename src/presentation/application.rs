@@ -49,7 +49,6 @@ pub(in crate::presentation) enum Message {
     OpenDBPicker(PathBuf),
 
     DeleteItem(ItemID),
-    DeleteCategory(CategoryID),
     DeleteRecipe(RecipeID),
 
     Inventory(screen::inventory::Message),
@@ -172,13 +171,6 @@ impl Bartend {
                     Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
                 })
             }),
-
-            Message::DeleteCategory(category) => {
-                self.category_service
-                    .delete(&self.database.category_db(), category)
-                    .unwrap();
-                Task::done(Message::ReloadScreen)
-            }
 
             Message::DeleteRecipe(recipe) => {
                 self.recipe_service
