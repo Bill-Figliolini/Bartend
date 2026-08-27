@@ -205,14 +205,20 @@ impl CategoryService {
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), BartendError> {
-        if self.graph.insert_edge(parent, child).is_err() {
-            Err(LogicError::InvalidCategoryRelation {
-                parent: *parent,
-                child: *child,
-            })?
-        } else {
-            db.insert_relation(*parent, *child)?;
-            Ok(())
+        match self.graph.insert_edge(parent, child) {
+            Ok(()) => {
+                db.insert_relation(*parent, *child)?;
+                Ok(())
+            }
+            Err(graph_error) => match graph_error {
+                super::graph::GraphError::EdgeEndpointNotInGraph => Ok(()),
+                super::graph::GraphError::WouldIntroduceCycle => {
+                    Err(LogicError::InvalidCategoryRelation {
+                        parent: *parent,
+                        child: *child,
+                    })?
+                }
+            },
         }
     }
     pub fn remove_category_relation(
