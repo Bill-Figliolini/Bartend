@@ -50,3 +50,12 @@ impl Display for ItemID {
         write!(f, "{}", self.0)
     }
 }
+
+impl Default for ItemBody {
+    fn default() -> Self {
+        Self {
+            name: "Invalid Item".to_string(),
+            quantity: Quantity::Volume { quantity: 0.0 },
+        }
+    }
+}

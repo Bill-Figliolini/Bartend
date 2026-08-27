@@ -63,9 +63,10 @@ impl Command {
                         &ctx.database.category_db(),
                         &item_id,
                         &category_id,
-                    ) {
-                        tasks.push(Task::done(application::Message::Error(e)));
-                    }
+                    )
+                {
+                    tasks.push(Task::done(application::Message::Error(e)));
+                }
                 Task::batch(tasks)
             }
             Command::UpdateItem(item, category_id) => {
@@ -124,10 +125,10 @@ impl Inventory {
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(Fill), |item: ItemID| {
-            text(item_service.get(&item).unwrap().name.clone())
+            text(item_service.get(&item).cloned().unwrap_or_default().name)
         });
         let quantity_column = table::column(text("Quantity"), |item: ItemID| {
-            let item = item_service.get(&item).unwrap();
+            let item = item_service.get(&item).cloned().unwrap_or_default();
             text!(
                 "{:.0} {}",
                 item.quantity.value(self.unit_system),
@@ -152,7 +153,7 @@ impl Inventory {
                         .item_category(&item)
                         .map(|id_ref| Category {
                             id: id_ref,
-                            body: category_service.get(&id_ref).unwrap().clone(),
+                            body: category_service.get(&id_ref).cloned().unwrap_or_default(),
                         });
                     iced::widget::Button::new(text("Edit").center()).on_press(
                         application::Message::Inventory(Message::BeginEdit(item, category)),
@@ -230,7 +231,10 @@ impl Inventory {
                 EditState::None => {
                     self.edit_state = EditState::Editing(item);
                     self.input.begin_edit(
-                        &(item_service.get(&item).unwrap().clone(), category),
+                        &(
+                            item_service.get(&item).cloned().unwrap_or_default(),
+                            category,
+                        ),
                         self.unit_system,
                     );
                     None

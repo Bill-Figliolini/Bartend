@@ -31,5 +31,13 @@ impl Display for CategoryID {
     }
 }
 
+impl Default for CategoryBody {
+    fn default() -> Self {
+        Self {
+            name: "Invalid Category".to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct CategoryFilter {}
