@@ -50,26 +50,39 @@ impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::AddItem(item_body, category_id) => {
-                let item_id = ctx
-                    .item_service
-                    .add(&ctx.database.item_db(), &item_body)
-                    .unwrap();
+                let mut tasks = Vec::new();
+                let item_id = match ctx.item_service.add(&ctx.database.item_db(), &item_body) {
+                    Ok(id) => {
+                        tasks.push(Task::done(application::Message::ReloadScreen));
+                        id
+                    }
+                    Err(e) => return Task::done(application::Message::Error(e)),
+                };
                 if let Some(category_id) = category_id {
-                    ctx.category_service
-                        .add_item_mapping(&ctx.database.category_db(), &item_id, &category_id)
-                        .unwrap();
+                    if let Err(e) = ctx.category_service.add_item_mapping(
+                        &ctx.database.category_db(),
+                        &item_id,
+                        &category_id,
+                    ) {
+                        tasks.push(Task::done(application::Message::Error(e)));
+                    }
                 }
-                Task::done(application::Message::ReloadScreen)
+                Task::batch(tasks)
             }
             Command::UpdateItem(item, category_id) => {
+                let mut tasks = Vec::new();
                 let item_id = item.id;
-                ctx.item_service
-                    .update(&ctx.database.item_db(), item)
-                    .unwrap();
-                ctx.category_service
-                    .update_item_mapping(&ctx.database.category_db(), &item_id, &category_id)
-                    .unwrap();
-                Task::done(application::Message::ReloadScreen)
+                if let Err(e) = ctx.item_service.update(&ctx.database.item_db(), item) {
+                    tasks.push(Task::done(application::Message::Error(e)));
+                }
+                if let Err(e) = ctx.category_service.update_item_mapping(
+                    &ctx.database.category_db(),
+                    &item_id,
+                    &category_id,
+                ) {
+                    tasks.push(Task::done(application::Message::Error(e)));
+                }
+                Task::batch(tasks)
             }
         }
     }
