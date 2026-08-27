@@ -76,6 +76,8 @@ impl Command {
                 let item_id = item.id;
                 if let Err(e) = ctx.item_service.update(&ctx.database.item_db(), item) {
                     tasks.push(Task::done(application::Message::Error(e)));
+                } else {
+                    tasks.push(Task::done(application::Message::ReloadScreen));
                 }
                 if let Err(e) = ctx.category_service.update_item_mapping(
                     &ctx.database.category_db(),
@@ -145,7 +147,13 @@ impl Inventory {
             table::column(
                 text("Category").width(200),
                 |item: ItemID| match category_service.item_category(&item) {
-                    Some(cat_id) => text(category_service.get(&cat_id).unwrap().name.clone()),
+                    Some(cat_id) => text(
+                        category_service
+                            .get(&cat_id)
+                            .cloned()
+                            .unwrap_or_default()
+                            .name,
+                    ),
                     None => text!("None"),
                 },
             );
