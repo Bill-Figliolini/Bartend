@@ -1,7 +1,7 @@
 use std::{error::Error, fmt::Display};
 
 use crate::{logic::LogicError, persistence::DBError};
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BartendError {
     LogicError(LogicError),
     DBError(DBError),

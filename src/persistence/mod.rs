@@ -9,10 +9,10 @@ use crate::{
     persistence::repositories::{CategoryDB, ItemDB, RecipeDB},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DBError {
     RestrictViolation,
-    External(rusqlite::Error),
+    External(String),
 }
 
 impl From<rusqlite::Error> for DBError {
@@ -21,7 +21,7 @@ impl From<rusqlite::Error> for DBError {
             SqliteFailure(e, _) if e.code == ErrorCode::ConstraintViolation => {
                 DBError::RestrictViolation
             }
-            _ => DBError::External(value),
+            _ => DBError::External(value.to_string()),
         }
     }
 }

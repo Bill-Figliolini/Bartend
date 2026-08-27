@@ -9,7 +9,7 @@ pub use self::{
     category_service::CategoryService, graph::GraphPatch, item_service::ItemService,
     recipe_service::RecipeService,
 };
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LogicError {
     InvalidCategoryRelation {
         parent: CategoryID,

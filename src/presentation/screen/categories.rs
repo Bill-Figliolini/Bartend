@@ -41,32 +41,42 @@ impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::AddCategory(body) => {
-                ctx.category_service
+                match ctx
+                    .category_service
                     .insert(&ctx.database.category_db(), &body)
-                    .unwrap();
-                Task::done(application::Message::ReloadScreen)
+                {
+                    Ok(_) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
             Command::UpdateCategory(category) => {
-                ctx.category_service
+                match ctx
+                    .category_service
                     .update(&ctx.database.category_db(), &category)
-                    .unwrap();
-                Task::done(application::Message::ReloadScreen)
+                {
+                    Ok(_) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
             Command::AddRelation(parent, child) => {
-                let _result = ctx.category_service.add_category_relation(
+                match ctx.category_service.add_category_relation(
                     &ctx.database.category_db(),
                     &parent,
                     &child,
-                );
-                Task::none()
+                ) {
+                    Ok(_) => Task::none(),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
             Command::RemoveRelation(parent, child) => {
-                let _result = ctx.category_service.remove_category_relation(
+                match ctx.category_service.remove_category_relation(
                     &ctx.database.category_db(),
                     &parent,
                     &child,
-                );
-                Task::none()
+                ) {
+                    Ok(_) => Task::none(),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
         }
     }
