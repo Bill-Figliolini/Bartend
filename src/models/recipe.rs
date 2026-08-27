@@ -41,3 +41,12 @@ impl Display for RecipeID {
         write!(f, "{}", self.0)
     }
 }
+
+impl Default for RecipeBody {
+    fn default() -> Self {
+        Self {
+            name: "Invalid Recipe".to_string(),
+            ingredients: Default::default(),
+        }
+    }
+}

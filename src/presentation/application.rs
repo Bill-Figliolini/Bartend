@@ -10,7 +10,7 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, Config, ItemID, RecipeID},
+    models::{BartendError, Config, ItemID},
     persistence::Database,
     presentation::{
         screen::{self, Screen, ScreenKind},
@@ -49,7 +49,6 @@ pub(in crate::presentation) enum Message {
     OpenDBPicker(PathBuf),
 
     DeleteItem(ItemID),
-    DeleteRecipe(RecipeID),
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -171,13 +170,6 @@ impl Bartend {
                     Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
                 })
             }),
-
-            Message::DeleteRecipe(recipe) => {
-                self.recipe_service
-                    .delete(&self.database.recipe_db(), recipe)
-                    .unwrap();
-                Task::done(Message::ReloadScreen)
-            }
 
             Message::Inventory(_)
             | Message::Settings(_)
