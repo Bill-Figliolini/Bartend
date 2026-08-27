@@ -73,7 +73,7 @@ impl RecipeService {
         match self.recipes.get_mut(&recipe.id) {
             Some(slot) => *slot = recipe.body,
             None => Err(LogicError::InvalidRecipe(recipe.id))?,
-        };
+        }
         Ok(())
     }
 }

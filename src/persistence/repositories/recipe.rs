@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-impl<'a> RecipeDB<'a> {
+impl RecipeDB<'_> {
     fn from_db(
         connection: &Connection,
         row: &rusqlite::Row<'_>,
@@ -24,7 +24,7 @@ impl<'a> RecipeDB<'a> {
     }
 }
 
-impl<'a> RecipeDB<'a> {
+impl RecipeDB<'_> {
     pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
         let query = "CREATE TABLE IF NOT EXISTS recipes(
                     id INTEGER PRIMARY KEY,
@@ -37,7 +37,7 @@ impl<'a> RecipeDB<'a> {
     }
 }
 
-impl<'a> RecipeRepository for RecipeDB<'a> {
+impl RecipeRepository for RecipeDB<'_> {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError> {
         let query = "INSERT INTO recipes(name) VALUES (?1)";
         let transaction = self.connection.unchecked_transaction()?;

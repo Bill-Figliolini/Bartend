@@ -58,15 +58,14 @@ impl Command {
                     }
                     Err(e) => return Task::done(application::Message::Error(e)),
                 };
-                if let Some(category_id) = category_id {
-                    if let Err(e) = ctx.category_service.add_item_mapping(
+                if let Some(category_id) = category_id
+                    && let Err(e) = ctx.category_service.add_item_mapping(
                         &ctx.database.category_db(),
                         &item_id,
                         &category_id,
                     ) {
                         tasks.push(Task::done(application::Message::Error(e)));
                     }
-                }
                 Task::batch(tasks)
             }
             Command::UpdateItem(item, category_id) => {

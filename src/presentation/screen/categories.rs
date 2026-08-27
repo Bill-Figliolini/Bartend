@@ -56,7 +56,7 @@ impl Command {
                     .category_service
                     .update(&ctx.database.category_db(), &category)
                 {
-                    Ok(_) => Task::done(application::Message::ReloadScreen),
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }
@@ -66,7 +66,7 @@ impl Command {
                     &parent,
                     &child,
                 ) {
-                    Ok(_) => Task::none(),
+                    Ok(()) => Task::none(),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }
@@ -76,7 +76,7 @@ impl Command {
                     &parent,
                     &child,
                 ) {
-                    Ok(_) => Task::none(),
+                    Ok(()) => Task::none(),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }
@@ -184,7 +184,7 @@ impl Categories {
                     EditState::None => {
                         self.edit_state = EditState::Editing(category);
                         let body = category_service.get(&category).unwrap();
-                        self.input.begin_edit(&body, UnitSystem::Metric);
+                        self.input.begin_edit(body, UnitSystem::Metric);
                     }
                     EditState::Editing(category_id) if category_id == category => {
                         self.input.clear();
@@ -228,7 +228,7 @@ impl Categories {
                 });
                 acc
             });
-        let id = id.clone();
+        let id = id;
         pick_list(options, self.stub.clone(), move |category| {
             category_add_msg(id, category.id)
         })

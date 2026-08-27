@@ -31,7 +31,7 @@ impl ItemService {
             .collect()
     }
 
-    #[must_use]
+    
     pub fn get(&self, item: &ItemID) -> Result<&ItemBody, BartendError> {
         match self.items.get(item) {
             Some(body) => Ok(body),

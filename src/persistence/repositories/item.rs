@@ -7,7 +7,7 @@ use crate::{
     persistence::{DBError, ItemDB, repositories::ItemRepository},
 };
 
-impl<'a> ItemDB<'a> {
+impl ItemDB<'_> {
     fn from_db(row: &Row<'_>) -> Result<Item, rusqlite::Error> {
         let id = row.get(0)?;
         let name = row.get(1)?;
@@ -19,7 +19,7 @@ impl<'a> ItemDB<'a> {
     }
 }
 
-impl<'a> ItemDB<'a> {
+impl ItemDB<'_> {
     pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
         let query = "CREATE TABLE IF NOT EXISTS items(
                     id INTEGER PRIMARY KEY,
@@ -32,7 +32,7 @@ impl<'a> ItemDB<'a> {
     }
 }
 
-impl<'a> ItemRepository for ItemDB<'a> {
+impl ItemRepository for ItemDB<'_> {
     fn insert(&self, item: &ItemBody) -> Result<ItemID, DBError> {
         let (quantity, unit) = item.quantity.db_format();
         self.connection.execute(

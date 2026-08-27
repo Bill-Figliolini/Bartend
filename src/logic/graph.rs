@@ -56,7 +56,7 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
     pub fn remove(&mut self, patch: GraphPatch<T>) {
         self.graph.remove(&patch.to_remove);
         if let Some(parents) = patch.parents {
-            for parent in parents.iter() {
+            for parent in &parents {
                 self.graph.entry(*parent).and_modify(|children| {
                     children.remove(&patch.to_remove);
                 });
@@ -71,12 +71,12 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
         }
     }
     pub fn get_removal_patch(&self, vertex: &T) -> GraphPatch<T> {
-        let patch = GraphPatch {
+        
+        GraphPatch {
             to_remove: *vertex,
             parents: self.get_immediate_ancestors(vertex),
             children: self.get_edges(vertex),
-        };
-        patch
+        }
     }
     pub fn remove_edge(&mut self, parent: &T, child: &T) {
         let Some(mut child_set) = self.get_edges(parent) else {
@@ -148,7 +148,7 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
             return None;
         }
         let mut ancestors = HashSet::new();
-        for (node, edges) in self.graph.iter() {
+        for (node, edges) in &self.graph {
             if edges.contains(child) {
                 ancestors.insert(*node);
             }
@@ -157,14 +157,8 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
         Some(ancestors)
     }
     pub fn get_non_cyclic_additions(&self, search_vertex: &T) -> Option<HashSet<T>> {
-        let parents_of_search = match self.get_ancestors(search_vertex) {
-            Some(edges) => edges,
-            None => return None,
-        };
-        let children_of_search = match self.get_edges(search_vertex) {
-            Some(edges) => edges,
-            None => return None,
-        };
+        let parents_of_search = self.get_ancestors(search_vertex)?;
+        let children_of_search = self.get_edges(search_vertex)?;
         let non_cyclic = self
             .graph
             .keys()

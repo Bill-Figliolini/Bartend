@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-impl<'a> CategoryDB<'a> {
+impl CategoryDB<'_> {
     fn from_db(row: &Row<'_>) -> Result<Category, rusqlite::Error> {
         let id = row.get(0)?;
         let name = row.get(1)?;
@@ -31,7 +31,7 @@ impl<'a> CategoryDB<'a> {
     }
 }
 
-impl<'a> CategoryDB<'a> {
+impl CategoryDB<'_> {
     pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
         let category_schema = "CREATE TABLE IF NOT EXISTS category(
                 id INTEGER PRIMARY KEY,
@@ -56,7 +56,7 @@ impl<'a> CategoryDB<'a> {
         Ok(())
     }
 }
-impl<'a> CategoryRepository for CategoryDB<'a> {
+impl CategoryRepository for CategoryDB<'_> {
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError> {
         self.connection
             .execute("INSERT INTO category(name) VALUES(?1)", (&body.name,))?;
@@ -83,7 +83,7 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
         {
             for parent in parents {
                 for child in children {
-                    CategoryDB::internal_relation_insert(&transaction, parent, child)?
+                    CategoryDB::internal_relation_insert(&transaction, parent, child)?;
                 }
             }
         }
@@ -113,7 +113,7 @@ impl<'a> CategoryRepository for CategoryDB<'a> {
                 .fold(HashMap::new(), |mut acc, (parent_id, child_id)| {
                     let parent_entry = acc.entry(parent_id).or_default();
                     parent_entry.insert(child_id);
-                    acc.entry(child_id).or_insert_with(|| HashSet::new());
+                    acc.entry(child_id).or_insert_with(HashSet::new);
                     acc
                 });
 

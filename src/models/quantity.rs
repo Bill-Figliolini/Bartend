@@ -98,8 +98,9 @@ impl Quantity {
         }
     }
 
+    #[must_use]
     pub fn readable(&self, unit_system: UnitSystem) -> String {
-        format!("{} {}", self.value(unit_system), self.unit(unit_system),)
+        format!("{} {}", self.value(unit_system), self.unit(unit_system))
     }
 }
 
@@ -223,6 +224,7 @@ pub enum Unit {
 }
 
 impl Unit {
+    #[must_use]
     pub fn get_units() -> Vec<Unit> {
         vec![
             Unit::Milliliter,
@@ -259,6 +261,7 @@ impl UnitSystem {
             Self::Imperial => Self::Metric,
         };
     }
+    #[must_use]
     pub const fn default_units(&self) -> Unit {
         match self {
             UnitSystem::Metric => Unit::Milliliter,

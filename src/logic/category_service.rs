@@ -24,15 +24,12 @@ impl CategoryService {
         let category_mapping = item_mapping.iter().fold(
             HashMap::new(),
             |mut acc: HashMap<CategoryID, HashSet<ItemID>>, (item, category)| {
-                match acc.get_mut(category) {
-                    Some(set) => {
-                        set.insert(*item);
-                    }
-                    None => {
-                        let mut new_set = HashSet::new();
-                        new_set.insert(*item);
-                        acc.insert(*category, new_set);
-                    }
+                if let Some(set) = acc.get_mut(category) {
+                    set.insert(*item);
+                } else {
+                    let mut new_set = HashSet::new();
+                    new_set.insert(*item);
+                    acc.insert(*category, new_set);
                 }
                 acc
             },
@@ -41,8 +38,8 @@ impl CategoryService {
         let graph = DirectedAcyclicGraph::load(category_relations);
         Ok(CategoryService {
             categories,
-            item_mapping,
             category_mapping,
+            item_mapping,
             graph,
         })
     }
@@ -107,7 +104,7 @@ impl CategoryService {
             .get(category)
             .unwrap_or(&HashSet::new())
             .iter()
-            .cloned()
+            .copied()
             .collect()
     }
 
