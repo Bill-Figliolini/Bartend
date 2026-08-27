@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::exit};
 
 use iced::{
     Element,
@@ -77,19 +77,31 @@ impl Bartend {
 
         let database = match Database::load(config.db_path()) {
             Ok(db) => db,
-            Err(e) => panic!("START UP ERROR: {e}"),
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
         };
         let item_service = match ItemService::new(&database.item_db()) {
             Ok(items) => items,
-            Err(e) => panic!("START UP ERROR: {e}"),
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
         };
         let category_service = match CategoryService::new(&database.category_db()) {
             Ok(categories) => categories,
-            Err(e) => panic!("START UP ERROR: {e}"),
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
         };
         let recipe_service = match RecipeService::new(&database.recipe_db()) {
             Ok(recipes) => recipes,
-            Err(e) => panic!("START UP ERROR: {e}"),
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
         };
         let screen = Screen::start(&config, &category_service);
 
