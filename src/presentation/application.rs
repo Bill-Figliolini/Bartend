@@ -43,14 +43,13 @@ pub(in crate::presentation) enum Message {
     ReloadScreen,
 
     OpenScreen(ScreenKind),
-    DeleteItem(ItemID),
     Error(BartendError),
 
     ResetSettings,
     OpenDBPicker(PathBuf),
 
+    DeleteItem(ItemID),
     DeleteCategory(CategoryID),
-
     DeleteRecipe(RecipeID),
 
     Inventory(screen::inventory::Message),
