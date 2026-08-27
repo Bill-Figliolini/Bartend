@@ -137,9 +137,9 @@ impl CategoryService {
         db: &impl CategoryRepository,
         category: &Category,
     ) -> Result<(), BartendError> {
+        db.update(category)?;
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
             *cached_copy = category.body.clone();
-            db.update(category)?;
             Ok(())
         } else {
             Err(LogicError::InvalidCategory(category.id))?
@@ -171,6 +171,7 @@ impl CategoryService {
                 self.add_item_mapping(db, item, new)?;
             }
             (Some(old), None) => {
+                db.map_delete(item, &old)?;
                 self.item_mapping.remove(item);
                 match self.category_mapping.entry(old) {
                     Entry::Occupied(mut items) => {
@@ -183,11 +184,16 @@ impl CategoryService {
             }
             (Some(old), Some(new)) => {
                 db.map_delete(item, &old)?;
-                db.map_insert(item, new)?;
-                match self.item_mapping.get_mut(item) {
-                    Some(old_mapping) => *old_mapping = *new,
-                    None => Err(LogicError::InvalidCategory(old))?,
+                match self.category_mapping.entry(old) {
+                    Entry::Occupied(mut items) => {
+                        items.get_mut().remove(item);
+                    }
+                    Entry::Vacant(_) => {
+                        Err(LogicError::InvalidCategory(old))?;
+                    }
                 }
+                self.item_mapping.remove(item);
+                self.add_item_mapping(db, item, new)?;
             }
             (None, None) => {}
         }
