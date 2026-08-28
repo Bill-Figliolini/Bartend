@@ -125,7 +125,7 @@ impl IngredientUseInput {
             .into_iter()
             .map(|id| Item {
                 id,
-                body: item_service.get(&id).unwrap().clone(),
+                body: item_service.get(&id).cloned().unwrap_or_default(),
             })
             .filter(|item| item.body.quantity >= ingredient.quantity)
             .collect();
@@ -147,7 +147,11 @@ impl IngredientUseInput {
     ) -> iced::Element<'_, Message> {
         let category = text!(
             "{}: ID: {}",
-            category_service.get(&self.category).unwrap().name.clone(),
+            category_service
+                .get(&self.category)
+                .cloned()
+                .unwrap_or_default()
+                .name,
             self.category.0
         );
         let quantity = text(self.quantity.readable(unit_system));
