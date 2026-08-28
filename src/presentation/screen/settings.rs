@@ -40,10 +40,19 @@ impl Command {
                 let db_changed = ctx.config.db_path() != config.db_path();
                 *ctx.config = config;
                 if let Err(e) = ctx.config.save() {
-                    panic!("{e:?}")
+                    return Task::done(application::Message::Error(
+                        crate::models::BartendError::Config(e),
+                    ));
                 }
                 if db_changed {
-                    *ctx.database = Database::load(ctx.config.db_path()).unwrap();
+                    match Database::load(ctx.config.db_path()) {
+                        Ok(db) => *ctx.database = db,
+                        Err(e) => {
+                            return Task::done(application::Message::Error(
+                                crate::models::BartendError::Db(e),
+                            ));
+                        }
+                    }
                 }
                 Task::done(application::Message::ReloadScreen)
             }

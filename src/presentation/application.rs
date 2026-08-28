@@ -70,7 +70,7 @@ impl Bartend {
         let config = match Config::load(None, None) {
             Ok(config) => config,
             Err(e) => {
-                eprintln!("Unable to load Config: {e:?}");
+                eprintln!("Unable to load Config: {e}");
                 exit(1);
             }
         };

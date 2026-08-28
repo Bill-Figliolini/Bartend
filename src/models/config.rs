@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::{
+    fmt::Display,
     fs::{self, File, OpenOptions},
     io::{BufReader, BufWriter},
     path::PathBuf,
@@ -24,7 +25,7 @@ pub struct Config {
     db_path: PathBuf,
     default_unit_system: UnitSystem,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ConfigError {
     UnableToAccessSystemConfigDir,
     UnableToAccessSystemDataDir,
@@ -33,6 +34,22 @@ pub enum ConfigError {
     UnableToAccessConfigFile,
     UnableToCreateConfigFile,
     UnableToCreateDataDir,
+}
+impl Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            ConfigError::UnableToAccessSystemConfigDir => {
+                "Unable to access system configuration folder"
+            }
+            ConfigError::UnableToAccessSystemDataDir => "Unable to access default",
+            ConfigError::ReadError => "Unable to read config file",
+            ConfigError::WriteError => "Unable to save config file",
+            ConfigError::UnableToAccessConfigFile => "Unable to load config file",
+            ConfigError::UnableToCreateConfigFile => "Unable to create config file",
+            ConfigError::UnableToCreateDataDir => "Unable to create save directory",
+        };
+        write!(f, "Config Error: {text}")
+    }
 }
 
 const CONFIG_DIR_NAME: &str = "Bartend";
