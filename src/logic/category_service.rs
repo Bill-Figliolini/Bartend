@@ -211,7 +211,9 @@ impl CategoryService {
                 Ok(())
             }
             Err(graph_error) => match graph_error {
-                super::graph::GraphError::EdgeEndpointNotInGraph => Ok(()),
+                super::graph::GraphError::EdgeEndpointNotInGraph => {
+                    Err(LogicError::CategoryNotInGraph(*parent))?
+                }
                 super::graph::GraphError::WouldIntroduceCycle => {
                     Err(LogicError::InvalidCategoryRelation {
                         parent: *parent,
