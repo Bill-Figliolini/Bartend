@@ -94,7 +94,7 @@ impl Quantity {
                 quantity,
                 name: CountName::Dash,
             },
-            _ => unreachable!("Quantity was stored with invalid type {unit_type} in db"),
+            _ => Self::Volume { quantity: 0.0 },
         }
     }
 
