@@ -35,7 +35,10 @@ impl CategoryService {
             },
         );
         let category_relations = db.get_graph()?;
-        let graph = DirectedAcyclicGraph::load(category_relations);
+        let mut graph = DirectedAcyclicGraph::load(category_relations);
+        for category in categories.keys() {
+            graph.insert_vertex(*category);
+        }
         Ok(CategoryService {
             categories,
             category_mapping,
