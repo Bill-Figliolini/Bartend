@@ -11,7 +11,7 @@ use iced::{
     Element,
     Length::Fill,
     Task,
-    widget::{button, column, row, table, text},
+    widget::{button, column, container, row, table, text},
 };
 #[derive(Debug)]
 enum EditState {
@@ -37,6 +37,7 @@ pub enum Message {
     BeginEdit(Recipe),
     EndEdit,
     DeleteRecipe(RecipeID),
+    SelectPage(usize),
     Reload,
 }
 
@@ -150,14 +151,34 @@ impl Recipes {
         let header = header(title("Recipes"));
         let input_row = self.build_input();
         let recipe_display = self.build_display_table(category_service, recipe_service);
-        let body = column![input_row, recipe_display];
+        let body = container(column![input_row, recipe_display]).align_top(Fill);
 
+        let mut page_controller_contents = Vec::new();
+        if self.current_page != 0 {
+            let previous_page = self.current_page.wrapping_sub(1);
+            let previous_page_button = button("Previous")
+                .on_press(application::Message::Recipes(Message::SelectPage(
+                    previous_page,
+                )))
+                .into();
+            page_controller_contents.push(previous_page_button);
+        }
+        let space = iced::widget::space().width(Fill).into();
+        page_controller_contents.push(space);
+        let next_page = self.current_page.wrapping_add(1);
+        let next_page_button = button("Next")
+            .on_press(application::Message::Recipes(Message::SelectPage(
+                next_page,
+            )))
+            .into();
+        page_controller_contents.push(next_page_button);
+        let page_controller = row(page_controller_contents);
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Recipes(Message::SwapUnits));
         let footer_contents = row![unit_swap_button];
         let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
         let footer = footer(footer_container);
-        column![header, body, footer].into()
+        column![header, body, page_controller, footer].into()
     }
     pub fn update(&mut self, message: Message) -> Option<Command> {
         match message {
@@ -199,6 +220,10 @@ impl Recipes {
                 None
             }
             Message::DeleteRecipe(recipe) => Some(Command::DeleteRecipe(recipe)),
+            Message::SelectPage(page) => {
+                self.current_page = page;
+                None
+            }
         }
     }
 }

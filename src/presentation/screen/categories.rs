@@ -1,3 +1,5 @@
+use std::vec;
+
 use crate::{
     logic::CategoryService,
     models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
@@ -8,8 +10,10 @@ use crate::{
     },
 };
 use iced::{
-    Element, Task,
-    widget::{column, pick_list, row, table, text},
+    Element,
+    Length::Fill,
+    Task,
+    widget::{button, column, container, pick_list, row, table, text},
 };
 
 #[derive(Debug)]
@@ -18,7 +22,7 @@ pub struct Categories {
 
     edit_state: EditState,
 
-    page_number: usize,
+    current_page: usize,
     stub: Option<Category>,
 }
 
@@ -30,6 +34,7 @@ pub enum Message {
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
     DeleteCategory(CategoryID),
+    SelectPage(usize),
     Save,
 }
 pub enum Command {
@@ -102,7 +107,7 @@ impl Categories {
         Self {
             input: CategoryInput::new(config, input_msg),
             edit_state: EditState::None,
-            page_number: 0,
+            current_page: 0,
             stub: None,
         }
     }
@@ -168,15 +173,35 @@ impl Categories {
             edit_column,
             delete_column,
         ];
-        let contents = category_service.get_page(self.page_number, 15);
+        let contents = category_service.get_page(self.current_page, 15);
         table(columns, contents).into()
     }
     pub fn view(&self, category_service: &CategoryService) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
         let categories = self.build_category_display(category_service);
-        let body = column![category_entry, categories];
-        column![header, body].into()
+        let mut page_controller_contents = Vec::new();
+        if self.current_page != 0 {
+            let previous_page = self.current_page.wrapping_sub(1);
+            let previous_page_button = button("Previous")
+                .on_press(application::Message::Categories(Message::SelectPage(
+                    previous_page,
+                )))
+                .into();
+            page_controller_contents.push(previous_page_button);
+        }
+        let space = iced::widget::space().width(Fill).into();
+        page_controller_contents.push(space);
+        let next_page = self.current_page.wrapping_add(1);
+        let next_page_button = button("Next")
+            .on_press(application::Message::Categories(Message::SelectPage(
+                next_page,
+            )))
+            .into();
+        page_controller_contents.push(next_page_button);
+        let page_controller = row(page_controller_contents);
+        let body = container(column![category_entry, categories]).align_top(Fill);
+        column![header, body, page_controller].into()
     }
     pub fn update(
         &mut self,
@@ -220,6 +245,10 @@ impl Categories {
             Message::AddRelation(parent, child) => Some(Command::AddRelation(parent, child)),
             Message::RemoveRelation(parent, child) => Some(Command::RemoveRelation(parent, child)),
             Message::DeleteCategory(category) => Some(Command::DeleteCategory(category)),
+            Message::SelectPage(page) => {
+                self.current_page = page;
+                None
+            }
         }
     }
     fn relation_add_view(

@@ -38,6 +38,7 @@ pub enum Message {
     CancelEdit,
     Input(InputMessage),
     DeleteItem(ItemID),
+    SelectPage(usize),
 
     //Variants for Application's use
     Reload,
@@ -218,13 +219,33 @@ impl Inventory {
         let body_contents = column![entry_section, inventory];
         let body = container(body_contents).align_top(Fill);
 
+        let mut page_controller_contents = Vec::new();
+        if self.current_page != 0 {
+            let previous_page = self.current_page.wrapping_sub(1);
+            let previous_page_button = iced::widget::button("Previous")
+                .on_press(application::Message::Inventory(Message::SelectPage(
+                    previous_page,
+                )))
+                .into();
+            page_controller_contents.push(previous_page_button);
+        }
+        let space = iced::widget::space().width(Fill).into();
+        page_controller_contents.push(space);
+        let next_page = self.current_page.wrapping_add(1);
+        let next_page_button = iced::widget::button("Next")
+            .on_press(application::Message::Inventory(Message::SelectPage(
+                next_page,
+            )))
+            .into();
+        page_controller_contents.push(next_page_button);
+        let page_controller = row(page_controller_contents);
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Inventory(Message::SwapUnits));
         let footer_contents = row![unit_swap_button];
         let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
         let footer = footer(footer_container);
 
-        column![header, body, footer].into()
+        column![header, body, page_controller, footer].into()
     }
 
     pub fn update(&mut self, item_service: &ItemService, message: Message) -> Option<Command> {
@@ -286,6 +307,10 @@ impl Inventory {
                 None
             }
             Message::DeleteItem(item) => Some(Command::DeleteItem(item)),
+            Message::SelectPage(page) => {
+                self.current_page = page;
+                None
+            }
         }
     }
 }
