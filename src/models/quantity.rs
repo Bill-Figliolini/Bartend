@@ -94,7 +94,10 @@ impl Quantity {
                 quantity,
                 name: CountName::Dash,
             },
-            _ => Self::Volume { quantity: 0.0 },
+            _ => {
+                eprintln!("Error reading quantity from DB, falling back to volume");
+                Self::Volume { quantity }
+            }
         }
     }
 
