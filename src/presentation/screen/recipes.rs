@@ -56,13 +56,13 @@ impl Command {
             }
             Command::UpdateRecipe(recipe) => {
                 match ctx.recipe_service.update(&ctx.database.recipe_db(), recipe) {
-                    Ok(_) => Task::done(application::Message::ReloadScreen),
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }
             Command::DeleteRecipe(recipe) => {
                 match ctx.recipe_service.delete(&ctx.database.recipe_db(), recipe) {
-                    Ok(_) => Task::done(application::Message::ReloadScreen),
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }

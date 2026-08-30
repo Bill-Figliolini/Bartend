@@ -89,7 +89,7 @@ impl Command {
                 Task::batch(tasks)
             }
             Command::DeleteItem(id) => match ctx.item_service.delete(&ctx.database.item_db(), id) {
-                Ok(_) => Task::done(application::Message::ReloadScreen),
+                Ok(()) => Task::done(application::Message::ReloadScreen),
                 Err(e) => Task::done(application::Message::Error(e)),
             },
         }
