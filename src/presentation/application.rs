@@ -21,7 +21,7 @@ use crate::{
 pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title(Bartend::title)
-        .theme(Theme::Dracula)
+        .theme(Bartend::theme)
         .window_size((500.0, 600.0))
         .run()
 }
@@ -35,6 +35,7 @@ struct Bartend {
     item_service: ItemService,
     recipe_service: RecipeService,
     error: Option<BartendError>,
+    theme_value: Theme,
 }
 
 #[derive(Debug, Clone)]
@@ -113,9 +114,12 @@ impl Bartend {
             item_service,
             recipe_service,
             error: None,
+            theme_value: Theme::KanagawaWave,
         }
     }
-
+    fn theme(&self) -> Theme {
+        self.theme_value.clone()
+    }
     fn title(&self) -> String {
         "Bartend".to_string()
     }
