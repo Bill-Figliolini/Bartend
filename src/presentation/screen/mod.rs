@@ -10,7 +10,7 @@ use crate::{
     logic::{CategoryService, ItemService, RecipeService},
     models::Config,
     presentation::{
-        application::{self, Context, Message},
+        application::{Context, Message},
         screen::{recipes::Recipes, serving::Serving},
     },
 };
@@ -21,8 +21,8 @@ pub enum Screen {
     Inventory(Box<inventory::Inventory>),
     Settings(settings::Settings),
     Categories(categories::Categories),
-    Recipes(recipes::Recipes),
-    Serving(serving::Serving),
+    Recipes(Recipes),
+    Serving(Serving),
 }
 
 //Screen Labels
@@ -44,7 +44,7 @@ pub enum ScreenCommand {
     Serving(serving::Command),
 }
 impl ScreenCommand {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<Message> {
         match self {
             ScreenCommand::Inventory(cmd) => cmd.apply(ctx),
             ScreenCommand::Settings(cmd) => cmd.apply(ctx),
@@ -100,9 +100,9 @@ impl Screen {
             (Self::Settings(settings), Message::Settings(message)) => {
                 settings.update(message).map(ScreenCommand::Settings)
             }
-            (Self::Categories(categories), Message::Categories(message)) => {
-                categories.update(message).map(ScreenCommand::Categories)
-            }
+            (Self::Categories(categories), Message::Categories(message)) => categories
+                .update(message, category_service)
+                .map(ScreenCommand::Categories),
             (Self::Recipes(recipes), Message::Recipes(message)) => {
                 recipes.update(message).map(ScreenCommand::Recipes)
             }

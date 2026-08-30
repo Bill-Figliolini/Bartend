@@ -24,15 +24,12 @@ impl CategoryService {
         let category_mapping = item_mapping.iter().fold(
             HashMap::new(),
             |mut acc: HashMap<CategoryID, HashSet<ItemID>>, (item, category)| {
-                match acc.get_mut(category) {
-                    Some(set) => {
-                        set.insert(*item);
-                    }
-                    None => {
-                        let mut new_set = HashSet::new();
-                        new_set.insert(*item);
-                        acc.insert(*category, new_set);
-                    }
+                if let Some(set) = acc.get_mut(category) {
+                    set.insert(*item);
+                } else {
+                    let mut new_set = HashSet::new();
+                    new_set.insert(*item);
+                    acc.insert(*category, new_set);
                 }
                 acc
             },
@@ -41,8 +38,8 @@ impl CategoryService {
         let graph = DirectedAcyclicGraph::load(category_relations);
         Ok(CategoryService {
             categories,
-            item_mapping,
             category_mapping,
+            item_mapping,
             graph,
         })
     }
@@ -107,7 +104,7 @@ impl CategoryService {
             .get(category)
             .unwrap_or(&HashSet::new())
             .iter()
-            .cloned()
+            .copied()
             .collect()
     }
 
@@ -140,9 +137,9 @@ impl CategoryService {
         db: &impl CategoryRepository,
         category: &Category,
     ) -> Result<(), BartendError> {
+        db.update(category)?;
         if let Some(cached_copy) = self.categories.get_mut(&category.id) {
             *cached_copy = category.body.clone();
-            db.update(category)?;
             Ok(())
         } else {
             Err(LogicError::InvalidCategory(category.id))?
@@ -174,6 +171,7 @@ impl CategoryService {
                 self.add_item_mapping(db, item, new)?;
             }
             (Some(old), None) => {
+                db.map_delete(item, &old)?;
                 self.item_mapping.remove(item);
                 match self.category_mapping.entry(old) {
                     Entry::Occupied(mut items) => {
@@ -186,11 +184,16 @@ impl CategoryService {
             }
             (Some(old), Some(new)) => {
                 db.map_delete(item, &old)?;
-                db.map_insert(item, new)?;
-                match self.item_mapping.get_mut(item) {
-                    Some(old_mapping) => *old_mapping = *new,
-                    None => Err(LogicError::InvalidCategory(old))?,
+                match self.category_mapping.entry(old) {
+                    Entry::Occupied(mut items) => {
+                        items.get_mut().remove(item);
+                    }
+                    Entry::Vacant(_) => {
+                        Err(LogicError::InvalidCategory(old))?;
+                    }
                 }
+                self.item_mapping.remove(item);
+                self.add_item_mapping(db, item, new)?;
             }
             (None, None) => {}
         }
@@ -202,14 +205,22 @@ impl CategoryService {
         parent: &CategoryID,
         child: &CategoryID,
     ) -> Result<(), BartendError> {
-        if self.graph.insert_edge(parent, child).is_err() {
-            Err(LogicError::InvalidCategoryRelation {
-                parent: *parent,
-                child: *child,
-            })?
-        } else {
-            db.insert_relation(*parent, *child)?;
-            Ok(())
+        match self.graph.insert_edge(parent, child) {
+            Ok(()) => {
+                db.insert_relation(*parent, *child)?;
+                Ok(())
+            }
+            Err(graph_error) => match graph_error {
+                super::graph::GraphError::EdgeEndpointNotInGraph => {
+                    Err(LogicError::CategoryNotInGraph(*parent))?
+                }
+                super::graph::GraphError::WouldIntroduceCycle => {
+                    Err(LogicError::InvalidCategoryRelation {
+                        parent: *parent,
+                        child: *child,
+                    })?
+                }
+            },
         }
     }
     pub fn remove_category_relation(

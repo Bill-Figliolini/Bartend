@@ -9,10 +9,10 @@ use crate::{
     persistence::repositories::{CategoryDB, ItemDB, RecipeDB},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DBError {
     RestrictViolation,
-    External(rusqlite::Error),
+    External(String),
 }
 
 impl From<rusqlite::Error> for DBError {
@@ -21,7 +21,7 @@ impl From<rusqlite::Error> for DBError {
             SqliteFailure(e, _) if e.code == ErrorCode::ConstraintViolation => {
                 DBError::RestrictViolation
             }
-            _ => DBError::External(value),
+            _ => DBError::External(value.to_string()),
         }
     }
 }
@@ -66,6 +66,7 @@ impl Database {
 
 impl Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DB ERROR: ")?;
         match self {
             DBError::External(error) => write!(f, "External DB Error: {error}"),
             DBError::RestrictViolation => write!(f, "Attempted to delete Restricted Value"),

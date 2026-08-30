@@ -26,9 +26,10 @@ pub struct Categories {
 pub enum Message {
     Reload,
     Input(InputMessage),
-    BeginEdit(Category),
+    Edit(CategoryID),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
+    DeleteCategory(CategoryID),
     Save,
 }
 pub enum Command {
@@ -36,37 +37,57 @@ pub enum Command {
     UpdateCategory(Category),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
+    DeleteCategory(CategoryID),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::AddCategory(body) => {
-                ctx.category_service
-                    .insert(&ctx.bar_collection.db.category_db(), &body)
-                    .unwrap();
-                Task::done(application::Message::ReloadScreen)
+                match ctx
+                    .category_service
+                    .insert(&ctx.database.category_db(), &body)
+                {
+                    Ok(_) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
             Command::UpdateCategory(category) => {
-                ctx.category_service
-                    .update(&ctx.bar_collection.db.category_db(), &category)
-                    .unwrap();
-                Task::done(application::Message::ReloadScreen)
+                match ctx
+                    .category_service
+                    .update(&ctx.database.category_db(), &category)
+                {
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
             Command::AddRelation(parent, child) => {
-                let _result = ctx.category_service.add_category_relation(
-                    &ctx.bar_collection.db.category_db(),
+                match ctx.category_service.add_category_relation(
+                    &ctx.database.category_db(),
                     &parent,
                     &child,
-                );
-                Task::none()
+                ) {
+                    Ok(()) => Task::none(),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
             Command::RemoveRelation(parent, child) => {
-                let _result = ctx.category_service.remove_category_relation(
-                    &ctx.bar_collection.db.category_db(),
+                match ctx.category_service.remove_category_relation(
+                    &ctx.database.category_db(),
                     &parent,
                     &child,
-                );
-                Task::none()
+                ) {
+                    Ok(()) => Task::none(),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
+            }
+            Command::DeleteCategory(category) => {
+                match ctx
+                    .category_service
+                    .delete(&ctx.database.category_db(), category)
+                {
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
         }
     }
@@ -87,8 +108,8 @@ impl Categories {
     }
     fn build_category_entry(&self) -> Element<'_, application::Message> {
         let header = match self.edit_state {
-            EditState::None => iced::widget::text("New Category:"),
-            EditState::Editing(_) => iced::widget::text("Edit Category:"),
+            EditState::None => text("New Category:"),
+            EditState::Editing(_) => text("Edit Category:"),
         };
         let save_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));
@@ -100,7 +121,13 @@ impl Categories {
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(200), |category: CategoryID| {
-            text(category_service.get(&category).unwrap().name.clone())
+            text(
+                category_service
+                    .get(&category)
+                    .cloned()
+                    .unwrap_or_default()
+                    .name,
+            )
         });
         let add_relation_column = table::column("Addable Relations", |category: CategoryID| {
             self.relation_add_view(category, category_service)
@@ -113,16 +140,11 @@ impl Categories {
             text("Edit").width(edit_column_width).center(),
             |category: CategoryID| match self.edit_state {
                 EditState::None => iced::widget::Button::new(text("Edit").center())
-                    .on_press(application::Message::Categories(Message::BeginEdit(
-                        Category {
-                            id: category,
-                            body: category_service.get(&category).unwrap().clone(),
-                        },
-                    )))
+                    .on_press(application::Message::Categories(Message::Edit(category)))
                     .width(edit_column_width),
                 EditState::Editing(category_id) if category == category_id => {
                     iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::ReloadScreen)
+                        .on_press(application::Message::Categories(Message::Edit(category_id)))
                         .width(edit_column_width)
                 }
                 EditState::Editing(_) => {
@@ -134,8 +156,9 @@ impl Categories {
         let delete_column = table::column(
             text("Delete").width(delete_column_width).center(),
             |category: CategoryID| {
-                iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::DeleteCategory(category))
+                iced::widget::Button::new(text("X").width(delete_column_width).center()).on_press(
+                    application::Message::Categories(Message::DeleteCategory(category)),
+                )
             },
         );
         let columns = vec![
@@ -155,19 +178,24 @@ impl Categories {
         let body = column![category_entry, categories];
         column![header, body].into()
     }
-    pub fn update(&mut self, message: Message) -> Option<Command> {
+    pub fn update(
+        &mut self,
+        message: Message,
+        category_service: &CategoryService,
+    ) -> Option<Command> {
         match message {
             Message::Input(msg) => {
                 self.input.update(msg);
                 None
             }
-            Message::BeginEdit(category) => {
+            Message::Edit(category) => {
                 match self.edit_state {
                     EditState::None => {
-                        self.edit_state = EditState::Editing(category.id);
-                        self.input.begin_edit(&category.body, UnitSystem::Metric);
+                        self.edit_state = EditState::Editing(category);
+                        let body = category_service.get(&category).cloned().unwrap_or_default();
+                        self.input.begin_edit(&body, UnitSystem::Metric);
                     }
-                    EditState::Editing(category_id) if category_id == category.id => {
+                    EditState::Editing(category_id) if category_id == category => {
                         self.input.clear();
                         self.edit_state = EditState::None;
                     }
@@ -191,6 +219,7 @@ impl Categories {
             }
             Message::AddRelation(parent, child) => Some(Command::AddRelation(parent, child)),
             Message::RemoveRelation(parent, child) => Some(Command::RemoveRelation(parent, child)),
+            Message::DeleteCategory(category) => Some(Command::DeleteCategory(category)),
         }
     }
     fn relation_add_view(
@@ -204,11 +233,11 @@ impl Categories {
             .fold(Vec::new(), |mut acc, id| {
                 acc.push(Category {
                     id,
-                    body: service.get(&id).unwrap().clone(),
+                    body: service.get(&id).cloned().unwrap_or_default(),
                 });
                 acc
             });
-        let id = id.clone();
+        let id = id;
         pick_list(options, self.stub.clone(), move |category| {
             category_add_msg(id, category.id)
         })
@@ -220,18 +249,17 @@ impl Categories {
         id: CategoryID,
         service: &CategoryService,
     ) -> Element<'_, application::Message> {
-        let options =
-            service
-                .child_categories(&id)
-                .unwrap()
-                .into_iter()
-                .fold(Vec::new(), |mut acc, id| {
-                    acc.push(Category {
-                        id,
-                        body: service.get(&id).unwrap().clone(),
-                    });
-                    acc
+        let options = service
+            .child_categories(&id)
+            .unwrap_or_default()
+            .into_iter()
+            .fold(Vec::new(), |mut acc, id| {
+                acc.push(Category {
+                    id,
+                    body: service.get(&id).cloned().unwrap_or_default(),
                 });
+                acc
+            });
         pick_list(options, self.stub.clone(), move |selected| {
             category_remove_msg(id, selected.id)
         })

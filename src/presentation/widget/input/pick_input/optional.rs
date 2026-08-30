@@ -63,7 +63,7 @@ where
         if self.inner.selection == next {
             self.inner.selection = None;
         } else {
-            self.inner.selection = next
+            self.inner.selection = next;
         }
     }
 

@@ -1,16 +1,17 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::exit};
 
 use iced::{
     Element,
     Length::Fill,
     Task, Theme,
-    widget::{container, row},
+    widget::{button, column, container, row, text},
 };
 use rfd::AsyncFileDialog;
 
 use crate::{
-    logic::{BarCollection, CategoryService, ItemService, RecipeService},
-    models::{CategoryID, Config, ItemID, RecipeID},
+    logic::{CategoryService, ItemService, RecipeService},
+    models::{BartendError, Config},
+    persistence::Database,
     presentation::{
         screen::{self, Screen, ScreenKind},
         widget::sidebar,
@@ -20,7 +21,7 @@ use crate::{
 pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title(Bartend::title)
-        .theme(Theme::Dracula)
+        .theme(Bartend::theme)
         .window_size((500.0, 600.0))
         .run()
 }
@@ -29,26 +30,25 @@ pub fn run() -> iced::Result {
 struct Bartend {
     screen: Screen,
     config: Config,
-    bar_collection: BarCollection,
+    database: Database,
     category_service: CategoryService,
     item_service: ItemService,
     recipe_service: RecipeService,
+    error: Option<BartendError>,
+    theme_value: Theme,
 }
 
 #[derive(Debug, Clone)]
 pub(in crate::presentation) enum Message {
     NoOp,
     ReloadScreen,
+    ClearError,
 
     OpenScreen(ScreenKind),
-    DeleteItem(ItemID),
+    Error(BartendError),
 
     ResetSettings,
     OpenDBPicker(PathBuf),
-
-    DeleteCategory(CategoryID),
-
-    DeleteRecipe(RecipeID),
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -59,7 +59,7 @@ pub(in crate::presentation) enum Message {
 
 //The mutable app state every screen's Command needs in order to apply itself.
 pub(in crate::presentation) struct Context<'a> {
-    pub(in crate::presentation) bar_collection: &'a mut BarCollection,
+    pub(in crate::presentation) database: &'a mut Database,
     pub(in crate::presentation) item_service: &'a mut ItemService,
     pub(in crate::presentation) category_service: &'a mut CategoryService,
     pub(in crate::presentation) recipe_service: &'a mut RecipeService,
@@ -71,34 +71,62 @@ impl Bartend {
         let config = match Config::load(None, None) {
             Ok(config) => config,
             Err(e) => {
-                print!("{e:?}");
-                panic!("Unable to load Config")
+                eprintln!("Unable to load Config: {e}");
+                exit(1);
             }
         };
 
-        let bar_collection = BarCollection::new(config.db_path());
-        let item_service = ItemService::new(&bar_collection.db.item_db()).unwrap();
-        let category_service = CategoryService::new(&bar_collection.db.category_db()).unwrap();
-        let recipe_service = RecipeService::new(&bar_collection.db.recipe_db()).unwrap();
+        let database = match Database::load(config.db_path()) {
+            Ok(db) => db,
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
+        };
+        let item_service = match ItemService::new(&database.item_db()) {
+            Ok(items) => items,
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
+        };
+        let category_service = match CategoryService::new(&database.category_db()) {
+            Ok(categories) => categories,
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
+        };
+        let recipe_service = match RecipeService::new(&database.recipe_db()) {
+            Ok(recipes) => recipes,
+            Err(e) => {
+                eprintln!("Program unable to start: {e}");
+                exit(1);
+            }
+        };
         let screen = Screen::start(&config, &category_service);
 
         Self {
             screen,
             config,
-            bar_collection,
+            database,
             category_service,
             item_service,
             recipe_service,
+            error: None,
+            theme_value: Theme::KanagawaWave,
         }
     }
-
+    fn theme(&self) -> Theme {
+        self.theme_value.clone()
+    }
     fn title(&self) -> String {
         "Bartend".to_string()
     }
 
     fn context(&mut self) -> Context<'_> {
         Context {
-            bar_collection: &mut self.bar_collection,
+            database: &mut self.database,
             item_service: &mut self.item_service,
             category_service: &mut self.category_service,
             recipe_service: &mut self.recipe_service,
@@ -119,22 +147,24 @@ impl Bartend {
         };
     }
 
-    fn update(&mut self, message: Message) -> iced::Task<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::NoOp => Task::none(),
             Message::ReloadScreen => {
                 let reload_message = self.screen.reload_message(&self.config);
                 self.update(reload_message)
             }
+            Message::ClearError => {
+                self.error = None;
+                Task::none()
+            }
             Message::OpenScreen(kind) => {
                 self.open_screen(kind);
                 Task::none()
             }
-            Message::DeleteItem(id) => {
-                self.item_service
-                    .delete(&self.bar_collection.db.item_db(), id)
-                    .unwrap();
-                Task::done(Message::ReloadScreen)
+            Message::Error(e) => {
+                self.error = Some(e);
+                Task::none()
             }
 
             Message::ResetSettings => {
@@ -154,20 +184,6 @@ impl Bartend {
                 })
             }),
 
-            Message::DeleteCategory(category) => {
-                self.category_service
-                    .delete(&self.bar_collection.db.category_db(), category)
-                    .unwrap();
-                Task::done(Message::ReloadScreen)
-            }
-
-            Message::DeleteRecipe(recipe) => {
-                self.recipe_service
-                    .delete(&self.bar_collection.db.recipe_db(), recipe)
-                    .unwrap();
-                Task::done(Message::ReloadScreen)
-            }
-
             Message::Inventory(_)
             | Message::Settings(_)
             | Message::Categories(_)
@@ -180,7 +196,10 @@ impl Bartend {
                     message,
                 );
                 match command {
-                    Some(command) => command.apply(&mut self.context()),
+                    Some(command) => {
+                        self.error = None;
+                        command.apply(&mut self.context())
+                    }
                     None => Task::none(),
                 }
             }
@@ -196,12 +215,20 @@ impl Bartend {
             .button("Settings", || Message::OpenScreen(ScreenKind::Settings))
             .into();
 
+        let mut body = Vec::new();
         let screen_contents = self.screen.view(
             &self.item_service,
             &self.category_service,
             &self.recipe_service,
         );
-        let screen = container(screen_contents).width(Fill).height(Fill);
+        if let Some(error) = &self.error {
+            let error_text = text(error.to_string());
+            let error_clear_button = button(text("X")).on_press(Message::ClearError);
+            let error_row = row![error_text, error_clear_button];
+            body.push(error_row.into());
+        }
+        body.push(screen_contents);
+        let screen = container(column(body)).width(Fill).height(Fill);
 
         container(row![sidebar, screen])
             .height(Fill)

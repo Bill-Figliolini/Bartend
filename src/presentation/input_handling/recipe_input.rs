@@ -49,7 +49,7 @@ impl IngredientInput {
             move |id, unit| msg(InputMessage::Unit(id, unit)),
             Unit::get_units(),
             Some(unit_system.default_units()),
-            "".to_string(),
+            String::new(),
         );
         Self {
             category_input,
@@ -65,13 +65,13 @@ impl IngredientInput {
     fn update(&mut self, msg: InputMessage) {
         match msg {
             InputMessage::String(id, str) if id == *self.quantity_input.id() => {
-                self.quantity_input.update(str)
+                self.quantity_input.update(str);
             }
             InputMessage::Unit(id, unit) if id == *self.unit_input.id() => {
-                self.unit_input.update(unit)
+                self.unit_input.update(unit);
             }
             InputMessage::Category(id, category) if id == *self.category_input.id() => {
-                self.category_input.update(category)
+                self.category_input.update(category);
             }
             _ => unreachable!(),
         }
@@ -82,15 +82,15 @@ impl IngredientInput {
     fn get_output(&mut self) -> Result<Ingredient, ()> {
         let category_result = self.category_input.get_output();
         let quantity_result = self.quantity_input.get_output();
-        if !self.has_error() {
+        if self.has_error() {
+            Err(())
+        } else {
             let quantity = Quantity::new(
                 quantity_result.unwrap(),
                 self.unit_input.get_output().unwrap(),
             );
             let category = category_result.unwrap().id;
             Ok(Ingredient { category, quantity })
-        } else {
-            Err(())
         }
     }
     fn view(&self) -> iced::Element<'_, Message> {
@@ -169,7 +169,7 @@ impl RecipeInput {
         let ingredient_results: Vec<Result<Ingredient, ()>> = self
             .ingredient_inputs
             .iter_mut()
-            .map(|ingredient_input| ingredient_input.get_output())
+            .map(IngredientInput::get_output)
             .collect();
         if !self.name_input.has_error()
             && self

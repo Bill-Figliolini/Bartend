@@ -8,8 +8,8 @@ use iced::{
 };
 
 use crate::{
-    logic::BarCollection,
     models::{Config, EditableConfig, UnitSystem},
+    persistence::Database,
     presentation::{
         application::{self, Context},
         constants,
@@ -34,17 +34,26 @@ pub enum Command {
     UpdateConfig(Config),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::UpdateConfig(config) => {
                 let db_changed = ctx.config.db_path() != config.db_path();
-                *ctx.config = config;
                 if let Err(e) = ctx.config.save() {
-                    panic!("{e:?}")
+                    return Task::done(application::Message::Error(
+                        crate::models::BartendError::Config(e),
+                    ));
                 }
                 if db_changed {
-                    *ctx.bar_collection = BarCollection::new(ctx.config.db_path());
+                    match Database::load(config.db_path()) {
+                        Ok(db) => *ctx.database = db,
+                        Err(e) => {
+                            return Task::done(application::Message::Error(
+                                crate::models::BartendError::Db(e),
+                            ));
+                        }
+                    }
                 }
+                *ctx.config = config;
                 Task::done(application::Message::ReloadScreen)
             }
         }

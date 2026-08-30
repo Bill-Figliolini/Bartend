@@ -48,7 +48,7 @@ impl ItemInput {
             move |id, unit| msg(InputMessage::Unit(id, unit)),
             Unit::get_units(),
             Some(units),
-            "".to_string(),
+            String::new(),
         );
         let category_input = OptionalPickInput::new(
             move |id, category| msg(InputMessage::Category(id, category)),
@@ -82,7 +82,7 @@ impl ItemInput {
     pub fn update(&mut self, msg: InputMessage) {
         match msg {
             InputMessage::String(id, str) if &id == self.name_input.id() => {
-                self.name_input.update(str)
+                self.name_input.update(str);
             }
             InputMessage::String(id, str) if &id == self.quantity_input.id() => {
                 self.quantity_input.update(str);

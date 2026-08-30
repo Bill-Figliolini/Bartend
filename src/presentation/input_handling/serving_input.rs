@@ -1,7 +1,6 @@
 use iced::widget::{column, row, text};
 
 use crate::{
-    application,
     logic::{CategoryService, ItemService, RecipeService},
     models::{CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, UnitSystem},
     presentation::{
@@ -14,7 +13,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ServingInput {
-    recipe: RequiredPickInput<Recipe, application::Message>,
+    recipe: RequiredPickInput<Recipe, Message>,
     ingredients: Vec<IngredientUseInput>,
     msg: fn(InputMessage) -> Message,
 }
@@ -37,7 +36,7 @@ impl ServingInput {
         &self,
         category_service: &CategoryService,
         unit_system: UnitSystem,
-    ) -> iced::Element<'_, application::Message> {
+    ) -> iced::Element<'_, Message> {
         let recipe_selector = self.recipe.view();
         let ingredient_use_selectors = column(
             self.ingredients
@@ -48,7 +47,7 @@ impl ServingInput {
     }
     pub fn update(
         &mut self,
-        msg: super::InputMessage,
+        msg: InputMessage,
         item_service: &ItemService,
         category_service: &CategoryService,
     ) {
@@ -109,7 +108,7 @@ impl ServingInput {
 struct IngredientUseInput {
     category: CategoryID,
     quantity: Quantity,
-    ingredient: RequiredPickInput<Item, application::Message>,
+    ingredient: RequiredPickInput<Item, Message>,
 }
 impl IngredientUseInput {
     pub fn new(
@@ -126,7 +125,7 @@ impl IngredientUseInput {
             .into_iter()
             .map(|id| Item {
                 id,
-                body: item_service.get(&id).unwrap().clone(),
+                body: item_service.get(&id).cloned().unwrap_or_default(),
             })
             .filter(|item| item.body.quantity >= ingredient.quantity)
             .collect();
@@ -145,10 +144,14 @@ impl IngredientUseInput {
         &self,
         category_service: &CategoryService,
         unit_system: UnitSystem,
-    ) -> iced::Element<'_, application::Message> {
+    ) -> iced::Element<'_, Message> {
         let category = text!(
             "{}: ID: {}",
-            category_service.get(&self.category).unwrap().name.clone(),
+            category_service
+                .get(&self.category)
+                .cloned()
+                .unwrap_or_default()
+                .name,
             self.category.0
         );
         let quantity = text(self.quantity.readable(unit_system));

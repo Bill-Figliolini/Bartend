@@ -94,12 +94,16 @@ impl Quantity {
                 quantity,
                 name: CountName::Dash,
             },
-            _ => unreachable!("Quantity was stored with invalid type {unit_type} in db"),
+            _ => {
+                eprintln!("Error reading quantity from DB, falling back to volume");
+                Self::Volume { quantity }
+            }
         }
     }
 
+    #[must_use]
     pub fn readable(&self, unit_system: UnitSystem) -> String {
-        format!("{} {}", self.value(unit_system), self.unit(unit_system),)
+        format!("{} {}", self.value(unit_system), self.unit(unit_system))
     }
 }
 
@@ -223,6 +227,7 @@ pub enum Unit {
 }
 
 impl Unit {
+    #[must_use]
     pub fn get_units() -> Vec<Unit> {
         vec![
             Unit::Milliliter,
@@ -259,6 +264,7 @@ impl UnitSystem {
             Self::Imperial => Self::Metric,
         };
     }
+    #[must_use]
     pub const fn default_units(&self) -> Unit {
         match self {
             UnitSystem::Metric => Unit::Milliliter,
@@ -293,7 +299,7 @@ mod test {
 
                 let count_as_metric = count.value(UnitSystem::Metric);
 
-                assert_eq!(quantity, count_as_metric);
+                assert!((quantity - count_as_metric).abs() < f32::EPSILON);
             }
             #[test]
             fn imperial_quantity_does_not_alter_counts() {
@@ -305,7 +311,7 @@ mod test {
 
                 let count_as_imperial = count.value(UnitSystem::Imperial);
 
-                assert_eq!(quantity, count_as_imperial);
+                assert!((quantity - count_as_imperial).abs() < f32::EPSILON);
             }
         }
         mod volume {}

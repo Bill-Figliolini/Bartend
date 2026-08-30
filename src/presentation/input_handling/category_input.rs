@@ -39,7 +39,7 @@ impl CategoryInput {
     pub fn update(&mut self, msg: InputMessage) {
         match msg {
             InputMessage::String(id, new_text) if self.name_input.id() == &id => {
-                self.name_input.update(new_text)
+                self.name_input.update(new_text);
             }
             _ => unreachable!("Category has recieved invalid messsage {msg:?}"),
         }
@@ -47,13 +47,13 @@ impl CategoryInput {
 
     pub fn output(&mut self) -> Result<CategoryBody, ()> {
         let name_result = self.name_input.get_output();
-        if !self.name_input.has_error() {
+        if self.name_input.has_error() {
+            Err(())
+        } else {
             self.clear();
             Ok(CategoryBody {
                 name: name_result.unwrap(),
             })
-        } else {
-            Err(())
         }
     }
     pub fn clear(&mut self) {

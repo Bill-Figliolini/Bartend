@@ -25,13 +25,13 @@ pub(in crate::presentation) enum Command {
     UseItems(Vec<ItemUse>),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::UseItems(items) => {
-                ctx.item_service
-                    .use_items(&ctx.bar_collection.db.item_db(), items)
-                    .unwrap();
-                Task::none()
+                match ctx.item_service.use_items(&ctx.database.item_db(), items) {
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
         }
     }

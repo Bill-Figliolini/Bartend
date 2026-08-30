@@ -31,7 +31,6 @@ impl ItemService {
             .collect()
     }
 
-    #[must_use]
     pub fn get(&self, item: &ItemID) -> Result<&ItemBody, BartendError> {
         match self.items.get(item) {
             Some(body) => Ok(body),
@@ -74,7 +73,7 @@ impl ItemService {
     }
     pub fn update(&mut self, db: &impl ItemRepository, item: Item) -> Result<(), BartendError> {
         db.update(&item)?;
-        let item_location = self.items.get_mut(&item.id).unwrap();
+        let item_location = self.get_mut(&item.id)?;
         *item_location = item.body;
         Ok(())
     }

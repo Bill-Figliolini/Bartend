@@ -36,27 +36,35 @@ pub enum Message {
     RemoveIngredient(usize),
     BeginEdit(Recipe),
     EndEdit,
+    DeleteRecipe(RecipeID),
     Reload,
 }
 
 pub enum Command {
     AddRecipe(RecipeBody),
     UpdateRecipe(Recipe),
+    DeleteRecipe(RecipeID),
 }
 impl Command {
-    pub fn apply(self, ctx: &mut Context) -> Task<application::Message> {
+    pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::AddRecipe(body) => {
-                ctx.recipe_service
-                    .add(&ctx.bar_collection.db.recipe_db(), body)
-                    .unwrap();
-                Task::done(application::Message::ReloadScreen)
+                match ctx.recipe_service.add(&ctx.database.recipe_db(), body) {
+                    Ok(_) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
             Command::UpdateRecipe(recipe) => {
-                ctx.recipe_service
-                    .update(&ctx.bar_collection.db.recipe_db(), recipe)
-                    .unwrap();
-                Task::done(application::Message::ReloadScreen)
+                match ctx.recipe_service.update(&ctx.database.recipe_db(), recipe) {
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
+            }
+            Command::DeleteRecipe(recipe) => {
+                match ctx.recipe_service.delete(&ctx.database.recipe_db(), recipe) {
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
+                    Err(e) => Task::done(application::Message::Error(e)),
+                }
             }
         }
     }
@@ -100,13 +108,13 @@ impl Recipes {
         recipe_service: &RecipeService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name"), |recipe: RecipeID| {
-            text(recipe_service.get(&recipe).unwrap().name.clone())
+            text(recipe_service.get(&recipe).unwrap_or_default().name)
         });
         let ingredient_column = table::column(text("Ingredients"), |recipe: RecipeID| {
             column(
                 recipe_service
                     .get(&recipe)
-                    .unwrap()
+                    .unwrap_or_default()
                     .ingredients
                     .iter()
                     .map(|ingredient| {
@@ -123,12 +131,12 @@ impl Recipes {
             EditState::None => {
                 button("Edit").on_press(application::Message::Recipes(Message::BeginEdit(Recipe {
                     id: recipe,
-                    body: recipe_service.get(&recipe).unwrap().clone(),
+                    body: recipe_service.get(&recipe).unwrap_or_default(),
                 })))
             }
         });
         let delete_column = table::column(text("Delete"), |recipe: RecipeID| {
-            button("X").on_press(application::Message::DeleteRecipe(recipe))
+            button("X").on_press(application::Message::Recipes(Message::DeleteRecipe(recipe)))
         });
         let columns = vec![name_column, ingredient_column, edit_column, delete_column];
         let contents = recipe_service.get_page(self.current_page);
@@ -190,6 +198,7 @@ impl Recipes {
                 self.edit_state = EditState::None;
                 None
             }
+            Message::DeleteRecipe(recipe) => Some(Command::DeleteRecipe(recipe)),
         }
     }
 }
@@ -203,9 +212,9 @@ fn view_ingredient<'a>(
 ) -> Element<'a, application::Message> {
     let category_name = category_service
         .get(&ingredient.category)
-        .unwrap()
-        .name
-        .clone();
+        .cloned()
+        .unwrap_or_default()
+        .name;
     let category = text!("{category_name}: ");
     let quantity_value = text(ingredient.quantity.value(*unit_system));
     let quantity_unit = text(ingredient.quantity.unit(*unit_system).to_string());

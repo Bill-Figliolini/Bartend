@@ -44,3 +44,18 @@ impl Display for Item {
         write!(f, "{}", self.body.name)
     }
 }
+
+impl Display for ItemID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Default for ItemBody {
+    fn default() -> Self {
+        Self {
+            name: "Invalid Item".to_string(),
+            quantity: Quantity::Volume { quantity: 0.0 },
+        }
+    }
+}
