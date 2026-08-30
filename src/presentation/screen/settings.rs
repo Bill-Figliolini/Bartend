@@ -38,7 +38,7 @@ impl Command {
         match self {
             Command::UpdateConfig(config) => {
                 let db_changed = ctx.config.db_path() != config.db_path();
-                if let Err(e) = ctx.config.save() {
+                if let Err(e) = config.save() {
                     return Task::done(application::Message::Error(
                         crate::models::BartendError::Config(e),
                     ));
