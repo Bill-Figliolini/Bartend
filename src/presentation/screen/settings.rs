@@ -38,14 +38,13 @@ impl Command {
         match self {
             Command::UpdateConfig(config) => {
                 let db_changed = ctx.config.db_path() != config.db_path();
-                *ctx.config = config;
                 if let Err(e) = ctx.config.save() {
                     return Task::done(application::Message::Error(
                         crate::models::BartendError::Config(e),
                     ));
                 }
                 if db_changed {
-                    match Database::load(ctx.config.db_path()) {
+                    match Database::load(config.db_path()) {
                         Ok(db) => *ctx.database = db,
                         Err(e) => {
                             return Task::done(application::Message::Error(
@@ -54,6 +53,7 @@ impl Command {
                         }
                     }
                 }
+                *ctx.config = config;
                 Task::done(application::Message::ReloadScreen)
             }
         }
