@@ -107,7 +107,7 @@ mod tests {
             .collect()
     }
 
-    fn create_recipe(categories: &Vec<CategoryID>, name: String) -> RecipeBody {
+    fn create_recipe(categories: &[CategoryID], name: String) -> RecipeBody {
         let ingredients = categories
             .iter()
             .map(|id| {
@@ -138,7 +138,7 @@ mod tests {
         for (ingredient_in_db, ingredient_input) in
             in_db.body.ingredients.iter().zip(input.ingredients.iter())
         {
-            assert_eq!(ingredient_in_db, ingredient_input)
+            assert_eq!(ingredient_in_db, ingredient_input);
         }
     }
 
@@ -151,9 +151,9 @@ mod tests {
 
         let result = database.recipe_db().create_table();
 
-        assert!(result.is_ok());
+        result.unwrap();
         for table in table_names {
-            assert!(database.connection.table_exists(None, table).unwrap())
+            assert!(database.connection.table_exists(None, table).unwrap());
         }
     }
     mod insert {
@@ -164,7 +164,7 @@ mod tests {
         fn inserts_row_into_db() {
             let db = db_init();
             let category_bodies = create_categories(5);
-            let category_ids = category_bodies
+            let category_ids: Vec<_> = category_bodies
                 .iter()
                 .map(|body| db.category_db().insert(body).unwrap())
                 .collect();
@@ -191,7 +191,7 @@ mod tests {
         fn removes_from_db() {
             let db = db_init();
             let category_bodies = create_categories(5);
-            let category_ids = category_bodies
+            let category_ids: Vec<_> = category_bodies
                 .iter()
                 .map(|body| db.category_db().insert(body).unwrap())
                 .collect();
@@ -200,7 +200,7 @@ mod tests {
 
             let result = db.recipe_db().delete(id);
 
-            assert!(result.is_ok());
+            result.unwrap();
             let in_db = db
                 .connection
                 .query_one("SELECT * FROM recipes WHERE id=?1", (id,), |row| {
@@ -219,13 +219,13 @@ mod tests {
         fn updates_in_db() {
             let db = db_init();
             let category_bodies = create_categories(5);
-            let category_ids = category_bodies
+            let category_ids: Vec<_> = category_bodies
                 .iter()
                 .map(|body| db.category_db().insert(body).unwrap())
                 .collect();
             let recipe = create_recipe(&category_ids, "Recipe".to_string());
             let updated_bodies = create_categories(10);
-            let updated_category_ids = updated_bodies
+            let updated_category_ids: Vec<_> = updated_bodies
                 .iter()
                 .map(|body| db.category_db().insert(body).unwrap())
                 .collect();
@@ -237,7 +237,7 @@ mod tests {
                 body: updated_recipe.clone(),
             });
 
-            assert!(result.is_ok());
+            result.unwrap();
             let in_db = db
                 .connection
                 .query_one("SELECT * FROM recipes WHERE id=?1", (id,), |row| {
@@ -258,7 +258,7 @@ mod tests {
             for i in 0..=num_recipes {
                 let ingredient_count: usize = random_range(0..=100);
                 let category_bodies = create_categories(ingredient_count);
-                let category_ids = category_bodies
+                let category_ids: Vec<_> = category_bodies
                     .iter()
                     .map(|body| db.category_db().insert(body).unwrap())
                     .collect();
@@ -275,7 +275,7 @@ mod tests {
                 assert_eq!(in_db.get(&recipe.id).unwrap(), &recipe.body);
                 in_db.remove(&recipe.id);
             }
-            assert!(in_db.is_empty())
+            assert!(in_db.is_empty());
         }
     }
     mod foreign_key_constraints {
