@@ -296,7 +296,7 @@ mod test {
 
                 let count_as_metric = count.value(UnitSystem::Metric);
 
-                assert_eq!(quantity, count_as_metric);
+                assert!((quantity - count_as_metric).abs() < f32::EPSILON);
             }
             #[test]
             fn imperial_quantity_does_not_alter_counts() {
@@ -308,7 +308,7 @@ mod test {
 
                 let count_as_imperial = count.value(UnitSystem::Imperial);
 
-                assert_eq!(quantity, count_as_imperial);
+                assert!((quantity - count_as_imperial).abs() < f32::EPSILON);
             }
         }
         mod volume {}
