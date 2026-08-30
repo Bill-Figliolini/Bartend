@@ -29,7 +29,7 @@ impl Command {
         match self {
             Command::UseItems(items) => {
                 match ctx.item_service.use_items(&ctx.database.item_db(), items) {
-                    Ok(()) => Task::none(),
+                    Ok(()) => Task::done(application::Message::ReloadScreen),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }
