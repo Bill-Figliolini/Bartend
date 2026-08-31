@@ -83,7 +83,9 @@ where
 {
     fn get_output(&mut self) -> Result<T, ()> {
         self.errors.clear();
-        if let Some(ref value) = self.inner.selection { Ok(value.clone()) } else {
+        if let Some(ref value) = self.inner.selection {
+            Ok(value.clone())
+        } else {
             self.errors.insert(Error::MustChooseValue);
             Err(())
         }

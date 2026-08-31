@@ -42,7 +42,9 @@ where
     fn get_output(&mut self) -> Result<f32, ()> {
         self.errors.clear();
         let unvalidated_quantity = self.inner.text.trim().parse::<f32>();
-        if let Ok(quantity) = unvalidated_quantity { Ok(quantity) } else {
+        if let Ok(quantity) = unvalidated_quantity {
+            Ok(quantity)
+        } else {
             self.errors.insert(Error::QuantityInvalid);
             Err(())
         }

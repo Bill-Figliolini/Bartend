@@ -71,7 +71,6 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
         }
     }
     pub fn get_removal_patch(&self, vertex: &T) -> GraphPatch<T> {
-        
         GraphPatch {
             to_remove: *vertex,
             parents: self.get_immediate_ancestors(vertex),
