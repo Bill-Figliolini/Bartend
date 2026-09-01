@@ -75,6 +75,9 @@ where
     fn has_error(&self) -> bool {
         !self.errors.is_empty()
     }
+    fn clear(&mut self) {
+        self.inner.selection = None;
+    }
 }
 impl<T, Message> InputContents<T> for RequiredPickInput<T, Message>
 where

@@ -74,7 +74,7 @@ impl ServingInput {
                     input.ingredient.update(selected_item);
                 }
             }
-            _ => unreachable!("Invalid message passed"),
+            _ => {}
         }
     }
 
