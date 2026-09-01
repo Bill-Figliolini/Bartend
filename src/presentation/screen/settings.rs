@@ -39,31 +39,28 @@ impl Command {
         match self {
             Command::UpdateConfig(config) => {
                 let db_changed = ctx.config.db_path() != config.db_path();
-                if db_changed {
+                let staged = if db_changed {
                     match Database::load(config.db_path()) {
                         Ok(db) => {
-                            let item_service = match ItemService::new(&db.item_db()) {
+                            let items = match ItemService::new(&db.item_db()) {
                                 Ok(service) => service,
                                 Err(e) => {
                                     return Task::done(application::Message::Error(e));
                                 }
                             };
-                            let category_service = match CategoryService::new(&db.category_db()) {
+                            let category = match CategoryService::new(&db.category_db()) {
                                 Ok(service) => service,
                                 Err(e) => {
                                     return Task::done(application::Message::Error(e));
                                 }
                             };
-                            let recipe_service = match RecipeService::new(&db.recipe_db()) {
+                            let recipes = match RecipeService::new(&db.recipe_db()) {
                                 Ok(service) => service,
                                 Err(e) => {
                                     return Task::done(application::Message::Error(e));
                                 }
                             };
-                            *ctx.item_service = item_service;
-                            *ctx.category_service = category_service;
-                            *ctx.recipe_service = recipe_service;
-                            *ctx.database = db
+                            Some((db, items, category, recipes))
                         }
                         Err(e) => {
                             return Task::done(application::Message::Error(
@@ -71,11 +68,19 @@ impl Command {
                             ));
                         }
                     }
-                }
+                } else {
+                    None
+                };
                 if let Err(e) = config.save() {
                     return Task::done(application::Message::Error(
                         crate::models::BartendError::Config(e),
                     ));
+                }
+                if let Some((db, items, category, recipes)) = staged {
+                    *ctx.database = db;
+                    *ctx.item_service = items;
+                    *ctx.category_service = category;
+                    *ctx.recipe_service = recipes;
                 }
                 *ctx.config = config;
                 Task::done(application::Message::ReloadScreen)
