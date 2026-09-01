@@ -12,7 +12,7 @@ The current work as complete as far as the initial goal of solving my gripes wit
 
 ## Known Issues
  * Attempting to use an ingredient twice in a serving can result in it bottoming out at 0
- * Tables are unsorted and can't be filtered
+ * Tables are not presently filterable 
 
 ## License
 MIT
