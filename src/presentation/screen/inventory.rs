@@ -134,10 +134,10 @@ impl Inventory {
         category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name").width(Fill), |item: ItemID| {
-            text(item_service.get(&item).cloned().unwrap_or_default().name)
+            text(item_service.get(item).cloned().unwrap_or_default().name)
         });
         let quantity_column = table::column(text("Quantity"), |item: ItemID| {
-            let item = item_service.get(&item).cloned().unwrap_or_default();
+            let item = item_service.get(item).cloned().unwrap_or_default();
             text!(
                 "{:.0} {}",
                 item.quantity.value(self.unit_system),
@@ -267,7 +267,7 @@ impl Inventory {
                     self.edit_state = EditState::Editing(item);
                     self.input.begin_edit(
                         &(
-                            item_service.get(&item).cloned().unwrap_or_default(),
+                            item_service.get(item).cloned().unwrap_or_default(),
                             category,
                         ),
                         self.unit_system,
@@ -279,9 +279,7 @@ impl Inventory {
                     self.edit_state = EditState::None;
                     None
                 }
-                _ => unreachable!(
-                    "Edit buttons to items not currently under edit should not be accesable"
-                ),
+                EditState::Editing(_) => None,
             },
             Message::Save => {
                 if let Ok(result) = self.input.output() {

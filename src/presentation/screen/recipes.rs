@@ -109,12 +109,12 @@ impl Recipes {
         recipe_service: &RecipeService,
     ) -> Element<'_, application::Message> {
         let name_column = table::column(text("Name"), |recipe: RecipeID| {
-            text(recipe_service.get(&recipe).unwrap_or_default().name)
+            text(recipe_service.get(recipe).unwrap_or_default().name)
         });
         let ingredient_column = table::column(text("Ingredients"), |recipe: RecipeID| {
             column(
                 recipe_service
-                    .get(&recipe)
+                    .get(recipe)
                     .unwrap_or_default()
                     .ingredients
                     .iter()
@@ -132,7 +132,7 @@ impl Recipes {
             EditState::None => {
                 button("Edit").on_press(application::Message::Recipes(Message::BeginEdit(Recipe {
                     id: recipe,
-                    body: recipe_service.get(&recipe).unwrap_or_default(),
+                    body: recipe_service.get(recipe).unwrap_or_default(),
                 })))
             }
         });

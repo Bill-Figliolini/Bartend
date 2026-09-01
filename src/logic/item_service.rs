@@ -23,25 +23,36 @@ impl ItemService {
 
     pub fn get_page(&self, page: usize) -> Vec<ItemID> {
         let page_start = self.page_size * page;
-        self.items
-            .keys()
-            .copied()
+        self.get_sorted()
+            .into_iter()
             .skip(page_start)
             .take(self.page_size)
             .collect()
     }
 
-    pub fn get(&self, item: &ItemID) -> Result<&ItemBody, BartendError> {
-        match self.items.get(item) {
+    pub fn get(&self, item: ItemID) -> Result<&ItemBody, BartendError> {
+        match self.items.get(&item) {
             Some(body) => Ok(body),
-            None => Err(LogicError::InvalidItem(*item))?,
+            None => Err(LogicError::InvalidItem(item))?,
         }
     }
 
-    fn get_mut(&mut self, item: &ItemID) -> Result<&mut ItemBody, BartendError> {
-        match self.items.get_mut(item) {
+    fn get_sorted(&self) -> Vec<ItemID> {
+        let mut entries: Vec<(String, ItemID)> = self
+            .items
+            .iter()
+            .map(|(id, body)| (body.name.to_lowercase(), *id))
+            .collect();
+        entries.sort_unstable_by(|(a_name, a_id), (b_name, b_id)| {
+            a_name.cmp(b_name).then_with(|| a_id.0.cmp(&b_id.0))
+        });
+        entries.into_iter().map(|(_, id)| id).collect()
+    }
+
+    fn get_mut(&mut self, item: ItemID) -> Result<&mut ItemBody, BartendError> {
+        match self.items.get_mut(&item) {
             Some(body) => Ok(body),
-            None => Err(LogicError::InvalidItem(*item))?,
+            None => Err(LogicError::InvalidItem(item))?,
         }
     }
 
@@ -51,11 +62,11 @@ impl ItemService {
         used_items: Vec<ItemUse>,
     ) -> Result<(), BartendError> {
         for usage in used_items {
-            let updated_item = self.get_mut(&usage.id)?;
+            let updated_item = self.get_mut(usage.id)?;
             updated_item.quantity -= usage.quantity;
             let item = Item {
                 id: usage.id,
-                body: self.get(&usage.id)?.clone(),
+                body: self.get(usage.id)?.clone(),
             };
             self.update(db, item)?;
         }
@@ -73,7 +84,7 @@ impl ItemService {
     }
     pub fn update(&mut self, db: &impl ItemRepository, item: Item) -> Result<(), BartendError> {
         db.update(&item)?;
-        let item_location = self.get_mut(&item.id)?;
+        let item_location = self.get_mut(item.id)?;
         *item_location = item.body;
         Ok(())
     }

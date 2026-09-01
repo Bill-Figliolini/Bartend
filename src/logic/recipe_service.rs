@@ -21,13 +21,25 @@ impl RecipeService {
 
     pub fn get_page(&self, page: usize) -> Vec<RecipeID> {
         let page_offset = page * self.page_size;
-        self.recipes
-            .keys()
-            .copied()
+        self.get_sorted()
+            .into_iter()
             .skip(page_offset)
             .take(self.page_size)
             .collect()
     }
+
+    fn get_sorted(&self) -> Vec<RecipeID> {
+        let mut entries: Vec<(String, RecipeID)> = self
+            .recipes
+            .iter()
+            .map(|(id, body)| (body.name.to_lowercase(), *id))
+            .collect();
+        entries.sort_unstable_by(|(a_name, a_id), (b_name, b_id)| {
+            a_name.cmp(b_name).then_with(|| a_id.0.cmp(&b_id.0))
+        });
+        entries.into_iter().map(|(_, id)| id).collect()
+    }
+
     pub fn get_all(&self) -> Vec<Recipe> {
         self.recipes.iter().fold(
             Vec::with_capacity(self.recipes.len()),
@@ -40,10 +52,10 @@ impl RecipeService {
             },
         )
     }
-    pub fn get(&self, id: &RecipeID) -> Result<RecipeBody, BartendError> {
-        match self.recipes.get(id) {
+    pub fn get(&self, id: RecipeID) -> Result<RecipeBody, BartendError> {
+        match self.recipes.get(&id) {
             Some(body) => Ok(body.clone()),
-            None => Err(LogicError::InvalidRecipe(*id))?,
+            None => Err(LogicError::InvalidRecipe(id))?,
         }
     }
     pub fn add(

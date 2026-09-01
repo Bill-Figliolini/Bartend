@@ -94,12 +94,23 @@ impl CategoryService {
 
     pub fn get_page(&self, page_number: usize, page_size: usize) -> Vec<CategoryID> {
         let page_offset = page_number * page_size;
-        self.categories
-            .keys()
-            .copied()
+        self.get_sorted()
+            .into_iter()
             .skip(page_offset)
             .take(page_size)
             .collect()
+    }
+
+    fn get_sorted(&self) -> Vec<CategoryID> {
+        let mut entries: Vec<(String, CategoryID)> = self
+            .categories
+            .iter()
+            .map(|(id, body)| (body.name.to_lowercase(), *id))
+            .collect();
+        entries.sort_unstable_by(|(a_name, a_id), (b_name, b_id)| {
+            a_name.cmp(b_name).then_with(|| a_id.0.cmp(&b_id.0))
+        });
+        entries.into_iter().map(|(_, id)| id).collect()
     }
 
     pub fn get_items(&self, category: &CategoryID) -> HashSet<ItemID> {
