@@ -19,19 +19,6 @@ impl ItemDB<'_> {
     }
 }
 
-impl ItemDB<'_> {
-    pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
-        let query = "CREATE TABLE IF NOT EXISTS items(
-                    id INTEGER PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    quantity REAL NOT NULL,
-                    unit INTEGER NOT NULL
-                );";
-        self.connection.execute(query, ())?;
-        Ok(())
-    }
-}
-
 impl ItemRepository for ItemDB<'_> {
     fn insert(&self, item: &ItemBody) -> Result<ItemID, DBError> {
         let (quantity, unit) = item.quantity.db_format();
@@ -83,18 +70,6 @@ mod tests {
     use super::*;
     fn db_init() -> Database {
         Database::new(Connection::open_in_memory().unwrap()).unwrap()
-    }
-
-    #[test]
-    fn table_creation_does_not_error() {
-        let db = Database {
-            connection: Connection::open_in_memory().unwrap(),
-        };
-
-        let result = db.item_db().create_table();
-
-        assert!(result.is_ok());
-        assert!(db.connection.table_exists(None, "items").unwrap())
     }
 
     mod delete {

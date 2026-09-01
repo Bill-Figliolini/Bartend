@@ -1,3 +1,4 @@
+mod migrations;
 pub mod repositories;
 
 use std::{error::Error, fmt::Display, path::Path};
@@ -6,12 +7,23 @@ use rusqlite::{Connection, Error::SqliteFailure, ErrorCode, ToSql, types::FromSq
 
 use crate::{
     models::{CategoryID, ItemID, RecipeID},
-    persistence::repositories::{CategoryDB, ItemDB, RecipeDB},
+    persistence::{
+        migrations::{LATEST, MIGRATIONS, VERSION_PRAGMA},
+        repositories::{CategoryDB, ItemDB, RecipeDB},
+    },
 };
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct DBVersion(i64);
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum DBError {
+    NotABartendDB,
+    FutureSchema {
+        found: DBVersion,
+        supported: DBVersion,
+    },
     RestrictViolation,
+    InvalidUnit,
     External(String),
 }
 
@@ -31,6 +43,38 @@ pub struct Database {
     pub(in crate::persistence) connection: Connection,
 }
 
+fn migrate(db: &Connection) -> Result<(), DBError> {
+    let current_version: DBVersion = db.pragma_query_value(None, VERSION_PRAGMA, |v| v.get(0))?;
+    if current_version.0 == 0 {
+        let table_count_query = "
+            SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';";
+        let result: i64 = db.query_one(table_count_query, [], |r| r.get(0))?;
+        if result != 0
+            && !(db.table_exists(None, "items")?
+                && db.table_exists(None, "category")?
+                && db.table_exists(None, "graph")?
+                && db.table_exists(None, "category_items")?
+                && db.table_exists(None, "recipes")?)
+        {
+            return Err(DBError::NotABartendDB);
+        }
+    } else if current_version > LATEST {
+        return Err(DBError::FutureSchema {
+            found: current_version,
+            supported: LATEST,
+        });
+    }
+    for m in MIGRATIONS
+        .iter()
+        .filter(|m| m.version as i64 > current_version.0)
+    {
+        let tx = db.unchecked_transaction()?;
+        tx.execute_batch(m.sql)?;
+        tx.pragma_update(None, VERSION_PRAGMA, m.version)?;
+        tx.commit()?;
+    }
+    Ok(())
+}
 impl Database {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, DBError> {
         let connection = Connection::open(path)?;
@@ -38,10 +82,8 @@ impl Database {
     }
     pub fn new(connection: Connection) -> Result<Self, DBError> {
         connection.pragma_update(None, "foreign_keys", "ON")?;
+        migrate(&connection)?;
         let db = Self { connection };
-        db.item_db().create_table()?;
-        db.category_db().create_table()?;
-        db.recipe_db().create_table()?;
         Ok(db)
     }
     #[must_use]
@@ -70,10 +112,22 @@ impl Display for DBError {
         match self {
             DBError::External(error) => write!(f, "External DB Error: {error}"),
             DBError::RestrictViolation => write!(f, "Attempted to delete Restricted Value"),
+            DBError::NotABartendDB => todo!(),
+            DBError::FutureSchema { found, supported } => write!(
+                f,
+                "Attempted to read db from version {found} of Bartend. Only version {supported} is supported"
+            ),
+            DBError::InvalidUnit => write!(f, "Attempted to read invalid unit"),
         }
     }
 }
 impl Error for DBError {}
+
+impl Display for DBVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl ToSql for RecipeID {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
@@ -107,6 +161,17 @@ impl ToSql for CategoryID {
 }
 
 impl FromSql for CategoryID {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let value = value.as_i64()?;
+        Ok(Self(value))
+    }
+}
+impl ToSql for DBVersion {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
+    }
+}
+impl FromSql for DBVersion {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         let value = value.as_i64()?;
         Ok(Self(value))

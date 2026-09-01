@@ -24,19 +24,6 @@ impl RecipeDB<'_> {
     }
 }
 
-impl RecipeDB<'_> {
-    pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
-        let query = "CREATE TABLE IF NOT EXISTS recipes(
-                    id INTEGER PRIMARY KEY,
-                    name TEXT NOT NULL
-                )";
-        self.connection.execute(query, ())?;
-        let query = ingredients::schema();
-        self.connection.execute(query, ())?;
-        Ok(())
-    }
-}
-
 impl RecipeRepository for RecipeDB<'_> {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError> {
         let query = "INSERT INTO recipes(name) VALUES (?1)";
@@ -142,20 +129,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn table_created_successfully() {
-        let database = Database {
-            connection: Connection::open_in_memory().unwrap(),
-        };
-        let table_names = vec!["recipes", "ingredients"];
-
-        let result = database.recipe_db().create_table();
-
-        result.unwrap();
-        for table in table_names {
-            assert!(database.connection.table_exists(None, table).unwrap());
-        }
-    }
     mod insert {
 
         use super::*;

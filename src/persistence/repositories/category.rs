@@ -31,31 +31,6 @@ impl CategoryDB<'_> {
     }
 }
 
-impl CategoryDB<'_> {
-    pub(in crate::persistence) fn create_table(&self) -> Result<(), DBError> {
-        let category_schema = "CREATE TABLE IF NOT EXISTS category(
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL
-            );";
-        self.connection.execute(category_schema, ())?;
-        let graph_schema = "CREATE TABLE IF NOT EXISTS graph(
-                    parent_id INTEGER,
-                    child_id INTEGER,
-                    FOREIGN KEY (parent_id) REFERENCES category(id) ON DELETE CASCADE,
-                    FOREIGN KEY (child_id) REFERENCES category(id) ON DELETE CASCADE,
-                UNIQUE (parent_id, child_id));";
-        self.connection.execute(graph_schema, ())?;
-        let map_schema = "CREATE TABLE IF NOT EXISTS category_item(
-                    category_id INTEGER,
-                    item_id INTEGER,
-                    FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE CASCADE,
-                    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
-                    UNIQUE(category_id, item_id)
-                )";
-        self.connection.execute(map_schema, ())?;
-        Ok(())
-    }
-}
 impl CategoryRepository for CategoryDB<'_> {
     fn insert(&self, body: &CategoryBody) -> Result<CategoryID, DBError> {
         self.connection
@@ -169,20 +144,6 @@ mod tests {
         Database::new(Connection::open_in_memory().unwrap()).unwrap()
     }
 
-    #[test]
-    fn table_created_successfully() {
-        let database = Database {
-            connection: Connection::open_in_memory().unwrap(),
-        };
-        let table_names = vec!["category", "graph", "category_item"];
-
-        let result = database.category_db().create_table();
-
-        assert!(result.is_ok());
-        for table in table_names {
-            assert!(database.connection.table_exists(None, table).unwrap())
-        }
-    }
     mod category {
         use super::*;
         mod insertion {
