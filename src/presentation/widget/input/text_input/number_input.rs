@@ -43,7 +43,12 @@ where
         self.errors.clear();
         let unvalidated_quantity = self.inner.text.trim().parse::<f32>();
         if let Ok(quantity) = unvalidated_quantity {
-            Ok(quantity)
+            if quantity.is_finite() && quantity >= 0.0 {
+                Ok(quantity)
+            } else {
+                self.errors.insert(Error::QuantityInvalid);
+                Err(())
+            }
         } else {
             self.errors.insert(Error::QuantityInvalid);
             Err(())

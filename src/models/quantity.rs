@@ -193,7 +193,10 @@ impl SubAssign for Quantity {
                 Self::Mass {
                     quantity: r_quantity,
                 },
-            ) => *l_quantity -= r_quantity,
+            ) => {
+                *l_quantity -= r_quantity;
+                *l_quantity = l_quantity.clamp(0.0, f32::INFINITY);
+            }
             (
                 Self::Count {
                     quantity: l_quantity,
@@ -203,8 +206,13 @@ impl SubAssign for Quantity {
                     quantity: r_quantity,
                     name: r_name,
                 },
-            ) if *l_name == r_name => *l_quantity -= r_quantity,
-            _ => {}
+            ) if *l_name == r_name => {
+                *l_quantity -= r_quantity;
+                *l_quantity = l_quantity.clamp(0.0, f32::INFINITY);
+            }
+            _ => {
+                unreachable!("Not allowed to add different types")
+            }
         }
     }
 }

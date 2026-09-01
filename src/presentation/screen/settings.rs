@@ -8,6 +8,7 @@ use iced::{
 };
 
 use crate::{
+    logic::{CategoryService, ItemService, RecipeService},
     models::{Config, EditableConfig, UnitSystem},
     persistence::Database,
     presentation::{
@@ -38,20 +39,43 @@ impl Command {
         match self {
             Command::UpdateConfig(config) => {
                 let db_changed = ctx.config.db_path() != config.db_path();
-                if let Err(e) = config.save() {
-                    return Task::done(application::Message::Error(
-                        crate::models::BartendError::Config(e),
-                    ));
-                }
                 if db_changed {
                     match Database::load(config.db_path()) {
-                        Ok(db) => *ctx.database = db,
+                        Ok(db) => {
+                            let item_service = match ItemService::new(&db.item_db()) {
+                                Ok(service) => service,
+                                Err(e) => {
+                                    return Task::done(application::Message::Error(e));
+                                }
+                            };
+                            let category_service = match CategoryService::new(&db.category_db()) {
+                                Ok(service) => service,
+                                Err(e) => {
+                                    return Task::done(application::Message::Error(e));
+                                }
+                            };
+                            let recipe_service = match RecipeService::new(&db.recipe_db()) {
+                                Ok(service) => service,
+                                Err(e) => {
+                                    return Task::done(application::Message::Error(e));
+                                }
+                            };
+                            *ctx.item_service = item_service;
+                            *ctx.category_service = category_service;
+                            *ctx.recipe_service = recipe_service;
+                            *ctx.database = db
+                        }
                         Err(e) => {
                             return Task::done(application::Message::Error(
                                 crate::models::BartendError::Db(e),
                             ));
                         }
                     }
+                }
+                if let Err(e) = config.save() {
+                    return Task::done(application::Message::Error(
+                        crate::models::BartendError::Config(e),
+                    ));
                 }
                 *ctx.config = config;
                 Task::done(application::Message::ReloadScreen)
