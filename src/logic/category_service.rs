@@ -252,6 +252,9 @@ impl CategoryService {
             .get_non_cyclic_additions(category)
             .unwrap_or_default()
     }
+    pub fn category_count(&self) -> usize {
+        self.categories.len()
+    }
 }
 
 #[cfg(test)]

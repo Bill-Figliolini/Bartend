@@ -200,7 +200,7 @@ impl Inventory {
             edit_column,
             delete_column,
         ];
-        let contents = item_service.get_page(self.current_page);
+        let contents = item_service.get_page(self.current_page, 15);
         table(columns, contents).into()
     }
 
@@ -231,13 +231,15 @@ impl Inventory {
         }
         let space = iced::widget::space().width(Fill).into();
         page_controller_contents.push(space);
-        let next_page = self.current_page.wrapping_add(1);
-        let next_page_button = iced::widget::button("Next")
-            .on_press(application::Message::Inventory(Message::SelectPage(
-                next_page,
-            )))
-            .into();
-        page_controller_contents.push(next_page_button);
+        if (self.current_page + 1) * 15 < item_service.item_count() {
+            let next_page = self.current_page.wrapping_add(1);
+            let next_page_button = iced::widget::button("Next")
+                .on_press(application::Message::Inventory(Message::SelectPage(
+                    next_page,
+                )))
+                .into();
+            page_controller_contents.push(next_page_button);
+        }
         let page_controller = row(page_controller_contents);
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Inventory(Message::SwapUnits));
@@ -302,6 +304,9 @@ impl Inventory {
             Message::Reload => {
                 self.input.clear();
                 self.edit_state = EditState::None;
+                self.current_page = self
+                    .current_page
+                    .min((item_service.item_count() / 15).saturating_sub(1));
                 None
             }
             Message::DeleteItem(item) => Some(Command::DeleteItem(item)),

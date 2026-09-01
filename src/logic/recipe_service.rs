@@ -9,22 +9,20 @@ use crate::{
 #[derive(Debug)]
 pub struct RecipeService {
     recipes: HashMap<RecipeID, RecipeBody>,
-    page_size: usize,
 }
 
 impl RecipeService {
     pub fn new(db: &impl RecipeRepository) -> Result<Self, BartendError> {
         let recipes = db.get_all()?;
-        let page_size = 15;
-        Ok(RecipeService { recipes, page_size })
+        Ok(RecipeService { recipes })
     }
 
-    pub fn get_page(&self, page: usize) -> Vec<RecipeID> {
-        let page_offset = page * self.page_size;
+    pub fn get_page(&self, page: usize, page_size: usize) -> Vec<RecipeID> {
+        let page_offset = page * page_size;
         self.get_sorted()
             .into_iter()
             .skip(page_offset)
-            .take(self.page_size)
+            .take(page_size)
             .collect()
     }
 
@@ -87,5 +85,8 @@ impl RecipeService {
             None => Err(LogicError::InvalidRecipe(recipe.id))?,
         }
         Ok(())
+    }
+    pub fn recipe_count(&self) -> usize {
+        self.recipes.len()
     }
 }

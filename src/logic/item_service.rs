@@ -9,24 +9,20 @@ use crate::{
 #[derive(Debug)]
 pub struct ItemService {
     items: HashMap<ItemID, ItemBody>,
-    page_size: usize,
 }
 
 impl ItemService {
     pub fn new(db: &impl ItemRepository) -> Result<Self, BartendError> {
         let items = db.get_all()?;
-        Ok(ItemService {
-            items,
-            page_size: 15,
-        })
+        Ok(ItemService { items })
     }
 
-    pub fn get_page(&self, page: usize) -> Vec<ItemID> {
-        let page_start = self.page_size * page;
+    pub fn get_page(&self, page: usize, page_size: usize) -> Vec<ItemID> {
+        let page_start = page_size * page;
         self.get_sorted()
             .into_iter()
             .skip(page_start)
-            .take(self.page_size)
+            .take(page_size)
             .collect()
     }
 
@@ -92,6 +88,10 @@ impl ItemService {
         db.delete(item)?;
         self.items.remove(&item);
         Ok(())
+    }
+
+    pub fn item_count(&self) -> usize {
+        self.items.len()
     }
 }
 

@@ -192,13 +192,15 @@ impl Categories {
         }
         let space = iced::widget::space().width(Fill).into();
         page_controller_contents.push(space);
-        let next_page = self.current_page.wrapping_add(1);
-        let next_page_button = button("Next")
-            .on_press(application::Message::Categories(Message::SelectPage(
-                next_page,
-            )))
-            .into();
-        page_controller_contents.push(next_page_button);
+        if (self.current_page + 1) * 15 < category_service.category_count() {
+            let next_page = self.current_page.wrapping_add(1);
+            let next_page_button = button("Next")
+                .on_press(application::Message::Categories(Message::SelectPage(
+                    next_page,
+                )))
+                .into();
+            page_controller_contents.push(next_page_button);
+        }
         let page_controller = row(page_controller_contents);
         let body = container(column![category_entry, categories]).align_top(Fill);
         column![header, body, page_controller].into()
@@ -240,6 +242,9 @@ impl Categories {
             Message::Reload => {
                 self.input.clear();
                 self.edit_state = EditState::None;
+                self.current_page = self
+                    .current_page
+                    .min((category_service.category_count() / 15).saturating_sub(1));
                 None
             }
             Message::AddRelation(parent, child) => Some(Command::AddRelation(parent, child)),
@@ -266,7 +271,6 @@ impl Categories {
                 });
                 acc
             });
-        let id = id;
         pick_list(options, self.stub.clone(), move |category| {
             category_add_msg(id, category.id)
         })

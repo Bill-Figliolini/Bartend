@@ -90,7 +90,7 @@ impl Screen {
         &mut self,
         item_service: &ItemService,
         category_service: &CategoryService,
-        _recipe_service: &RecipeService,
+        recipe_service: &RecipeService,
         message: Message,
     ) -> Option<ScreenCommand> {
         match (self, message) {
@@ -103,9 +103,9 @@ impl Screen {
             (Self::Categories(categories), Message::Categories(message)) => categories
                 .update(message, category_service)
                 .map(ScreenCommand::Categories),
-            (Self::Recipes(recipes), Message::Recipes(message)) => {
-                recipes.update(message).map(ScreenCommand::Recipes)
-            }
+            (Self::Recipes(recipes), Message::Recipes(message)) => recipes
+                .update(message, recipe_service)
+                .map(ScreenCommand::Recipes),
             (Self::Serving(service), Message::Serving(message)) => service
                 .update(item_service, category_service, message)
                 .map(ScreenCommand::Serving),

@@ -140,7 +140,7 @@ impl Recipes {
             button("X").on_press(application::Message::Recipes(Message::DeleteRecipe(recipe)))
         });
         let columns = vec![name_column, ingredient_column, edit_column, delete_column];
-        let contents = recipe_service.get_page(self.current_page);
+        let contents = recipe_service.get_page(self.current_page, 15);
         table(columns, contents).into()
     }
     pub fn view(
@@ -165,13 +165,15 @@ impl Recipes {
         }
         let space = iced::widget::space().width(Fill).into();
         page_controller_contents.push(space);
-        let next_page = self.current_page.wrapping_add(1);
-        let next_page_button = button("Next")
-            .on_press(application::Message::Recipes(Message::SelectPage(
-                next_page,
-            )))
-            .into();
-        page_controller_contents.push(next_page_button);
+        if (self.current_page + 1) * 15 < recipe_service.recipe_count() {
+            let next_page = self.current_page.wrapping_add(1);
+            let next_page_button = button("Next")
+                .on_press(application::Message::Recipes(Message::SelectPage(
+                    next_page,
+                )))
+                .into();
+            page_controller_contents.push(next_page_button);
+        }
         let page_controller = row(page_controller_contents);
         let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
             .on_press(application::Message::Recipes(Message::SwapUnits));
@@ -180,7 +182,7 @@ impl Recipes {
         let footer = footer(footer_container);
         column![header, body, page_controller, footer].into()
     }
-    pub fn update(&mut self, message: Message) -> Option<Command> {
+    pub fn update(&mut self, message: Message, recipe_service: &RecipeService) -> Option<Command> {
         match message {
             Message::Input(msg) => {
                 self.input.update(msg);
@@ -217,6 +219,9 @@ impl Recipes {
             Message::Reload => {
                 self.input.clear();
                 self.edit_state = EditState::None;
+                self.current_page = self
+                    .current_page
+                    .min((recipe_service.recipe_count() / 15).saturating_sub(1));
                 None
             }
             Message::DeleteRecipe(recipe) => Some(Command::DeleteRecipe(recipe)),
