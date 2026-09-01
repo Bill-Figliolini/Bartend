@@ -86,10 +86,10 @@ impl IngredientInput {
             Err(())
         } else {
             let quantity = Quantity::new(
-                quantity_result.unwrap(),
-                self.unit_input.get_output().unwrap(),
+                quantity_result.expect("Already validated"),
+                self.unit_input.get_output().expect("Already validated"),
             );
-            let category = category_result.unwrap().id;
+            let category = category_result.expect("Already validated").id;
             Ok(Ingredient { category, quantity })
         }
     }
@@ -177,10 +177,10 @@ impl RecipeInput {
                 .iter()
                 .all(|ingredient| !ingredient.has_error())
         {
-            let name = name_result.unwrap();
+            let name = name_result.expect("Already validated");
             let ingredients = ingredient_results
                 .into_iter()
-                .map(|ingredient| ingredient.unwrap())
+                .map(|ingredient| ingredient.expect("Already validated"))
                 .collect();
             self.clear();
             Ok(RecipeBody { name, ingredients })
