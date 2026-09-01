@@ -10,9 +10,9 @@ pub(super) const MIGRATIONS: &[Migration] = &[Migration {
     sql: V1,
 }];
 pub(super) const LATEST: DBVersion = DBVersion(MIGRATIONS.len() as i64);
-pub(super) const VERSION_PRAGMA: &'static str = "user_version";
+pub(super) const VERSION_PRAGMA: &str = "user_version";
 
-const V1: &'static str = "
+const V1: &str = "
                 CREATE TABLE IF NOT EXISTS items(
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,

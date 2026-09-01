@@ -211,7 +211,7 @@ impl SubAssign for Quantity {
                 *l_quantity = l_quantity.clamp(0.0, f32::INFINITY);
             }
             _ => {
-                debug_assert!(false, "Attempted to subtract mismatched values")
+                debug_assert!(false, "Attempted to subtract mismatched values");
             }
         }
     }

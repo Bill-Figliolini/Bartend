@@ -60,7 +60,7 @@ fn migrate(db: &Connection) -> Result<(), DBError> {
     }
     for m in MIGRATIONS
         .iter()
-        .filter(|m| m.version as i64 > current_version.0)
+        .filter(|m| i64::from(m.version) > current_version.0)
     {
         let tx = db.unchecked_transaction()?;
         tx.execute_batch(m.sql)?;
