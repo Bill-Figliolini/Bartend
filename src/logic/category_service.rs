@@ -176,20 +176,20 @@ impl CategoryService {
     pub fn update_item_mapping(
         &mut self,
         db: &impl CategoryRepository,
-        item: &ItemID,
-        category: &Option<CategoryID>,
+        item: ItemID,
+        category: Option<&CategoryID>,
     ) -> Result<(), BartendError> {
-        let mut old_category = self.item_category(item);
+        let mut old_category = self.item_category(&item);
         match (old_category.take(), category) {
             (None, Some(new)) => {
-                self.add_item_mapping(db, item, new)?;
+                self.add_item_mapping(db, &item, new)?;
             }
             (Some(old), None) => {
-                db.map_delete(item, &old)?;
-                self.item_mapping.remove(item);
+                db.map_delete(&item, &old)?;
+                self.item_mapping.remove(&item);
                 match self.category_mapping.entry(old) {
                     Entry::Occupied(mut items) => {
-                        items.get_mut().remove(item);
+                        items.get_mut().remove(&item);
                     }
                     Entry::Vacant(_) => {
                         Err(LogicError::InvalidCategory(old))?;
@@ -197,17 +197,17 @@ impl CategoryService {
                 }
             }
             (Some(old), Some(new)) => {
-                db.map_delete(item, &old)?;
+                db.map_delete(&item, &old)?;
                 match self.category_mapping.entry(old) {
                     Entry::Occupied(mut items) => {
-                        items.get_mut().remove(item);
+                        items.get_mut().remove(&item);
                     }
                     Entry::Vacant(_) => {
                         Err(LogicError::InvalidCategory(old))?;
                     }
                 }
-                self.item_mapping.remove(item);
-                self.add_item_mapping(db, item, new)?;
+                self.item_mapping.remove(&item);
+                self.add_item_mapping(db, &item, new)?;
             }
             (None, None) => {}
         }

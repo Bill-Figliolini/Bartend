@@ -82,8 +82,8 @@ impl Command {
                 }
                 if let Err(e) = ctx.category_service.update_item_mapping(
                     &ctx.database.category_db(),
-                    &item_id,
-                    &category_id,
+                    item_id,
+                    category_id.as_ref(),
                 ) {
                     tasks.push(Task::done(application::Message::Error(e)));
                 }
