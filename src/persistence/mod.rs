@@ -49,13 +49,7 @@ fn migrate(db: &Connection) -> Result<(), DBError> {
         let table_count_query = "
             SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';";
         let result: i64 = db.query_one(table_count_query, [], |r| r.get(0))?;
-        if result != 0
-            && !(db.table_exists(None, "items")?
-                && db.table_exists(None, "category")?
-                && db.table_exists(None, "graph")?
-                && db.table_exists(None, "category_items")?
-                && db.table_exists(None, "recipes")?)
-        {
+        if result != 0 {
             return Err(DBError::NotABartendDB);
         }
     } else if current_version > LATEST {
@@ -112,7 +106,7 @@ impl Display for DBError {
         match self {
             DBError::External(error) => write!(f, "External DB Error: {error}"),
             DBError::RestrictViolation => write!(f, "Attempted to delete Restricted Value"),
-            DBError::NotABartendDB => todo!(),
+            DBError::NotABartendDB => write!(f, "Attempted to read a DB from another application"),
             DBError::FutureSchema { found, supported } => write!(
                 f,
                 "Attempted to read db from version {found} of Bartend. Only version {supported} is supported"
