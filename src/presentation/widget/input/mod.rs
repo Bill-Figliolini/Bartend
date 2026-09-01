@@ -42,7 +42,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
             Self::StringEmpty => "String Must Not Be Empty".to_string(),
-            Self::QuantityInvalid => "Must be a non-zero positive number".to_string(),
+            Self::QuantityInvalid => "Must be a number that is zero or above".to_string(),
             Self::MustChooseValue => "A value must be selected".to_string(),
         };
         write!(f, "{text}")
