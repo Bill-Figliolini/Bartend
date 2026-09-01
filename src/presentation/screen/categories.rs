@@ -242,9 +242,12 @@ impl Categories {
             Message::Reload => {
                 self.input.clear();
                 self.edit_state = EditState::None;
-                self.current_page = self
-                    .current_page
-                    .min((category_service.category_count() / 15).saturating_sub(1));
+                self.current_page = self.current_page.min(
+                    category_service
+                        .category_count()
+                        .div_ceil(15)
+                        .saturating_sub(1),
+                );
                 None
             }
             Message::AddRelation(parent, child) => Some(Command::AddRelation(parent, child)),

@@ -306,7 +306,7 @@ impl Inventory {
                 self.edit_state = EditState::None;
                 self.current_page = self
                     .current_page
-                    .min((item_service.item_count() / 15).saturating_sub(1));
+                    .min(item_service.item_count().div_ceil(15).saturating_sub(1));
                 None
             }
             Message::DeleteItem(item) => Some(Command::DeleteItem(item)),

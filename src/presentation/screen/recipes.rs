@@ -221,7 +221,7 @@ impl Recipes {
                 self.edit_state = EditState::None;
                 self.current_page = self
                     .current_page
-                    .min((recipe_service.recipe_count() / 15).saturating_sub(1));
+                    .min(recipe_service.recipe_count().div_ceil(15).saturating_sub(1));
                 None
             }
             Message::DeleteRecipe(recipe) => Some(Command::DeleteRecipe(recipe)),
