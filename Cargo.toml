@@ -1,5 +1,6 @@
 [package]
 name = "bartend"
+description = "Desktop GUI bartending app"
 repository = "https://github.com/Bill-Figliolini/Bartend"
 license = "MIT"
 version = "1.0.0"
