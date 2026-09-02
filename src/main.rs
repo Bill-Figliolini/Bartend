@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 mod logic;
 pub mod models;
 mod persistence;
