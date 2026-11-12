@@ -10,7 +10,7 @@ use crate::{
     models::{Category, CategoryFilter, CategoryID, Config, Item, ItemBody, ItemID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{InputMessage, ItemInput},
+        input_handling::{InputMessage, ItemInput, UnknownTarget},
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -259,7 +259,9 @@ impl Inventory {
                 None
             }
             Message::Input(msg) => {
-                self.input.update(msg);
+                self.input
+                    .update(msg)
+                    .unwrap_or_else(UnknownTarget::discard);
                 None
             }
             Message::BeginEdit(item, category) => match self.edit_state {

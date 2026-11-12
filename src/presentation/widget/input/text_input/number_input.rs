@@ -1,4 +1,4 @@
-use std::{collections::HashSet, rc::Rc};
+use std::rc::Rc;
 
 use iced::widget::{Id, column, row, text};
 
@@ -13,7 +13,7 @@ where
     Message: Clone,
 {
     inner: TextInput<Message>,
-    errors: HashSet<Error>,
+    error: Option<Error>,
 }
 impl<Message> NumberInput<Message>
 where
@@ -31,7 +31,7 @@ where
                 message: Rc::new(msg),
                 placeholder,
             },
-            errors: HashSet::new(),
+            error: None,
         }
     }
 }
@@ -39,23 +39,20 @@ impl<Message> InputContents<f32> for NumberInput<Message>
 where
     Message: Clone,
 {
-    fn get_output(&mut self) -> Result<f32, ()> {
-        self.errors.clear();
-        let unvalidated_quantity = self.inner.text.trim().parse::<f32>();
-        if let Ok(mut quantity) = unvalidated_quantity {
-            if quantity.is_finite() && quantity >= 0.0 {
-                if quantity == -0.0 {
-                    quantity = 0.0;
-                }
-                Ok(quantity)
-            } else {
-                self.errors.insert(Error::QuantityInvalid);
-                Err(())
-            }
-        } else {
-            self.errors.insert(Error::QuantityInvalid);
-            Err(())
-        }
+    /// Accepts finite numbers that are zero or above. `-0` passes the `>= 0.0`
+    /// check, so `abs` normalises it to `0.0`.
+    fn get_output(&mut self) -> Result<f32, Error> {
+        let result = self
+            .inner
+            .text
+            .trim()
+            .parse::<f32>()
+            .ok()
+            .filter(|quantity| quantity.is_finite() && *quantity >= 0.0)
+            .map(f32::abs)
+            .ok_or(Error::QuantityInvalid);
+        self.error = result.err();
+        result
     }
 }
 impl<Message> Viewable<Message> for NumberInput<Message>
@@ -66,7 +63,7 @@ where
         column![
             self.inner.view(),
             row(self
-                .errors
+                .error
                 .iter()
                 .map(|error| text(error.to_string()).into()))
         ]
@@ -83,11 +80,52 @@ where
 
     fn clear(&mut self) {
         self.inner.clear();
+        self.error = None;
     }
     fn id(&self) -> &Id {
         self.inner.id()
     }
-    fn has_error(&self) -> bool {
-        !self.errors.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input(text: &str) -> NumberInput<()> {
+        NumberInput::new(|_, _| (), "Quantity".to_string(), text.to_string())
+    }
+
+    /// Compares by bit pattern, which avoids `float_cmp` and tells `-0.0`
+    /// apart from `0.0`.
+    fn output_bits(text: &str) -> Result<u32, Error> {
+        input(text).get_output().map(f32::to_bits)
+    }
+
+    #[test]
+    fn accepts_non_negative_numbers() {
+        assert_eq!(output_bits("1.5"), Ok(1.5f32.to_bits()));
+        assert_eq!(output_bits("0"), Ok(0f32.to_bits()));
+        assert_eq!(output_bits("  2 "), Ok(2f32.to_bits()));
+    }
+
+    #[test]
+    fn negative_zero_becomes_zero() {
+        assert_eq!(output_bits("-0"), Ok(0f32.to_bits()));
+    }
+
+    #[test]
+    fn rejects_invalid_numbers() {
+        for text in ["", "abc", "-1", "NaN", "inf", "-inf"] {
+            assert_eq!(output_bits(text), Err(Error::QuantityInvalid), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn records_and_clears_error() {
+        let mut input = input("abc");
+        _ = input.get_output();
+        assert_eq!(input.error, Some(Error::QuantityInvalid));
+        input.clear();
+        assert_eq!(input.error, None);
     }
 }

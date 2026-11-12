@@ -20,7 +20,7 @@ use crate::{
 
 pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
-        .title(Bartend::title)
+        .title("Bartend")
         .theme(Bartend::theme)
         .window_size((500.0, 600.0))
         .run()
@@ -119,9 +119,6 @@ impl Bartend {
     }
     fn theme(&self) -> Theme {
         self.theme_value.clone()
-    }
-    fn title(&self) -> String {
-        "Bartend".to_string()
     }
 
     fn context(&mut self) -> Context<'_> {

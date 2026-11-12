@@ -8,7 +8,7 @@ use crate::{
     models::{Config, ItemUse, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{InputMessage, ServingInput},
+        input_handling::{InputMessage, ServingInput, UnknownTarget},
         widget::footer::footer,
     },
 };
@@ -84,7 +84,8 @@ impl Serving {
             }
             Message::Input(input_message) => {
                 self.input
-                    .update(input_message, item_service, category_service);
+                    .update(input_message, item_service, category_service)
+                    .unwrap_or_else(UnknownTarget::discard);
                 None
             }
             Message::Save => {

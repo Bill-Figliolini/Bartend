@@ -5,7 +5,7 @@ use crate::{
     models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{CategoryInput, InputMessage},
+        input_handling::{CategoryInput, InputMessage, UnknownTarget},
         widget::{self, text_style},
     },
 };
@@ -212,7 +212,9 @@ impl Categories {
     ) -> Option<Command> {
         match message {
             Message::Input(msg) => {
-                self.input.update(msg);
+                self.input
+                    .update(msg)
+                    .unwrap_or_else(UnknownTarget::discard);
                 None
             }
             Message::Edit(category) => {
@@ -237,7 +239,7 @@ impl Categories {
                     EditState::Editing(id) => Some(Command::UpdateCategory(Category { id, body })),
                     EditState::None => Some(Command::AddCategory(body)),
                 },
-                Err(()) => None,
+                Err(_) => None,
             },
             Message::Reload => {
                 self.input.clear();

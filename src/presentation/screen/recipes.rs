@@ -3,7 +3,7 @@ use crate::{
     models::{CategoryFilter, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{InputMessage, RecipeInput},
+        input_handling::{InputMessage, RecipeInput, UnknownTarget},
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -182,15 +182,14 @@ impl Recipes {
     pub fn update(&mut self, message: Message, recipe_service: &RecipeService) -> Option<Command> {
         match message {
             Message::Input(msg) => {
-                self.input.update(msg);
+                self.input
+                    .update(msg)
+                    .unwrap_or_else(UnknownTarget::discard);
                 None
             }
             Message::Save => match self.input.output() {
-                Ok(body) => {
-                    self.input.clear();
-                    Some(self.save(body))
-                }
-                Err(()) => None,
+                Ok(body) => Some(self.save(body)),
+                Err(_) => None,
             },
             Message::AddIngredient => {
                 self.input.add_ingredient();
