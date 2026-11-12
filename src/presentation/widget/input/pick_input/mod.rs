@@ -28,7 +28,7 @@ where
     Message: Clone + 'static,
 {
     fn view(&self) -> iced::Element<'_, Message> {
-        let message = self.message.clone();
+        let message = Rc::clone(&self.message);
         let id = self.id.clone();
         combo_box(
             &self.options,
@@ -60,6 +60,6 @@ where
             .field("id", &self.id)
             .field("options", &self.options)
             .field("selections", &self.selection)
-            .finish()
+            .finish_non_exhaustive()
     }
 }

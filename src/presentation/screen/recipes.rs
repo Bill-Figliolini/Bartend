@@ -119,7 +119,6 @@ impl Recipes {
                     .ingredients
                     .iter()
                     .map(|ingredient| {
-                        let ingredient = ingredient.clone();
                         view_ingredient(ingredient, category_service, &self.unit_system)
                     }),
             )
@@ -236,7 +235,7 @@ fn input_msg(msg: InputMessage) -> application::Message {
     application::Message::Recipes(Message::Input(msg))
 }
 fn view_ingredient<'a>(
-    ingredient: Ingredient,
+    ingredient: &Ingredient,
     category_service: &CategoryService,
     unit_system: &'a UnitSystem,
 ) -> Element<'a, application::Message> {

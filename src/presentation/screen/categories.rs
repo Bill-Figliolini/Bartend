@@ -226,7 +226,7 @@ impl Categories {
                         self.input.clear();
                         self.edit_state = EditState::None;
                     }
-                    _ => unreachable!(
+                    EditState::Editing(_) => unreachable!(
                         "Edit buttons to items not currently under edit should not be accesable"
                     ),
                 }

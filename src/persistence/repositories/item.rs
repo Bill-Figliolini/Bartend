@@ -95,7 +95,7 @@ mod tests {
                 })
                 .optional();
             assert!(in_db.is_ok());
-            assert!(in_db.unwrap().is_none())
+            assert!(in_db.unwrap().is_none());
         }
     }
 
@@ -118,7 +118,7 @@ mod tests {
                 .query_one("SELECT * FROM items WHERE id=?1", (id,), ItemDB::from_db)
                 .unwrap();
 
-            assert_eq!(in_db.body, item)
+            assert_eq!(in_db.body, item);
         }
     }
     mod update {
@@ -143,32 +143,32 @@ mod tests {
                 body: new_item.clone(),
             });
 
-            assert!(update_result.is_ok());
+            update_result.unwrap();
 
             let in_db = db
                 .connection
                 .query_one("SELECT * FROM items WHERE id=?1", (id,), ItemDB::from_db)
                 .unwrap();
 
-            assert_eq!(in_db.body, new_item)
+            assert_eq!(in_db.body, new_item);
         }
     }
     mod get_all {
         use super::*;
         #[test]
         fn gets_all_from_db() {
-            let test_size = 100;
+            let test_size: u16 = 100;
             let db = db_init();
             let mut ids = Vec::new();
             let items: Vec<ItemBody> = (0..test_size)
                 .map(|num| ItemBody {
                     name: format!("test{num}"),
                     quantity: Quantity::Volume {
-                        quantity: num as f32,
+                        quantity: f32::from(num),
                     },
                 })
                 .collect();
-            for item in items.iter() {
+            for item in &items {
                 ids.push(db.item_db().insert(item).unwrap());
             }
 
@@ -178,7 +178,7 @@ mod tests {
             assert_eq!(in_db.len(), ids.len());
 
             for id in ids {
-                assert!(in_db.get(&id).is_some());
+                assert!(in_db.contains_key(&id));
                 let category = in_db.get(&id).unwrap();
                 assert!(items.contains(category));
             }

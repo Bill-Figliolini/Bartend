@@ -19,11 +19,11 @@ pub enum InputMessage {
 impl InputMessage {
     fn id(&self) -> Id {
         match self {
-            InputMessage::String(id, _) => id.clone(),
-            InputMessage::Unit(id, _) => id.clone(),
-            InputMessage::Category(id, _) => id.clone(),
-            InputMessage::Recipe(id, _) => id.clone(),
-            InputMessage::Item(id, _) => id.clone(),
+            InputMessage::String(id, _)
+            | InputMessage::Unit(id, _)
+            | InputMessage::Category(id, _)
+            | InputMessage::Recipe(id, _)
+            | InputMessage::Item(id, _) => id.clone(),
         }
     }
 }

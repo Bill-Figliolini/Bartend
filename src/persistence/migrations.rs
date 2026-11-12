@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn migration_versions_are_sequential() {
         for (v, m) in (1..=LATEST.0).zip(MIGRATIONS.iter()) {
-            assert_eq!(v, m.version as i64);
+            assert_eq!(v, i64::from(m.version));
         }
     }
 
@@ -82,7 +82,7 @@ mod tests {
         let db = Database::new(connection).unwrap();
 
         for table in table_names {
-            assert!(db.connection.table_exists(None, table).unwrap())
+            assert!(db.connection.table_exists(None, table).unwrap());
         }
     }
     #[test]
@@ -112,6 +112,6 @@ mod tests {
                 found: next_version,
                 supported: LATEST
             }
-        )
+        );
     }
 }

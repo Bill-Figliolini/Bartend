@@ -45,7 +45,7 @@ where
         if let Ok(mut quantity) = unvalidated_quantity {
             if quantity.is_finite() && quantity >= 0.0 {
                 if quantity == -0.0 {
-                    quantity = 0.0
+                    quantity = 0.0;
                 }
                 Ok(quantity)
             } else {

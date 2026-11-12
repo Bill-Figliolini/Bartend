@@ -224,7 +224,7 @@ mod tests {
                     })
                     .optional();
                 assert!(in_db.is_ok());
-                assert!(in_db.unwrap().is_none())
+                assert!(in_db.unwrap().is_none());
             }
         }
 
@@ -240,7 +240,7 @@ mod tests {
                         name: format!("test{num}"),
                     })
                     .collect();
-                for category in categories.iter() {
+                for category in &categories {
                     ids.push(db.category_db().insert(category).unwrap());
                 }
 
@@ -250,7 +250,7 @@ mod tests {
                 assert_eq!(in_db.len(), ids.len());
 
                 for id in ids {
-                    assert!(in_db.get(&id).is_some());
+                    assert!(in_db.contains_key(&id));
                     let category = in_db.get(&id).unwrap();
                     assert!(categories.contains(category));
                 }
@@ -280,7 +280,7 @@ mod tests {
                     .unwrap();
 
                 let result = db.category_db().insert_relation(parent_id, child_id);
-                assert!(result.is_ok());
+                result.unwrap();
 
                 let in_db: Result<(CategoryID, CategoryID), rusqlite::Error> =
                     db.connection.query_one(
@@ -323,14 +323,14 @@ mod tests {
                 assert!(initial_edge_result.is_ok());
                 let inital_edges = initial_edge_result.unwrap();
                 for i in 0..length {
-                    assert!(*&inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
+                    assert!(inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
                 }
 
                 let delete_result = db.category_db().delete_edge(ids[1], ids[2]);
-                assert!(delete_result.is_ok());
+                delete_result.unwrap();
 
                 let after_edges = db.category_db().get_graph().unwrap();
-                for id in ids.iter() {
+                for id in &ids {
                     assert!(after_edges.keys().any(|key| key == id));
                 }
                 assert!(after_edges.get(&ids[0]).unwrap().contains(&ids[1]));
@@ -348,7 +348,7 @@ mod tests {
                 assert!(initial_edge_result.is_ok());
                 let inital_edges = initial_edge_result.unwrap();
                 for i in 0..length {
-                    assert!(*&inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
+                    assert!(inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
                 }
                 let patch = GraphPatch {
                     to_remove: ids[2],
@@ -357,7 +357,7 @@ mod tests {
                 };
 
                 let delete_result = db.category_db().delete(&patch);
-                assert!(delete_result.is_ok());
+                delete_result.unwrap();
 
                 let after_edges = db.category_db().get_graph().unwrap();
                 for edge in after_edges {
@@ -376,7 +376,7 @@ mod tests {
                 assert!(initial_edge_result.is_ok());
                 let inital_edges = initial_edge_result.unwrap();
                 for i in 0..length {
-                    assert!(*&inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
+                    assert!(inital_edges.get(&ids[i]).unwrap().contains(&ids[i + 1]));
                 }
                 let patch = GraphPatch {
                     to_remove: ids[2],
@@ -385,7 +385,7 @@ mod tests {
                 };
 
                 let delete_result = db.category_db().delete(&patch);
-                assert!(delete_result.is_ok());
+                delete_result.unwrap();
 
                 let after_edges = db.category_db().get_graph().unwrap();
                 for edge in after_edges {
@@ -419,7 +419,7 @@ mod tests {
 
                 let result = db.category_db().map_insert(&item_id, &category_id);
 
-                assert!(result.is_ok());
+                result.unwrap();
 
                 let in_db_result = db.category_db().get_map();
                 assert!(in_db_result.is_ok());
@@ -447,13 +447,13 @@ mod tests {
 
                 let result = db.category_db().map_insert(&item_id, &category_id);
 
-                assert!(result.is_ok());
+                result.unwrap();
 
                 db.item_db().delete(item_id).unwrap();
 
                 let in_db = db.category_db().get_map().unwrap();
 
-                assert!(in_db.get(&item_id).is_none())
+                assert!(!in_db.contains_key(&item_id));
             }
 
             #[test]
@@ -471,7 +471,7 @@ mod tests {
 
                 let result = db.category_db().map_insert(&item_id, &category_id);
 
-                assert!(result.is_ok());
+                result.unwrap();
 
                 db.category_db()
                     .delete(&GraphPatch {
@@ -483,7 +483,7 @@ mod tests {
 
                 let in_db = db.category_db().get_map().unwrap();
 
-                assert!(in_db.get(&item_id).is_none())
+                assert!(!in_db.contains_key(&item_id));
             }
         }
         mod delete {
@@ -503,14 +503,14 @@ mod tests {
                 let category_id = db.category_db().insert(&category).unwrap();
 
                 let result = db.category_db().map_insert(&item_id, &category_id);
-                assert!(result.is_ok());
+                result.unwrap();
 
                 let result = db.category_db().map_delete(&item_id, &category_id);
-                assert!(result.is_ok());
+                result.unwrap();
 
                 let in_db = db.category_db().get_map().unwrap();
 
-                assert!(in_db.get(&item_id).is_none())
+                assert!(!in_db.contains_key(&item_id));
             }
         }
     }

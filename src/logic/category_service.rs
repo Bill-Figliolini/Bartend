@@ -270,7 +270,7 @@ mod tests {
         fn new() -> Self {
             Self { counter: 30 }
         }
-        fn _get_next(&self) -> CategoryID {
+        fn get_next(&self) -> CategoryID {
             CategoryID(self.counter + 1)
         }
         fn _update(&mut self) {
@@ -368,7 +368,7 @@ mod tests {
                 let stub_body = CategoryBody {
                     name: "test".to_string(),
                 };
-                let next_id = db._get_next();
+                let next_id = db.get_next();
                 assert!(!service.graph.contains_vertex(&next_id));
 
                 let id = service.insert(&db, &stub_body).expect("Should be valid");
@@ -391,7 +391,7 @@ mod tests {
                 assert!(service.categories.contains_key(&id));
                 assert!(service.graph.contains_vertex(&id));
 
-                _ = service.delete(&db, id.clone());
+                _ = service.delete(&db, id);
 
                 assert!(!service.categories.contains_key(&id));
                 assert!(!service.graph.contains_vertex(&id));

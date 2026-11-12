@@ -90,10 +90,8 @@ impl<T: std::fmt::Debug + Copy + Eq + Hash + PartialEq> DirectedAcyclicGraph<T> 
         if parent_vertex == child_vertex {
             return true;
         }
-        let current_set = self.graph.get(parent_vertex);
-        let next_set = match current_set {
-            Some(next_set) => next_set,
-            None => return false,
+        let Some(next_set) = self.graph.get(parent_vertex) else {
+            return false;
         };
         if next_set.contains(child_vertex) {
             return true;
@@ -200,7 +198,7 @@ mod tests {
 
             let insert_result = graph.insert_edge(&3, &1);
 
-            assert!(insert_result.is_err())
+            assert!(insert_result.is_err());
         }
         #[test]
         fn self_loops_not_allowed() {
@@ -208,7 +206,7 @@ mod tests {
 
             let insert_result = graph.insert_edge(&1, &1);
 
-            assert!(insert_result.is_err())
+            assert!(insert_result.is_err());
         }
         #[test]
         fn remove_edge_splits_tree() {
@@ -225,7 +223,7 @@ mod tests {
 
             let result = graph.get_ancestors(&25);
 
-            assert!(result.is_none())
+            assert!(result.is_none());
         }
     }
     mod removal_relation_maintenance {
@@ -347,7 +345,7 @@ mod tests {
 
             let result = graph.get_non_cyclic_additions(&123);
 
-            assert!(result.is_none())
+            assert!(result.is_none());
         }
     }
 }

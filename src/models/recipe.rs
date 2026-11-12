@@ -46,7 +46,7 @@ impl Default for RecipeBody {
     fn default() -> Self {
         Self {
             name: "Invalid Recipe".to_string(),
-            ingredients: Default::default(),
+            ingredients: Vec::new(),
         }
     }
 }

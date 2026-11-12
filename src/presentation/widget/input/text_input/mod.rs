@@ -21,7 +21,7 @@ where
     Message: Clone,
 {
     fn view(&self) -> iced::Element<'_, Message> {
-        let message = self.message.clone();
+        let message = Rc::clone(&self.message);
         text_input(&self.placeholder, &self.text)
             .id(self.id.clone())
             .on_input(move |str: String| message(self.id().clone(), str))
@@ -54,6 +54,6 @@ where
             .field("id", &self.id)
             .field("placeholder", &self.placeholder)
             .field("text", &self.text)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
