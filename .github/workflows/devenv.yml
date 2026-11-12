@@ -1,0 +1,47 @@
+name: devenv
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays: try a fresh lock
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # Verify the committed devenv.lock builds.
+  check:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+      - run: nix profile install nixpkgs#devenv
+      - run: devenv shell -- true
+
+  # Bump devenv.lock, and open a PR only if the new lock still builds.
+  update-lock:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+      - run: nix profile install nixpkgs#devenv
+      - run: devenv update
+      - run: devenv shell -- true
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: devenv-lock-update
+          commit-message: "chore: update devenv.lock"
+          title: "chore: update devenv.lock"
+          body: Automated devenv.lock update; the shell built successfully with it.
+          add-paths: devenv.lock
