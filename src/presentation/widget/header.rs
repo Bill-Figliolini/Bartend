@@ -2,6 +2,7 @@ use iced::{self, Element, widget::column};
 
 use crate::presentation::constants;
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub fn header<'a, Message: Clone + 'a>(
     contents: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {

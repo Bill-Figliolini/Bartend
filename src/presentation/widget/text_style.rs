@@ -8,6 +8,7 @@ use iced::{
 
 use crate::presentation::application::Message;
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub fn title<'a>(text: impl IntoFragment<'a>) -> Element<'a, Message> {
     widget::text(text)
         .size(30)

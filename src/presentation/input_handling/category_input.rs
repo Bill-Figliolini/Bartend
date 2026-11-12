@@ -24,6 +24,7 @@ impl CategoryInput {
         }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> iced::Element<'_, Message> {
         self.name_input.view()
     }
@@ -55,6 +56,10 @@ impl CategoryInput {
     pub fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
         self.clear();
         self.name_input.update(edit.name.clone());
+    }
+    #[cfg(test)]
+    pub fn name_id(&self) -> iced::widget::Id {
+        self.name_input.id().clone()
     }
 }
 

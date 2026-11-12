@@ -34,6 +34,7 @@ impl ServingInput {
             msg,
         }
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
         category_service: &CategoryService,
@@ -108,6 +109,14 @@ impl ServingInput {
         self.recipe.clear();
         self.ingredients.clear();
     }
+    #[cfg(test)]
+    pub fn recipe_id(&self) -> iced::widget::Id {
+        self.recipe.id().clone()
+    }
+    #[cfg(test)]
+    pub fn item_id(&self, index: usize) -> iced::widget::Id {
+        self.ingredients[index].ingredient.id().clone()
+    }
 }
 
 #[derive(Debug)]
@@ -146,6 +155,7 @@ impl IngredientUseInput {
             ),
         }
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
         category_service: &CategoryService,
@@ -308,5 +318,51 @@ mod tests {
         assert!(input.update(stale, &items, &categories).is_err());
         let wrong_kind = InputMessage::String(Id::unique(), String::new());
         assert!(input.update(wrong_kind, &items, &categories).is_err());
+    }
+
+    #[test]
+    fn rows_offer_only_items_with_enough_stock() {
+        use crate::persistence::repositories::{CategoryRepository, ItemRepository};
+        let db = Database::new(Connection::open_in_memory().unwrap()).unwrap();
+        let gin = db
+            .category_db()
+            .insert(&crate::models::CategoryBody {
+                name: "Gin".to_string(),
+            })
+            .unwrap();
+        for (name, ml) in [("Full bottle", 750.0), ("Nearly empty", 10.0)] {
+            let id = db
+                .item_db()
+                .insert(&ItemBody {
+                    name: name.to_string(),
+                    quantity: Quantity::new(ml, Unit::Milliliter),
+                })
+                .unwrap();
+            db.category_db().map_insert(id, gin).unwrap();
+        }
+        let items = ItemService::new(&db.item_db()).unwrap();
+        let categories = CategoryService::new(&db.category_db()).unwrap();
+        let mut recipes = RecipeService::new(&db.recipe_db()).unwrap();
+        let shot = RecipeBody {
+            name: "Gin Shot".to_string(),
+            ingredients: vec![Ingredient {
+                category: gin,
+                quantity: Quantity::new(50.0, Unit::Milliliter),
+            }],
+        };
+        recipes.add(&db.recipe_db(), shot).unwrap();
+        let mut input = ServingInput::new(msg, &recipes);
+
+        let recipe = recipes.get_all().remove(0);
+        let recipe_id = input.recipe_id();
+        input
+            .update(InputMessage::Recipe(recipe_id, recipe), &items, &categories)
+            .unwrap();
+
+        assert_eq!(input.ingredients.len(), 1);
+        // The picker's options are only visible through its Debug output.
+        let options = format!("{:?}", input.ingredients[0].ingredient);
+        assert!(options.contains("Full bottle"), "{options}");
+        assert!(!options.contains("Nearly empty"), "{options}");
     }
 }

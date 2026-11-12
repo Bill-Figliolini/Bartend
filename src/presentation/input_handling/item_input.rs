@@ -58,6 +58,7 @@ impl ItemInput {
             category,
         }
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> iced::Element<'_, Message> {
         row![
             self.name.view(),
@@ -116,6 +117,18 @@ impl ItemInput {
         let units = edit.0.quantity.unit(unit_system);
         self.quantity.update(quantity.to_string());
         self.unit.update(units);
+    }
+    #[cfg(test)]
+    pub fn name_id(&self) -> iced::widget::Id {
+        self.name.id().clone()
+    }
+    #[cfg(test)]
+    pub fn quantity_id(&self) -> iced::widget::Id {
+        self.quantity.id().clone()
+    }
+    #[cfg(test)]
+    pub fn category_id(&self) -> iced::widget::Id {
+        self.category.id().clone()
     }
 }
 
@@ -181,5 +194,48 @@ mod tests {
         let mut input = item_input();
         let stale = InputMessage::Unit(Id::unique(), Unit::Gram);
         assert!(input.update(stale).is_err());
+    }
+
+    #[test]
+    fn editing_an_item_round_trips_in_either_unit_system() {
+        let edit = (
+            ItemBody {
+                name: "Tanqueray".to_string(),
+                quantity: Quantity::new(750.0, Unit::Milliliter),
+            },
+            Some(category(1, "Gin")),
+        );
+        for system in [UnitSystem::Metric, UnitSystem::Imperial] {
+            let mut input = item_input();
+            input.begin_edit(&edit, system);
+            let (body, chosen) = input.output().unwrap();
+            assert_eq!(body.name, "Tanqueray");
+            assert!((body.quantity.value(UnitSystem::Metric) - 750.0).abs() < 0.01);
+            assert_eq!(chosen, Some(category(1, "Gin")));
+        }
+    }
+
+    #[test]
+    fn chosen_unit_is_used() {
+        let mut input = item_input();
+        let (name, quantity, unit) = (
+            input.name.id().clone(),
+            input.quantity.id().clone(),
+            input.unit.id().clone(),
+        );
+        set_text(&mut input, &name, "Angostura");
+        set_text(&mut input, &quantity, "3");
+        input.update(InputMessage::Unit(unit, Unit::Dash)).unwrap();
+
+        let (body, _) = input.output().unwrap();
+        assert_eq!(body.quantity, Quantity::new(3.0, Unit::Dash));
+    }
+
+    #[test]
+    fn imperial_config_defaults_to_fluid_ounces() {
+        let mut config = config().editable();
+        config.default_unit_system = UnitSystem::Imperial;
+        let mut input = ItemInput::new(&config.commit(), msg, Vec::new());
+        assert_eq!(input.unit.get_output(), Ok(Unit::FluidOunce));
     }
 }

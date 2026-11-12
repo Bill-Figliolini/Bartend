@@ -90,6 +90,7 @@ impl IngredientInput {
             quantity: Quantity::new(quantity?, unit?),
         })
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> iced::Element<'_, Message> {
         row![self.category.view(), self.quantity.view(), self.unit.view()].into()
     }
@@ -127,6 +128,7 @@ impl RecipeInput {
         }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> iced::Element<'_, Message> {
         let name = self.name_input.view();
         let ingredients = column(self.ingredient_inputs.iter().enumerate().map(
@@ -209,6 +211,10 @@ impl RecipeInput {
             input.unit.update(ingredient.quantity.unit(unit_system));
             self.ingredient_inputs.push(input);
         }
+    }
+    #[cfg(test)]
+    pub fn name_id(&self) -> Id {
+        self.name_input.id().clone()
     }
 }
 
@@ -344,6 +350,45 @@ mod tests {
             input
                 .update(InputMessage::Unit(name_id, Unit::Gram))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn ingredient_rows_accept_their_own_fields() {
+        let mut input = recipe_input();
+        set_name(&mut input, "Bitters");
+        input.add_ingredient();
+        let row = &input.ingredient_inputs[0];
+        let (category_id, quantity_id, unit_id) = (
+            row.category.id().clone(),
+            row.quantity.id().clone(),
+            row.unit.id().clone(),
+        );
+
+        input
+            .update(InputMessage::Category(category_id, category(2, "Tonic")))
+            .unwrap();
+        input
+            .update(InputMessage::String(quantity_id, "2".to_string()))
+            .unwrap();
+        input
+            .update(InputMessage::Unit(unit_id.clone(), Unit::Dash))
+            .unwrap();
+        assert!(
+            input
+                .update(InputMessage::String(unit_id, "wrong kind".to_string()))
+                .is_err()
+        );
+
+        assert_eq!(
+            input.output(),
+            Ok(RecipeBody {
+                name: "Bitters".to_string(),
+                ingredients: vec![Ingredient {
+                    category: CategoryID(2),
+                    quantity: Quantity::new(2.0, Unit::Dash),
+                }],
+            })
         );
     }
 }

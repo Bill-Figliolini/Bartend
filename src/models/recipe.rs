@@ -50,3 +50,27 @@ impl Default for RecipeBody {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recipes_display_their_name_and_compare_by_id() {
+        let negroni = Recipe {
+            id: RecipeID(1),
+            body: RecipeBody {
+                name: "Negroni".to_string(),
+                ingredients: Vec::new(),
+            },
+        };
+        let placeholder = Recipe {
+            id: RecipeID(1),
+            body: RecipeBody::default(),
+        };
+        assert_eq!(negroni.to_string(), "Negroni");
+        assert_eq!(negroni.id.to_string(), "1");
+        assert_eq!(negroni, placeholder);
+        assert_eq!(placeholder.body.name, "Invalid Recipe");
+    }
+}

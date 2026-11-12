@@ -325,4 +325,154 @@ mod test {
         mod volume {}
         mod mass {}
     }
+
+    /// Compares by bit pattern, avoiding `float_cmp`.
+    fn bits(value: f32) -> u32 {
+        value.to_bits()
+    }
+
+    #[test]
+    fn imperial_units_are_stored_as_metric() {
+        let cases = [
+            (Unit::Milliliter, Quantity::Volume { quantity: 2.0 }),
+            (
+                Unit::FluidOunce,
+                Quantity::Volume {
+                    quantity: 2.0 * IMPERIAL_CONVERSION_VOLUME,
+                },
+            ),
+            (Unit::Gram, Quantity::Mass { quantity: 2.0 }),
+            (
+                Unit::MassOunce,
+                Quantity::Mass {
+                    quantity: 2.0 * IMPERIAL_CONVERSION_MASS,
+                },
+            ),
+            (
+                Unit::Dash,
+                Quantity::Count {
+                    quantity: 2.0,
+                    name: CountName::Dash,
+                },
+            ),
+        ];
+        for (unit, expected) in cases {
+            assert_eq!(Quantity::new(2.0, unit), expected, "{unit}");
+        }
+    }
+
+    #[test]
+    fn units_follow_the_unit_system() {
+        let volume = Quantity::new(1.0, Unit::Milliliter);
+        let mass = Quantity::new(1.0, Unit::Gram);
+        let dash = Quantity::new(1.0, Unit::Dash);
+        assert_eq!(volume.unit(UnitSystem::Metric), Unit::Milliliter);
+        assert_eq!(volume.unit(UnitSystem::Imperial), Unit::FluidOunce);
+        assert_eq!(mass.unit(UnitSystem::Metric), Unit::Gram);
+        assert_eq!(mass.unit(UnitSystem::Imperial), Unit::MassOunce);
+        assert_eq!(dash.unit(UnitSystem::Metric), Unit::Dash);
+        assert_eq!(dash.unit(UnitSystem::Imperial), Unit::Dash);
+    }
+
+    #[test]
+    fn values_convert_back_to_the_unit_entered() {
+        let volume = Quantity::new(2.0, Unit::FluidOunce);
+        let mass = Quantity::new(2.0, Unit::MassOunce);
+        assert!((volume.value(UnitSystem::Imperial) - 2.0).abs() < 1e-5);
+        assert!((mass.value(UnitSystem::Imperial) - 2.0).abs() < 1e-5);
+        assert_eq!(
+            bits(mass.value(UnitSystem::Metric)),
+            bits(2.0 * IMPERIAL_CONVERSION_MASS)
+        );
+    }
+
+    #[test]
+    fn db_format_round_trips() {
+        for unit in Unit::get_units() {
+            let quantity = Quantity::new(3.0, unit);
+            let (value, unit_type) = quantity.db_format();
+            assert_eq!(Quantity::from_db(unit_type, value), quantity, "{unit}");
+        }
+    }
+
+    #[test]
+    fn unknown_db_unit_falls_back_to_volume() {
+        assert_eq!(
+            Quantity::from_db(42, 3.0),
+            Quantity::Volume { quantity: 3.0 }
+        );
+    }
+
+    #[test]
+    fn readable_shows_value_and_unit() {
+        let dashes = Quantity::new(2.0, Unit::Dash);
+        assert_eq!(dashes.readable(UnitSystem::Metric), "2 dash");
+        let volume = Quantity::new(50.0, Unit::Milliliter);
+        assert_eq!(volume.readable(UnitSystem::Metric), "50 ml");
+    }
+
+    #[test]
+    fn different_kinds_are_neither_equal_nor_ordered() {
+        let volume = Quantity::new(1.0, Unit::Milliliter);
+        let mass = Quantity::new(1.0, Unit::Gram);
+        let dash = Quantity::new(1.0, Unit::Dash);
+        assert_ne!(volume, mass);
+        assert_ne!(mass, dash);
+        assert_eq!(volume.partial_cmp(&mass), None);
+        assert_eq!(dash.partial_cmp(&volume), None);
+    }
+
+    #[test]
+    fn same_kinds_are_ordered_by_amount() {
+        use std::cmp::Ordering;
+        let less = Quantity::new(1.0, Unit::Gram);
+        let more = Quantity::new(2.0, Unit::Gram);
+        assert_eq!(less.partial_cmp(&more), Some(Ordering::Less));
+        let one_dash = Quantity::new(1.0, Unit::Dash);
+        let two_dashes = Quantity::new(2.0, Unit::Dash);
+        assert_eq!(two_dashes.partial_cmp(&one_dash), Some(Ordering::Greater));
+        assert_ne!(one_dash, two_dashes);
+    }
+
+    #[test]
+    fn subtraction_never_goes_below_zero() {
+        let mut volume = Quantity::new(50.0, Unit::Milliliter);
+        volume -= Quantity::new(20.0, Unit::Milliliter);
+        assert_eq!(volume, Quantity::new(30.0, Unit::Milliliter));
+        volume -= Quantity::new(100.0, Unit::Milliliter);
+        assert_eq!(volume, Quantity::new(0.0, Unit::Milliliter));
+
+        let mut dashes = Quantity::new(3.0, Unit::Dash);
+        dashes -= Quantity::new(1.0, Unit::Dash);
+        assert_eq!(dashes, Quantity::new(2.0, Unit::Dash));
+        dashes -= Quantity::new(5.0, Unit::Dash);
+        assert_eq!(dashes, Quantity::new(0.0, Unit::Dash));
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "mismatched")]
+    fn subtracting_mismatched_kinds_panics_in_debug_builds() {
+        let mut volume = Quantity::new(50.0, Unit::Milliliter);
+        volume -= Quantity::new(20.0, Unit::Gram);
+    }
+
+    #[test]
+    fn units_display_their_abbreviation() {
+        let shown: Vec<String> = Unit::get_units().iter().map(ToString::to_string).collect();
+        assert_eq!(shown, vec!["ml", "fl oz", "g", "oz", "dash"]);
+    }
+
+    #[test]
+    fn unit_systems_swap_and_pick_default_units() {
+        let mut system = UnitSystem::Metric;
+        assert_eq!(system.default_units(), Unit::Milliliter);
+        assert_eq!(system.to_string(), "Metric (ml)");
+        system.swap();
+        assert_eq!(system, UnitSystem::Imperial);
+        assert_eq!(system.default_units(), Unit::FluidOunce);
+        assert_eq!(system.to_string(), "Imperial (Oz)");
+        system.swap();
+        assert_eq!(system, UnitSystem::Metric);
+    }
 }

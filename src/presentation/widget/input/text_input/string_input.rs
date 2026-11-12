@@ -57,6 +57,7 @@ impl<Message> Viewable<Message> for StringInput<Message>
 where
     Message: Clone,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> iced::Element<'_, Message> {
         column![
             self.inner.view(),
@@ -127,5 +128,12 @@ mod tests {
         input.clear();
         assert_eq!(input.error, None);
         assert_eq!(input.inner.text, "");
+    }
+
+    #[test]
+    fn debug_shows_placeholder_and_text() {
+        let shown = format!("{:?}", input("Gin"));
+        assert!(shown.contains("\"Name\""), "{shown}");
+        assert!(shown.contains("\"Gin\""), "{shown}");
     }
 }

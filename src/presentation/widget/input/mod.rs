@@ -47,3 +47,21 @@ impl Display for Error {
         write!(f, "{text}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn errors_explain_what_is_expected() {
+        assert_eq!(Error::StringEmpty.to_string(), "String Must Not Be Empty");
+        assert_eq!(
+            Error::QuantityInvalid.to_string(),
+            "Must be a number that is zero or above"
+        );
+        assert_eq!(
+            Error::MustChooseValue.to_string(),
+            "A value must be selected"
+        );
+    }
+}

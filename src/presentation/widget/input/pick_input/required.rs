@@ -47,6 +47,7 @@ where
     T: Debug + Clone + Display + PartialEq + 'static,
     Message: Clone + 'static,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> iced::Element<'_, Message> {
         column![
             self.inner.view(),

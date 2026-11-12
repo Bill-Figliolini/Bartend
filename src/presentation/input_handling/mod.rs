@@ -152,6 +152,95 @@ pub use {
 };
 
 #[cfg(test)]
+mod tests {
+    use iced::widget::Id;
+
+    use super::*;
+    use crate::models::{CategoryBody, CategoryID, ItemBody, ItemID, RecipeBody, RecipeID};
+
+    #[test]
+    fn every_message_reports_its_field_id() {
+        let id = Id::unique();
+        let messages = [
+            InputMessage::String(id.clone(), String::new()),
+            InputMessage::Unit(id.clone(), Unit::Gram),
+            InputMessage::Category(
+                id.clone(),
+                Category {
+                    id: CategoryID(1),
+                    body: CategoryBody::default(),
+                },
+            ),
+            InputMessage::Recipe(
+                id.clone(),
+                Recipe {
+                    id: RecipeID(1),
+                    body: RecipeBody::default(),
+                },
+            ),
+            InputMessage::Item(
+                id.clone(),
+                Item {
+                    id: ItemID(1),
+                    body: ItemBody::default(),
+                },
+            ),
+        ];
+        for message in messages {
+            assert_eq!(message.id(), id);
+        }
+    }
+
+    #[test]
+    fn unknown_targets_name_the_stale_message() {
+        let stale = UnknownTarget(InputMessage::String(Id::unique(), "Gin".to_string()));
+        assert!(stale.to_string().contains("\"Gin\""));
+        stale.discard();
+    }
+
+    #[test]
+    fn fields_display_human_names() {
+        assert_eq!(Field::Name.to_string(), "Name");
+        assert_eq!(Field::Quantity.to_string(), "Quantity");
+        assert_eq!(Field::Unit.to_string(), "Unit");
+        assert_eq!(Field::Recipe.to_string(), "Recipe");
+        let ingredient = |field| Field::Ingredient { index: 0, field };
+        assert_eq!(
+            ingredient(IngredientField::Category).to_string(),
+            "Ingredient 1 Category"
+        );
+        assert_eq!(
+            ingredient(IngredientField::Quantity).to_string(),
+            "Ingredient 1 Quantity"
+        );
+        assert_eq!(
+            ingredient(IngredientField::Unit).to_string(),
+            "Ingredient 1 Unit"
+        );
+        assert_eq!(
+            ingredient(IngredientField::Item).to_string(),
+            "Ingredient 1 Item"
+        );
+    }
+
+    #[test]
+    fn form_errors_list_every_failure() {
+        let error = FormError(vec![
+            (Field::Name, Error::StringEmpty),
+            (Field::Quantity, Error::QuantityInvalid),
+        ]);
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "Name: {}; Quantity: {}",
+                Error::StringEmpty,
+                Error::QuantityInvalid
+            )
+        );
+    }
+}
+
+#[cfg(test)]
 mod test_support {
     use super::InputMessage;
     use crate::{

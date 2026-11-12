@@ -118,6 +118,7 @@ impl Inventory {
         }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn build_item_entry_section(&self) -> Element<'_, application::Message> {
         let entry_header = match self.edit_state {
             EditState::None => text("New Item:"),
@@ -128,6 +129,7 @@ impl Inventory {
         column![entry_header, row![self.input.view(), save_button]].into()
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn build_inventory_display(
         &self,
         item_service: &ItemService,
@@ -202,6 +204,7 @@ impl Inventory {
         table(columns, contents).into()
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
         item_service: &ItemService,
@@ -317,4 +320,252 @@ impl Inventory {
 }
 fn input_msg(msg: InputMessage) -> application::Message {
     application::Message::Inventory(Message::Input(msg))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        logic::LogicError,
+        models::{BartendError, Quantity, Unit},
+        persistence::DBError,
+        presentation::screen::test_support::{World, drain},
+    };
+
+    fn send(screen: &mut Inventory, world: &World, input: InputMessage) {
+        assert!(screen.update(&world.items, Message::Input(input)).is_none());
+    }
+
+    fn fill(screen: &mut Inventory, world: &World, name: &str, quantity: &str) {
+        let name_id = screen.input.name_id();
+        let quantity_id = screen.input.quantity_id();
+        send(
+            screen,
+            world,
+            InputMessage::String(name_id, name.to_string()),
+        );
+        send(
+            screen,
+            world,
+            InputMessage::String(quantity_id, quantity.to_string()),
+        );
+    }
+
+    fn category(world: &World, id: CategoryID) -> Category {
+        Category {
+            id,
+            body: world.categories.get(id).unwrap().clone(),
+        }
+    }
+
+    fn apply(world: &mut World, command: Command) -> Vec<application::Message> {
+        drain(command.apply(&mut world.ctx()))
+    }
+
+    fn assert_reloads(messages: &[application::Message]) {
+        assert!(
+            matches!(messages, [application::Message::ReloadScreen]),
+            "{messages:?}"
+        );
+    }
+
+    fn ml(quantity: f32) -> Quantity {
+        Quantity::new(quantity, Unit::Milliliter)
+    }
+
+    #[test]
+    fn saving_a_new_item_adds_it_with_its_category() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        fill(&mut screen, &world, "Tanqueray", "750");
+        let category_id = screen.input.category_id();
+        send(
+            &mut screen,
+            &world,
+            InputMessage::Category(category_id, category(&world, gin)),
+        );
+
+        let command = screen.update(&world.items, Message::Save);
+        let Some(command @ Command::Add(_, Some(_))) = command else {
+            panic!("expected Add with a category");
+        };
+        assert_reloads(&apply(&mut world, command));
+
+        let item = world.items.get_page(0, 1)[0];
+        assert_eq!(world.items.get(item).unwrap().name, "Tanqueray");
+        assert_eq!(world.items.get(item).unwrap().quantity, ml(750.0));
+        assert_eq!(world.categories.item_category(item), Some(gin));
+    }
+
+    #[test]
+    fn saving_an_invalid_form_does_nothing() {
+        let world = World::new();
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        fill(&mut screen, &world, "Tanqueray", "lots");
+        assert!(screen.update(&world.items, Message::Save).is_none());
+    }
+
+    #[test]
+    fn adding_an_item_to_a_missing_category_reports_error() {
+        let mut world = World::new();
+        let body = ItemBody {
+            name: "Tanqueray".to_string(),
+            quantity: ml(750.0),
+        };
+
+        let messages = apply(&mut world, Command::Add(body, Some(CategoryID(99))));
+
+        // The item itself is still saved, so the screen reloads as well.
+        assert_eq!(messages.len(), 2, "{messages:?}");
+        assert!(
+            messages
+                .iter()
+                .any(|m| matches!(m, application::Message::ReloadScreen))
+        );
+        assert!(messages.iter().any(|m| matches!(
+            m,
+            application::Message::Error(BartendError::Db(DBError::RestrictViolation))
+        )));
+        assert_eq!(world.items.item_count(), 1);
+    }
+
+    #[test]
+    fn editing_updates_the_item_and_moves_its_category() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let vodka = world.add_category("Vodka");
+        let item = world.add_item("Tanqueray", 750.0);
+        world.map_item(item, gin);
+        let mut screen = Inventory::new(&world.config, &world.categories);
+
+        let edit = Message::BeginEdit(item, Some(category(&world, gin)));
+        assert!(screen.update(&world.items, edit).is_none());
+        fill(&mut screen, &world, "Tito's", "500");
+        let category_id = screen.input.category_id();
+        send(
+            &mut screen,
+            &world,
+            InputMessage::Category(category_id, category(&world, vodka)),
+        );
+        let command = screen.update(&world.items, Message::Save);
+        let Some(command @ Command::Update(Item { id, .. }, Some(_))) = command else {
+            panic!("expected Update with a category");
+        };
+        assert_eq!(id, item);
+        assert_reloads(&apply(&mut world, command));
+
+        assert_eq!(world.items.get(item).unwrap().name, "Tito's");
+        assert_eq!(world.items.get(item).unwrap().quantity, ml(500.0));
+        assert_eq!(world.categories.item_category(item), Some(vodka));
+        assert!(world.categories.get_items(gin).is_empty());
+    }
+
+    #[test]
+    fn editing_can_remove_the_category() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let item = world.add_item("Tanqueray", 750.0);
+        world.map_item(item, gin);
+        let body = world.items.get(item).unwrap().clone();
+
+        let messages = apply(&mut world, Command::Update(Item { id: item, body }, None));
+
+        assert_reloads(&messages);
+        assert_eq!(world.categories.item_category(item), None);
+    }
+
+    #[test]
+    fn begin_edit_on_the_same_item_cancels_and_others_are_ignored() {
+        let mut world = World::new();
+        let first = world.add_item("Tanqueray", 750.0);
+        let second = world.add_item("Beefeater", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories);
+
+        screen.update(&world.items, Message::BeginEdit(first, None));
+        screen.update(&world.items, Message::BeginEdit(second, None));
+        assert!(matches!(screen.edit_state, EditState::Editing(id) if id == first));
+
+        screen.update(&world.items, Message::BeginEdit(first, None));
+        assert!(matches!(screen.edit_state, EditState::None));
+        assert!(screen.update(&world.items, Message::Save).is_none());
+    }
+
+    #[test]
+    fn cancel_edit_returns_to_adding() {
+        let mut world = World::new();
+        let item = world.add_item("Tanqueray", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        screen.update(&world.items, Message::BeginEdit(item, None));
+
+        screen.update(&world.items, Message::CancelEdit);
+
+        assert!(matches!(screen.edit_state, EditState::None));
+    }
+
+    #[test]
+    fn updating_a_missing_item_reports_error() {
+        let mut world = World::new();
+        let ghost = Item {
+            id: ItemID(99),
+            body: ItemBody::default(),
+        };
+        let messages = apply(&mut world, Command::Update(ghost, None));
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [application::Message::Error(BartendError::Logic(
+                    LogicError::InvalidItem(ItemID(99))
+                ))]
+            ),
+            "{messages:?}"
+        );
+    }
+
+    #[test]
+    fn deleting_an_item_removes_it() {
+        let mut world = World::new();
+        let item = world.add_item("Tanqueray", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories);
+
+        let command = screen.update(&world.items, Message::DeleteItem(item));
+        assert_reloads(&apply(&mut world, command.unwrap()));
+
+        assert_eq!(world.items.item_count(), 0);
+    }
+
+    #[test]
+    fn swap_units_toggles_the_unit_system() {
+        let world = World::new();
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        screen.update(&world.items, Message::SwapUnits);
+        assert_eq!(screen.unit_system, UnitSystem::Imperial);
+        screen.update(&world.items, Message::SwapUnits);
+        assert_eq!(screen.unit_system, UnitSystem::Metric);
+    }
+
+    #[test]
+    fn reload_ends_editing_and_clamps_to_the_last_page() {
+        let mut world = World::new();
+        for i in 0..16 {
+            world.add_item(&format!("Item {i}"), 1.0);
+        }
+        let first = world.items.get_page(0, 1)[0];
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        screen.update(&world.items, Message::BeginEdit(first, None));
+        screen.update(&world.items, Message::SelectPage(5));
+
+        screen.update(&world.items, Message::Reload);
+
+        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.current_page, 1);
+    }
+
+    #[test]
+    fn stale_input_is_discarded() {
+        let world = World::new();
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        let stale = InputMessage::String(iced::widget::Id::unique(), "Gin".to_string());
+        send(&mut screen, &world, stale);
+    }
 }

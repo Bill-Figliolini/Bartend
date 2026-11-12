@@ -20,6 +20,7 @@ impl<Message> Viewable<Message> for TextInput<Message>
 where
     Message: Clone,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> iced::Element<'_, Message> {
         let message = Rc::clone(&self.message);
         text_input(&self.placeholder, &self.text)
