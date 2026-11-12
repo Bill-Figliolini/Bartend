@@ -214,8 +214,99 @@ mod tests {
             assert!(test_file.exists());
         }
     }
+    mod load {
+        use super::*;
+
+        #[test]
+        fn reads_an_existing_config() {
+            let test_dir = tempdir().unwrap();
+            let config = Config {
+                path: test_dir.path().join("existing.json"),
+                db_path: test_dir.path().join("existing.db"),
+                default_unit_system: UnitSystem::Imperial,
+            };
+            config.save().unwrap();
+
+            // The db path argument only applies to new configs.
+            let loaded = Config::load(Some(config.path.clone()), Some(PathBuf::new())).unwrap();
+
+            assert_eq!(loaded.path(), config.path());
+            assert_eq!(loaded.db_path(), config.db_path());
+            assert_eq!(loaded.default_units(), UnitSystem::Imperial);
+        }
+
+        #[test]
+        fn rejects_a_malformed_config() {
+            let test_dir = tempdir().unwrap();
+            let path = test_dir.path().join("broken.json");
+            fs::write(&path, "{ not json").unwrap();
+
+            let result = Config::load(Some(path), None);
+
+            assert!(matches!(result, Err(ConfigError::ReadError)));
+        }
+
+        #[test]
+        fn reports_a_config_it_cannot_create() {
+            let test_dir = tempdir().unwrap();
+            let path = test_dir.path().join("missing_dir").join("config.json");
+
+            let result = Config::load(Some(path), Some(test_dir.path().join("x.db")));
+
+            assert!(matches!(result, Err(ConfigError::WriteError)));
+        }
+    }
+    mod editable {
+        use super::*;
+
+        #[test]
+        fn commit_applies_edits_and_keeps_the_path() {
+            let test_dir = tempdir().unwrap();
+            let config = Config::load(
+                Some(test_dir.path().join("c.json")),
+                Some(test_dir.path().join("a.db")),
+            )
+            .unwrap();
+            let mut editable = config.editable();
+            editable.db_path = test_dir.path().join("b.db");
+            editable.default_unit_system = UnitSystem::Imperial;
+
+            let committed = editable.commit();
+
+            assert_eq!(committed.path(), config.path());
+            assert_eq!(committed.db_path(), &test_dir.path().join("b.db"));
+            assert_eq!(committed.default_units(), UnitSystem::Imperial);
+        }
+    }
+    #[test]
+    fn errors_describe_the_problem() {
+        let errors = [
+            ConfigError::UnableToAccessSystemConfigDir,
+            ConfigError::UnableToAccessSystemDataDir,
+            ConfigError::ReadError,
+            ConfigError::WriteError,
+            ConfigError::UnableToAccessConfigFile,
+            ConfigError::UnableToCreateConfigFile,
+            ConfigError::UnableToCreateDataDir,
+        ];
+        let messages: std::collections::HashSet<String> =
+            errors.iter().map(ToString::to_string).collect();
+        assert_eq!(messages.len(), errors.len(), "messages should be distinct");
+        assert!(messages.iter().all(|m| m.starts_with("Config Error: ")));
+    }
     mod save {
         use super::*;
+
+        #[test]
+        fn fails_when_the_directory_is_missing() {
+            let test_dir = tempdir().unwrap();
+            let config = Config {
+                path: test_dir.path().join("missing_dir").join("c.json"),
+                db_path: test_dir.path().join("c.db"),
+                default_unit_system: UnitSystem::Metric,
+            };
+            assert!(matches!(config.save(), Err(ConfigError::WriteError)));
+        }
         #[test]
         fn overwrites_contents() {
             let test_dir = tempdir().unwrap();

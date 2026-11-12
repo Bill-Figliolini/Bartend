@@ -5,7 +5,7 @@ use crate::{
     models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{CategoryInput, InputMessage},
+        input_handling::{CategoryInput, InputMessage, UnknownTarget},
         widget::{self, text_style},
     },
 };
@@ -111,6 +111,7 @@ impl Categories {
             stub: None,
         }
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn build_category_entry(&self) -> Element<'_, application::Message> {
         let header = match self.edit_state {
             EditState::None => text("New Category:"),
@@ -121,6 +122,7 @@ impl Categories {
         let body = row![self.input.view(), save_button];
         column![header, body].into()
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn build_category_display(
         &self,
         category_service: &CategoryService,
@@ -176,6 +178,7 @@ impl Categories {
         let contents = category_service.get_page(self.current_page, 15);
         table(columns, contents).into()
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self, category_service: &CategoryService) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
         let category_entry = self.build_category_entry();
@@ -212,7 +215,9 @@ impl Categories {
     ) -> Option<Command> {
         match message {
             Message::Input(msg) => {
-                self.input.update(msg);
+                self.input
+                    .update(msg)
+                    .unwrap_or_else(UnknownTarget::discard);
                 None
             }
             Message::Edit(category) => {
@@ -237,7 +242,7 @@ impl Categories {
                     EditState::Editing(id) => Some(Command::UpdateCategory(Category { id, body })),
                     EditState::None => Some(Command::AddCategory(body)),
                 },
-                Err(()) => None,
+                Err(_) => None,
             },
             Message::Reload => {
                 self.input.clear();
@@ -259,6 +264,7 @@ impl Categories {
             }
         }
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn relation_add_view(
         &self,
         id: CategoryID,
@@ -280,6 +286,7 @@ impl Categories {
         .placeholder("Add a Subcategory")
         .into()
     }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn category_remove_view(
         &self,
         id: CategoryID,
@@ -313,4 +320,241 @@ fn category_add_msg(parent: CategoryID, child: CategoryID) -> application::Messa
 
 fn category_remove_msg(parent: CategoryID, child: CategoryID) -> application::Message {
     application::Message::Categories(Message::RemoveRelation(parent, child))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        logic::LogicError,
+        models::BartendError,
+        persistence::DBError,
+        presentation::screen::test_support::{World, drain},
+    };
+
+    fn type_name(screen: &mut Categories, world: &World, name: &str) {
+        let input = InputMessage::String(screen.input.name_id(), name.to_string());
+        assert!(
+            screen
+                .update(Message::Input(input), &world.categories)
+                .is_none()
+        );
+    }
+
+    fn apply(world: &mut World, command: Command) -> Vec<application::Message> {
+        drain(command.apply(&mut world.ctx()))
+    }
+
+    fn assert_reloads(messages: &[application::Message]) {
+        assert!(
+            matches!(messages, [application::Message::ReloadScreen]),
+            "{messages:?}"
+        );
+    }
+
+    #[test]
+    fn saving_a_new_category_adds_it() {
+        let mut world = World::new();
+        let mut screen = Categories::new(&world.config);
+        type_name(&mut screen, &world, "Gin");
+
+        let command = screen.update(Message::Save, &world.categories);
+        let Some(command @ Command::AddCategory(_)) = command else {
+            panic!("expected AddCategory");
+        };
+        assert_reloads(&apply(&mut world, command));
+
+        assert_eq!(world.categories.category_count(), 1);
+        assert_eq!(world.stored_category_names(), vec!["Gin"]);
+    }
+
+    #[test]
+    fn saving_an_empty_form_does_nothing() {
+        let world = World::new();
+        let mut screen = Categories::new(&world.config);
+        assert!(screen.update(Message::Save, &world.categories).is_none());
+    }
+
+    #[test]
+    fn editing_updates_the_existing_category() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let mut screen = Categories::new(&world.config);
+
+        screen.update(Message::Edit(gin), &world.categories);
+        type_name(&mut screen, &world, "London Dry Gin");
+        let command = screen.update(Message::Save, &world.categories);
+        let Some(command @ Command::UpdateCategory(Category { id, .. })) = command else {
+            panic!("expected UpdateCategory");
+        };
+        assert_eq!(id, gin);
+        assert_reloads(&apply(&mut world, command));
+
+        assert_eq!(world.categories.get(gin).unwrap().name, "London Dry Gin");
+        assert_eq!(world.stored_category_names(), vec!["London Dry Gin"]);
+    }
+
+    #[test]
+    fn editing_the_same_category_again_cancels() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let mut screen = Categories::new(&world.config);
+
+        screen.update(Message::Edit(gin), &world.categories);
+        screen.update(Message::Edit(gin), &world.categories);
+
+        assert!(matches!(screen.edit_state, EditState::None));
+        assert!(
+            screen.update(Message::Save, &world.categories).is_none(),
+            "cancelling should clear the form"
+        );
+    }
+
+    #[test]
+    fn updating_a_missing_category_reports_error() {
+        let mut world = World::new();
+        let missing = Category {
+            id: CategoryID(99),
+            body: CategoryBody {
+                name: "Ghost".to_string(),
+            },
+        };
+        let messages = apply(&mut world, Command::UpdateCategory(missing));
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [application::Message::Error(BartendError::Logic(
+                    LogicError::InvalidCategory(CategoryID(99))
+                ))]
+            ),
+            "{messages:?}"
+        );
+    }
+
+    #[test]
+    fn relation_commands_add_and_remove_edges() {
+        let mut world = World::new();
+        let spirit = world.add_category("Spirit");
+        let gin = world.add_category("Gin");
+        let mut screen = Categories::new(&world.config);
+
+        let add = screen.update(Message::AddRelation(spirit, gin), &world.categories);
+        assert!(apply(&mut world, add.unwrap()).is_empty());
+        assert_eq!(
+            world.categories.child_categories(spirit).unwrap(),
+            [gin].into()
+        );
+
+        let remove = screen.update(Message::RemoveRelation(spirit, gin), &world.categories);
+        assert!(apply(&mut world, remove.unwrap()).is_empty());
+        assert!(
+            world
+                .categories
+                .child_categories(spirit)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn cyclic_relation_reports_error() {
+        let mut world = World::new();
+        let spirit = world.add_category("Spirit");
+        let gin = world.add_category("Gin");
+        assert!(apply(&mut world, Command::AddRelation(spirit, gin)).is_empty());
+
+        let messages = apply(&mut world, Command::AddRelation(gin, spirit));
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [application::Message::Error(BartendError::Logic(
+                    LogicError::InvalidCategoryRelation { .. }
+                ))]
+            ),
+            "{messages:?}"
+        );
+    }
+
+    #[test]
+    fn removing_a_relation_from_a_missing_category_is_harmless() {
+        let mut world = World::new();
+        let messages = apply(
+            &mut world,
+            Command::RemoveRelation(CategoryID(1), CategoryID(2)),
+        );
+        assert!(messages.is_empty(), "{messages:?}");
+    }
+
+    #[test]
+    fn deleting_a_category_removes_it() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let mut screen = Categories::new(&world.config);
+
+        let command = screen.update(Message::DeleteCategory(gin), &world.categories);
+        assert_reloads(&apply(&mut world, command.unwrap()));
+
+        assert_eq!(world.categories.category_count(), 0);
+        assert_eq!(world.stored_category_names(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn deleting_a_category_used_by_a_recipe_reports_error() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        world.add_recipe("Gin Shot", &[(gin, 50.0)]);
+
+        let messages = apply(&mut world, Command::DeleteCategory(gin));
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [application::Message::Error(BartendError::Db(
+                    DBError::RestrictViolation
+                ))]
+            ),
+            "{messages:?}"
+        );
+        assert_eq!(world.categories.category_count(), 1);
+    }
+
+    #[test]
+    fn reload_ends_editing_and_clamps_the_page() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let mut screen = Categories::new(&world.config);
+        screen.update(Message::Edit(gin), &world.categories);
+        screen.update(Message::SelectPage(4), &world.categories);
+        assert_eq!(screen.current_page, 4);
+
+        screen.update(Message::Reload, &world.categories);
+
+        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.current_page, 0);
+        assert!(screen.update(Message::Save, &world.categories).is_none());
+    }
+
+    #[test]
+    fn stale_input_is_discarded() {
+        let world = World::new();
+        let mut screen = Categories::new(&world.config);
+        let stale = InputMessage::String(iced::widget::Id::unique(), "Gin".to_string());
+        assert!(
+            screen
+                .update(Message::Input(stale), &world.categories)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn message_helpers_wrap_category_messages() {
+        let (a, b) = (CategoryID(1), CategoryID(2));
+        assert!(matches!(
+            category_add_msg(a, b),
+            application::Message::Categories(Message::AddRelation(p, c)) if p == a && c == b
+        ));
+        assert!(matches!(
+            category_remove_msg(a, b),
+            application::Message::Categories(Message::RemoveRelation(p, c)) if p == a && c == b
+        ));
+    }
 }

@@ -41,3 +41,26 @@ impl Default for CategoryBody {
 
 #[derive(Debug)]
 pub struct CategoryFilter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn categories_display_their_name_and_compare_by_id() {
+        let gin = Category {
+            id: CategoryID(1),
+            body: CategoryBody {
+                name: "Gin".to_string(),
+            },
+        };
+        let renamed = Category {
+            id: CategoryID(1),
+            body: CategoryBody::default(),
+        };
+        assert_eq!(gin.to_string(), "Gin");
+        assert_eq!(gin.id.to_string(), "1");
+        assert_eq!(gin, renamed);
+        assert_eq!(renamed.body.name, "Invalid Category");
+    }
+}

@@ -148,6 +148,126 @@ mod tests {
         assert_eq!(item_service.items.len(), 30);
     }
 
+    fn milliliters(quantity: f32) -> Quantity {
+        Quantity::new(quantity, Unit::Milliliter)
+    }
+
+    #[test]
+    fn pages_are_sorted_by_name() {
+        let db = TestDB::new();
+        let item_service = ItemService::new(&db).unwrap();
+
+        // Names sort as text: "item 1", "item 10", "item 11", ...
+        assert_eq!(
+            item_service.get_page(0, 3),
+            vec![ItemID(0), ItemID(9), ItemID(10)]
+        );
+        assert_eq!(
+            item_service.get_page(9, 3),
+            vec![ItemID(6), ItemID(7), ItemID(8)]
+        );
+        assert_eq!(item_service.get_page(10, 3), Vec::new());
+    }
+
+    #[test]
+    fn getting_an_unknown_item_errors() {
+        let item_service = ItemService::new(&TestDB::new()).unwrap();
+        assert!(matches!(
+            item_service.get(ItemID(99)),
+            Err(BartendError::Logic(LogicError::InvalidItem(ItemID(99))))
+        ));
+    }
+
+    #[test]
+    fn add_caches_the_new_item() {
+        let db = TestDB::new();
+        let mut item_service = ItemService::new(&db).unwrap();
+        let body = ItemBody {
+            name: "Tanqueray".to_string(),
+            quantity: milliliters(750.0),
+        };
+
+        let id = item_service.add(&db, &body).unwrap();
+
+        assert_eq!(item_service.get(id).unwrap(), &body);
+        assert_eq!(item_service.item_count(), 31);
+    }
+
+    #[test]
+    fn update_replaces_the_cached_item() {
+        let db = TestDB::new();
+        let mut item_service = ItemService::new(&db).unwrap();
+        let body = ItemBody {
+            name: "renamed".to_string(),
+            quantity: milliliters(5.0),
+        };
+
+        item_service
+            .update(
+                &db,
+                Item {
+                    id: ItemID(3),
+                    body: body.clone(),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(item_service.get(ItemID(3)).unwrap(), &body);
+    }
+
+    #[test]
+    fn updating_an_unknown_item_errors() {
+        let db = TestDB::new();
+        let mut item_service = ItemService::new(&db).unwrap();
+        let ghost = Item {
+            id: ItemID(99),
+            body: ItemBody::default(),
+        };
+        assert!(matches!(
+            item_service.update(&db, ghost),
+            Err(BartendError::Logic(LogicError::InvalidItem(ItemID(99))))
+        ));
+    }
+
+    #[test]
+    fn using_items_subtracts_and_stores_the_new_quantity() {
+        let db = crate::persistence::Database::new(rusqlite::Connection::open_in_memory().unwrap())
+            .unwrap();
+        let mut item_service = ItemService::new(&db.item_db()).unwrap();
+        let gin = item_service
+            .add(
+                &db.item_db(),
+                &ItemBody {
+                    name: "Tanqueray".to_string(),
+                    quantity: milliliters(750.0),
+                },
+            )
+            .unwrap();
+        let shot = ItemUse {
+            id: gin,
+            quantity: milliliters(50.0),
+        };
+
+        item_service
+            .use_items(&db.item_db(), vec![shot, shot])
+            .unwrap();
+
+        assert_eq!(item_service.get(gin).unwrap().quantity, milliliters(650.0));
+        let stored = ItemService::new(&db.item_db()).unwrap();
+        assert_eq!(stored.get(gin).unwrap().quantity, milliliters(650.0));
+    }
+
+    #[test]
+    fn using_an_unknown_item_errors() {
+        let db = TestDB::new();
+        let mut item_service = ItemService::new(&db).unwrap();
+        let ghost = ItemUse {
+            id: ItemID(99),
+            quantity: milliliters(1.0),
+        };
+        assert!(item_service.use_items(&db, vec![ghost]).is_err());
+    }
+
     #[test]
     fn delete_removes_value() {
         let db = TestDB::new();

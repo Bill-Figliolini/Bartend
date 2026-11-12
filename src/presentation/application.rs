@@ -20,7 +20,7 @@ use crate::{
 
 pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
-        .title(Bartend::title)
+        .title("Bartend")
         .theme(Bartend::theme)
         .window_size((500.0, 600.0))
         .run()
@@ -120,9 +120,6 @@ impl Bartend {
     fn theme(&self) -> Theme {
         self.theme_value.clone()
     }
-    fn title(&self) -> String {
-        "Bartend".to_string()
-    }
 
     fn context(&mut self) -> Context<'_> {
         Context {
@@ -206,6 +203,7 @@ impl Bartend {
         }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> Element<'_, Message> {
         let sidebar = sidebar::Sidebar::new()
             .button("Inventory", || Message::OpenScreen(ScreenKind::Inventory))
@@ -234,5 +232,171 @@ impl Bartend {
             .height(Fill)
             .width(Fill)
             .into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        logic::LogicError,
+        models::{CategoryID, ItemID, UnitSystem},
+        presentation::screen::{
+            categories, inventory, settings,
+            test_support::{World, drain},
+        },
+    };
+
+    /// The app over a test world. The returned directory holds the config
+    /// file and must outlive the app.
+    fn app() -> (Bartend, tempfile::TempDir) {
+        let World {
+            dir,
+            config,
+            database,
+            items,
+            categories,
+            recipes,
+        } = World::new();
+        let app = Bartend {
+            screen: Screen::start(&config, &categories),
+            config,
+            database,
+            category_service: categories,
+            item_service: items,
+            recipe_service: recipes,
+            error: None,
+            theme_value: Theme::KanagawaWave,
+        };
+        (app, dir)
+    }
+
+    /// Sends `message`, then feeds every message the resulting tasks produce
+    /// back in, as the iced runtime would.
+    fn run(app: &mut Bartend, message: Message) {
+        let mut queue = vec![message];
+        let mut steps = 0;
+        while let Some(message) = queue.pop() {
+            steps += 1;
+            assert!(steps < 100, "messages did not settle");
+            queue.extend(drain(app.update(message)));
+        }
+    }
+
+    fn logic_error() -> BartendError {
+        BartendError::Logic(LogicError::InvalidItem(ItemID(1)))
+    }
+
+    #[test]
+    fn opening_a_screen_switches_to_it() {
+        let (mut app, _dir) = app();
+        for kind in [
+            ScreenKind::Categories,
+            ScreenKind::Recipes,
+            ScreenKind::Serving,
+            ScreenKind::Settings,
+            ScreenKind::Inventory,
+        ] {
+            run(&mut app, Message::OpenScreen(kind));
+            assert_eq!(app.screen.kind(), kind);
+        }
+    }
+
+    #[test]
+    fn reopening_the_current_screen_keeps_its_state() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(
+            &mut app,
+            Message::Settings(settings::Message::UpdateUnitSystem(UnitSystem::Imperial)),
+        );
+
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert_eq!(app.config.default_units(), UnitSystem::Imperial);
+    }
+
+    #[test]
+    fn errors_are_shown_until_cleared() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::Error(logic_error()));
+        assert!(app.error.is_some());
+
+        run(&mut app, Message::ClearError);
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn a_failing_command_shows_its_error() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Categories));
+
+        let (parent, child) = (CategoryID(1), CategoryID(2));
+        run(
+            &mut app,
+            Message::Categories(categories::Message::AddRelation(parent, child)),
+        );
+
+        assert!(matches!(
+            app.error,
+            Some(BartendError::Logic(LogicError::CategoryNotInGraph(_)))
+        ));
+    }
+
+    #[test]
+    fn a_new_command_clears_the_previous_error() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::Error(logic_error()));
+
+        run(
+            &mut app,
+            Message::Inventory(inventory::Message::DeleteItem(ItemID(1))),
+        );
+
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn messages_without_a_command_change_nothing() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::Error(logic_error()));
+
+        run(&mut app, Message::Inventory(inventory::Message::SwapUnits));
+        run(&mut app, Message::NoOp);
+        run(&mut app, Message::ReloadScreen);
+
+        assert!(app.error.is_some());
+        assert_eq!(app.screen.kind(), ScreenKind::Inventory);
+    }
+
+    #[test]
+    fn reset_settings_discards_unsaved_edits() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(
+            &mut app,
+            Message::Settings(settings::Message::UpdateUnitSystem(UnitSystem::Imperial)),
+        );
+
+        run(&mut app, Message::ResetSettings);
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert_eq!(app.config.default_units(), UnitSystem::Metric);
+    }
+
+    #[test]
+    fn opening_the_db_picker_returns_a_pending_task() {
+        let (mut app, dir) = app();
+        // Running the task would open a native file dialog, so only check
+        // that one was created.
+        let task = app.update(Message::OpenDBPicker(dir.path().to_path_buf()));
+        assert_eq!(task.units(), 1);
+    }
+
+    #[test]
+    fn theme_is_kanagawa_wave() {
+        let (app, _dir) = app();
+        assert_eq!(app.theme(), Theme::KanagawaWave);
     }
 }

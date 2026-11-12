@@ -3,11 +3,11 @@ use std::{
     rc::Rc,
 };
 
-use iced::widget::{Id, column, combo_box, row};
+use iced::widget::{Id, combo_box};
 
 use crate::presentation::{
     Viewable,
-    widget::input::{Input, InputOptionalContents, pick_input::PickInput},
+    widget::input::{Input, pick_input::PickInput},
 };
 
 #[derive(Debug)]
@@ -41,6 +41,11 @@ where
             },
         }
     }
+
+    /// The current selection. Choosing nothing is valid, so this cannot fail.
+    pub fn get_output(&self) -> Option<T> {
+        self.inner.selection.clone()
+    }
 }
 
 impl<T, Message> Viewable<Message> for OptionalPickInput<T, Message>
@@ -48,9 +53,9 @@ where
     T: Debug + Clone + Display + PartialEq + 'static,
     Message: Clone + 'static,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> iced::Element<'_, Message> {
-        let error_row = row![];
-        column![self.inner.view(), error_row].into()
+        self.inner.view()
     }
 }
 impl<T, Message> Input<T, Message> for OptionalPickInput<T, Message>
@@ -74,12 +79,39 @@ where
         self.inner.selection = None;
     }
 }
-impl<T, Message> InputOptionalContents<T> for OptionalPickInput<T, Message>
-where
-    T: Debug + Clone + Display + PartialEq,
-    Message: Clone,
-{
-    fn get_output(&mut self) -> Result<Option<T>, ()> {
-        Ok(self.inner.selection.clone())
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input() -> OptionalPickInput<String, ()> {
+        OptionalPickInput::new(
+            |_, _| (),
+            vec!["Gin".to_string()],
+            None,
+            "Spirit".to_string(),
+        )
+    }
+
+    #[test]
+    fn nothing_selected_is_valid() {
+        assert_eq!(input().get_output(), None);
+    }
+
+    #[test]
+    fn choosing_the_same_value_again_deselects_it() {
+        let mut input = input();
+        input.update("Gin".to_string());
+        assert_eq!(input.get_output(), Some("Gin".to_string()));
+        input.update("Gin".to_string());
+        assert_eq!(input.get_output(), None);
+    }
+
+    #[test]
+    fn clear_removes_selection() {
+        let mut input = input();
+        input.update("Gin".to_string());
+        input.clear();
+        assert_eq!(input.get_output(), None);
     }
 }

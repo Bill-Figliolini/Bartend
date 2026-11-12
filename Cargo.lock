@@ -250,6 +250,7 @@ version = "1.0.0"
 dependencies = [
  "dirs",
  "iced",
+ "iced_runtime",
  "rand",
  "rfd",
  "rusqlite",

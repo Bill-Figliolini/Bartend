@@ -11,7 +11,8 @@ pub use {
 
 use crate::presentation::Viewable;
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+/// Why a single input field failed validation.
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum Error {
     StringEmpty,
     QuantityInvalid,
@@ -26,25 +27,41 @@ where
     fn update(&mut self, input: InternalType);
     fn clear(&mut self) {}
     fn id(&self) -> &Id;
-    fn has_error(&self) -> bool {
-        false
-    }
-}
-pub trait InputContents<T> {
-    fn get_output(&mut self) -> Result<T, ()>;
 }
 
-pub trait InputOptionalContents<T> {
-    fn get_output(&mut self) -> Result<Option<T>, ()>;
+/// An input whose contents can fail validation.
+///
+/// `get_output` validates the current contents, records the resulting error
+/// (if any) on the widget so it is shown inline, and returns it.
+pub trait InputContents<T> {
+    fn get_output(&mut self) -> Result<T, Error>;
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
-            Self::StringEmpty => "String Must Not Be Empty".to_string(),
-            Self::QuantityInvalid => "Must be a number that is zero or above".to_string(),
-            Self::MustChooseValue => "A value must be selected".to_string(),
+            Self::StringEmpty => "String Must Not Be Empty",
+            Self::QuantityInvalid => "Must be a number that is zero or above",
+            Self::MustChooseValue => "A value must be selected",
         };
         write!(f, "{text}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn errors_explain_what_is_expected() {
+        assert_eq!(Error::StringEmpty.to_string(), "String Must Not Be Empty");
+        assert_eq!(
+            Error::QuantityInvalid.to_string(),
+            "Must be a number that is zero or above"
+        );
+        assert_eq!(
+            Error::MustChooseValue.to_string(),
+            "A value must be selected"
+        );
     }
 }

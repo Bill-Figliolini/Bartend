@@ -90,3 +90,175 @@ impl RecipeService {
         self.recipes.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use super::*;
+    use crate::{
+        models::{CategoryBody, Ingredient, Quantity, Unit},
+        persistence::{DBError, Database, repositories::CategoryRepository},
+    };
+
+    fn test_db() -> Database {
+        Database::new(Connection::open_in_memory().unwrap()).unwrap()
+    }
+
+    fn draft(name: &str) -> RecipeBody {
+        RecipeBody {
+            name: name.to_string(),
+            ingredients: Vec::new(),
+        }
+    }
+
+    fn service_with(db: &Database, names: &[&str]) -> (RecipeService, Vec<RecipeID>) {
+        let mut service = RecipeService::new(&db.recipe_db()).unwrap();
+        let ids = names
+            .iter()
+            .map(|name| service.add(&db.recipe_db(), draft(name)).unwrap())
+            .collect();
+        (service, ids)
+    }
+
+    #[test]
+    fn new_loads_existing_recipes() {
+        let db = test_db();
+        let (_, ids) = service_with(&db, &["Negroni", "Martini"]);
+
+        let reloaded = RecipeService::new(&db.recipe_db()).unwrap();
+
+        assert_eq!(reloaded.recipe_count(), 2);
+        assert_eq!(reloaded.get(ids[0]).unwrap(), draft("Negroni"));
+    }
+
+    #[test]
+    fn pages_are_sorted_by_name_ignoring_case() {
+        let db = test_db();
+        let (service, ids) = service_with(&db, &["negroni", "Martini", "Daiquiri"]);
+
+        assert_eq!(service.get_page(0, 2), vec![ids[2], ids[1]]);
+        assert_eq!(service.get_page(1, 2), vec![ids[0]]);
+        assert_eq!(service.get_page(2, 2), Vec::new());
+    }
+
+    #[test]
+    fn equal_names_are_ordered_by_id() {
+        let db = test_db();
+        let (service, ids) = service_with(&db, &["Sour", "sour"]);
+        assert_eq!(service.get_page(0, 10), ids);
+    }
+
+    #[test]
+    fn get_all_returns_every_recipe() {
+        let db = test_db();
+        let (service, ids) = service_with(&db, &["Negroni", "Martini"]);
+
+        let mut all: Vec<RecipeID> = service.get_all().iter().map(|r| r.id).collect();
+        all.sort_by_key(|id| id.0);
+
+        assert_eq!(all, ids);
+    }
+
+    #[test]
+    fn getting_an_unknown_recipe_errors() {
+        let db = test_db();
+        let (service, _) = service_with(&db, &[]);
+        assert!(matches!(
+            service.get(RecipeID(5)),
+            Err(BartendError::Logic(LogicError::InvalidRecipe(RecipeID(5))))
+        ));
+    }
+
+    #[test]
+    fn add_stores_ingredients() {
+        let db = test_db();
+        let gin = db
+            .category_db()
+            .insert(&CategoryBody {
+                name: "Gin".to_string(),
+            })
+            .unwrap();
+        let body = RecipeBody {
+            name: "Gin Shot".to_string(),
+            ingredients: vec![Ingredient {
+                category: gin,
+                quantity: Quantity::new(50.0, Unit::Milliliter),
+            }],
+        };
+        let mut service = RecipeService::new(&db.recipe_db()).unwrap();
+
+        let id = service.add(&db.recipe_db(), body.clone()).unwrap();
+
+        assert_eq!(service.get(id).unwrap(), body);
+        assert_eq!(db.recipe_db().get_all().unwrap()[&id], body);
+    }
+
+    #[test]
+    fn a_rejected_add_is_not_cached() {
+        let db = test_db();
+        let mut service = RecipeService::new(&db.recipe_db()).unwrap();
+        let body = RecipeBody {
+            name: "Ghost Shot".to_string(),
+            ingredients: vec![Ingredient {
+                category: crate::models::CategoryID(99),
+                quantity: Quantity::new(50.0, Unit::Milliliter),
+            }],
+        };
+
+        let result = service.add(&db.recipe_db(), body);
+
+        assert!(matches!(
+            result,
+            Err(BartendError::Db(DBError::RestrictViolation))
+        ));
+        assert_eq!(service.recipe_count(), 0);
+    }
+
+    #[test]
+    fn update_replaces_the_cached_and_stored_recipe() {
+        let db = test_db();
+        let (mut service, ids) = service_with(&db, &["Negroni"]);
+        let recipe = Recipe {
+            id: ids[0],
+            body: draft("Boulevardier"),
+        };
+
+        service.update(&db.recipe_db(), recipe).unwrap();
+
+        assert_eq!(service.get(ids[0]).unwrap(), draft("Boulevardier"));
+        assert_eq!(
+            db.recipe_db().get_all().unwrap()[&ids[0]],
+            draft("Boulevardier")
+        );
+    }
+
+    #[test]
+    fn updating_an_unknown_recipe_errors() {
+        let db = test_db();
+        let (mut service, _) = service_with(&db, &[]);
+        let ghost = Recipe {
+            id: RecipeID(5),
+            body: draft("Ghost"),
+        };
+        assert!(matches!(
+            service.update(&db.recipe_db(), ghost),
+            Err(BartendError::Logic(LogicError::InvalidRecipe(RecipeID(5))))
+        ));
+    }
+
+    #[test]
+    fn delete_removes_the_recipe() {
+        let db = test_db();
+        let (mut service, ids) = service_with(&db, &["Negroni", "Martini"]);
+
+        service.delete(&db.recipe_db(), ids[0]).unwrap();
+
+        assert_eq!(service.recipe_count(), 1);
+        assert!(matches!(
+            service.get(ids[0]),
+            Err(BartendError::Logic(LogicError::InvalidRecipe(_)))
+        ));
+        assert!(!db.recipe_db().get_all().unwrap().contains_key(&ids[0]));
+    }
+}

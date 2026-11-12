@@ -59,3 +59,27 @@ impl Default for ItemBody {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn items_display_their_name_and_compare_by_id() {
+        let gin = Item {
+            id: ItemID(1),
+            body: ItemBody {
+                name: "Tanqueray".to_string(),
+                quantity: Quantity::Volume { quantity: 750.0 },
+            },
+        };
+        let placeholder = Item {
+            id: ItemID(1),
+            body: ItemBody::default(),
+        };
+        assert_eq!(gin.to_string(), "Tanqueray");
+        assert_eq!(gin.id.to_string(), "1");
+        assert_eq!(gin, placeholder);
+        assert_eq!(placeholder.body.name, "Invalid Item");
+    }
+}

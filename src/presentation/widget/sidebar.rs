@@ -10,6 +10,7 @@ pub struct Sidebar<'a, Message: Clone + 'a> {
     buttons: Vec<Element<'a, Message>>,
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<'a, Message: Clone + 'a> Sidebar<'a, Message> {
     pub const fn new() -> Self {
         Self {

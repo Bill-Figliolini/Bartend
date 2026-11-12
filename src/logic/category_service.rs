@@ -270,9 +270,6 @@ mod tests {
         fn get_next(&self) -> CategoryID {
             CategoryID(self.counter + 1)
         }
-        fn _update(&mut self) {
-            self.counter += 1;
-        }
     }
     impl CategoryRepository for TestDB {
         fn insert(&self, _body: &CategoryBody) -> Result<CategoryID, crate::persistence::DBError> {
@@ -448,5 +445,247 @@ mod tests {
     }
     mod category_resolution {
         //graph specific behavior
+        use super::*;
+
+        fn service() -> (TestDB, CategoryService) {
+            let db = TestDB::new();
+            let service = CategoryService::new(&db).unwrap();
+            (db, service)
+        }
+
+        #[test]
+        fn satisfying_items_include_subcategory_items() {
+            let (db, mut service) = service();
+            let (spirit, gin) = (CategoryID(0), CategoryID(1));
+            service.add_category_relation(&db, spirit, gin).unwrap();
+            service.add_item_mapping(&db, ItemID(5), gin).unwrap();
+            service.add_item_mapping(&db, ItemID(6), spirit).unwrap();
+
+            assert_eq!(
+                service.satisfying_items(spirit),
+                HashSet::from([ItemID(5), ItemID(6)])
+            );
+            assert_eq!(service.satisfying_items(gin), HashSet::from([ItemID(5)]));
+            assert!(service.satisfying_items(CategoryID(999)).is_empty());
+        }
+
+        #[test]
+        fn child_categories_lists_direct_children() {
+            let (db, mut service) = service();
+            service
+                .add_category_relation(&db, CategoryID(0), CategoryID(1))
+                .unwrap();
+            service
+                .add_category_relation(&db, CategoryID(1), CategoryID(2))
+                .unwrap();
+
+            assert_eq!(
+                service.child_categories(CategoryID(0)).unwrap(),
+                HashSet::from([CategoryID(1)])
+            );
+            assert!(matches!(
+                service.child_categories(CategoryID(999)),
+                Err(BartendError::Logic(LogicError::CategoryNotInGraph(_)))
+            ));
+        }
+
+        #[test]
+        fn cyclic_relations_are_rejected() {
+            let (db, mut service) = service();
+            service
+                .add_category_relation(&db, CategoryID(0), CategoryID(1))
+                .unwrap();
+
+            assert!(matches!(
+                service.add_category_relation(&db, CategoryID(1), CategoryID(0)),
+                Err(BartendError::Logic(
+                    LogicError::InvalidCategoryRelation { .. }
+                ))
+            ));
+        }
+
+        #[test]
+        fn relations_to_unknown_categories_are_rejected() {
+            let (db, mut service) = service();
+            assert!(matches!(
+                service.add_category_relation(&db, CategoryID(0), CategoryID(999)),
+                Err(BartendError::Logic(LogicError::CategoryNotInGraph(_)))
+            ));
+        }
+
+        #[test]
+        fn removing_a_relation_drops_the_edge() {
+            let (db, mut service) = service();
+            service
+                .add_category_relation(&db, CategoryID(0), CategoryID(1))
+                .unwrap();
+
+            service
+                .remove_category_relation(&db, CategoryID(0), CategoryID(1))
+                .unwrap();
+
+            assert!(service.child_categories(CategoryID(0)).unwrap().is_empty());
+        }
+
+        #[test]
+        fn valid_relations_exclude_self_ancestors_and_children() {
+            let (db, mut service) = service();
+            service
+                .add_category_relation(&db, CategoryID(0), CategoryID(1))
+                .unwrap();
+            service
+                .add_category_relation(&db, CategoryID(1), CategoryID(2))
+                .unwrap();
+
+            let valid = service.valid_relations(CategoryID(1));
+
+            assert_eq!(valid.len(), 27);
+            for excluded in [0, 1, 2] {
+                assert!(!valid.contains(&CategoryID(excluded)));
+            }
+            assert!(service.valid_relations(CategoryID(999)).is_empty());
+        }
+    }
+    mod lookup {
+        use super::*;
+
+        #[test]
+        fn new_groups_stored_item_mappings_by_category() {
+            use crate::{
+                models::{ItemBody, Quantity, Unit},
+                persistence::{Database, repositories::ItemRepository},
+            };
+            let db = Database::new(rusqlite::Connection::open_in_memory().unwrap()).unwrap();
+            let category = |name: &str| {
+                db.category_db()
+                    .insert(&CategoryBody {
+                        name: name.to_string(),
+                    })
+                    .unwrap()
+            };
+            let item = |name: &str| {
+                db.item_db()
+                    .insert(&ItemBody {
+                        name: name.to_string(),
+                        quantity: Quantity::new(1.0, Unit::Milliliter),
+                    })
+                    .unwrap()
+            };
+            let (gin, vodka) = (category("Gin"), category("Vodka"));
+            let (a, b, c) = (item("a"), item("b"), item("c"));
+            for (item, category) in [(a, gin), (b, gin), (c, vodka)] {
+                db.category_db().map_insert(item, category).unwrap();
+            }
+            db.category_db().insert_relation(gin, vodka).unwrap();
+
+            let service = CategoryService::new(&db.category_db()).unwrap();
+
+            assert_eq!(service.get_items(gin), HashSet::from([a, b]));
+            assert_eq!(service.item_category(c), Some(vodka));
+            assert_eq!(
+                service.child_categories(gin).unwrap(),
+                HashSet::from([vodka])
+            );
+        }
+
+        #[test]
+        fn get_all_returns_every_category() {
+            let service = CategoryService::new(&TestDB::new()).unwrap();
+            assert_eq!(service.get_all(CategoryFilter {}).len(), 30);
+            assert_eq!(service.category_count(), 30);
+        }
+
+        #[test]
+        fn getting_an_unknown_category_errors() {
+            let service = CategoryService::new(&TestDB::new()).unwrap();
+            assert_eq!(service.get(CategoryID(3)).unwrap().name, "category 4");
+            assert!(matches!(
+                service.get(CategoryID(999)),
+                Err(BartendError::Logic(LogicError::InvalidCategory(_)))
+            ));
+        }
+
+        #[test]
+        fn pages_are_sorted_by_name() {
+            let service = CategoryService::new(&TestDB::new()).unwrap();
+            // Names sort as text: "category 1", "category 10", ...
+            assert_eq!(service.get_page(0, 2), vec![CategoryID(0), CategoryID(9)]);
+            assert_eq!(service.get_page(15, 2), Vec::new());
+        }
+
+        #[test]
+        fn updating_an_unknown_category_errors() {
+            let db = TestDB::new();
+            let mut service = CategoryService::new(&db).unwrap();
+            let ghost = Category {
+                id: CategoryID(999),
+                body: CategoryBody::default(),
+            };
+            assert!(matches!(
+                service.update(&db, &ghost),
+                Err(BartendError::Logic(LogicError::InvalidCategory(_)))
+            ));
+        }
+
+        #[test]
+        fn deleting_a_category_unmaps_its_items() {
+            let db = TestDB::new();
+            let mut service = CategoryService::new(&db).unwrap();
+            service
+                .add_item_mapping(&db, ItemID(1), CategoryID(0))
+                .unwrap();
+
+            service.delete(&db, CategoryID(0)).unwrap();
+
+            assert_eq!(service.item_category(ItemID(1)), None);
+            assert!(service.get_items(CategoryID(0)).is_empty());
+        }
+    }
+    mod update_item_mapping {
+        use super::*;
+
+        fn mapped(item: ItemID, category: Option<CategoryID>) -> (TestDB, CategoryService) {
+            let db = TestDB::new();
+            let mut service = CategoryService::new(&db).unwrap();
+            if let Some(category) = category {
+                service.add_item_mapping(&db, item, category).unwrap();
+            }
+            (db, service)
+        }
+
+        #[test]
+        fn adds_a_category_to_an_unmapped_item() {
+            let (db, mut service) = mapped(ItemID(1), None);
+            service
+                .update_item_mapping(&db, ItemID(1), Some(CategoryID(2)))
+                .unwrap();
+            assert_eq!(service.item_category(ItemID(1)), Some(CategoryID(2)));
+        }
+
+        #[test]
+        fn removes_the_category() {
+            let (db, mut service) = mapped(ItemID(1), Some(CategoryID(2)));
+            service.update_item_mapping(&db, ItemID(1), None).unwrap();
+            assert_eq!(service.item_category(ItemID(1)), None);
+            assert!(service.get_items(CategoryID(2)).is_empty());
+        }
+
+        #[test]
+        fn moves_the_item_between_categories() {
+            let (db, mut service) = mapped(ItemID(1), Some(CategoryID(2)));
+            service
+                .update_item_mapping(&db, ItemID(1), Some(CategoryID(3)))
+                .unwrap();
+            assert_eq!(service.item_category(ItemID(1)), Some(CategoryID(3)));
+            assert!(service.get_items(CategoryID(2)).is_empty());
+            assert_eq!(service.get_items(CategoryID(3)), HashSet::from([ItemID(1)]));
+        }
+
+        #[test]
+        fn leaving_an_unmapped_item_unmapped_does_nothing() {
+            let (db, mut service) = mapped(ItemID(1), None);
+            service.update_item_mapping(&db, ItemID(1), None).unwrap();
+            assert_eq!(service.item_category(ItemID(1)), None);
+        }
     }
 }

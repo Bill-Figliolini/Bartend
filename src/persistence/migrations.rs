@@ -9,6 +9,10 @@ pub(super) const MIGRATIONS: &[Migration] = &[Migration {
     version: 1,
     sql: V1,
 }];
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "the migration count is tiny, and `i64::try_from` is not usable in a const"
+)]
 pub(super) const LATEST: DBVersion = DBVersion(MIGRATIONS.len() as i64);
 pub(super) const VERSION_PRAGMA: &str = "user_version";
 

@@ -21,12 +21,14 @@ devtools = ["iced/debug"]
 [dev-dependencies]
 rand = "0.10.2"
 tempfile = "3.24.0"
+iced_runtime = "0.14.0"
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 missing_debug_implementations = "warn"
 unused_qualifications = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage_nightly)"] }
 
 [lints.clippy]
 # groups first, negative priority so individual entries below override

@@ -1,4 +1,5 @@
 #![windows_subsystem = "windows"]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod logic;
 pub mod models;

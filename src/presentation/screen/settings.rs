@@ -95,6 +95,7 @@ impl Settings {
         Self { config }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> Element<'_, application::Message> {
         let text_boundary = 500;
 
@@ -153,5 +154,137 @@ impl Settings {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        models::{BartendError, ConfigError},
+        persistence::DBError,
+        presentation::screen::test_support::{World, drain},
+    };
+
+    fn save(settings: &mut Settings) -> Config {
+        match settings.update(Message::Save) {
+            Some(Command::UpdateConfig(config)) => config,
+            None => panic!("save should produce a command"),
+        }
+    }
+
+    fn apply(world: &mut World, config: Config) -> Vec<application::Message> {
+        drain(Command::UpdateConfig(config).apply(&mut world.ctx()))
+    }
+
+    fn assert_reloads(messages: &[application::Message]) {
+        assert!(
+            matches!(messages, [application::Message::ReloadScreen]),
+            "{messages:?}"
+        );
+    }
+
+    #[test]
+    fn saving_updates_and_persists_the_config() {
+        let mut world = World::new();
+        let mut settings = Settings::new(&world.config);
+        assert!(
+            settings
+                .update(Message::UpdateUnitSystem(UnitSystem::Imperial))
+                .is_none()
+        );
+
+        let config = save(&mut settings);
+        assert_reloads(&apply(&mut world, config));
+
+        assert_eq!(world.config.default_units(), UnitSystem::Imperial);
+        let on_disk = Config::load(Some(world.config.path().clone()), None).unwrap();
+        assert_eq!(on_disk.default_units(), UnitSystem::Imperial);
+    }
+
+    #[test]
+    fn reset_discards_unsaved_edits() {
+        let world = World::new();
+        let mut settings = Settings::new(&world.config);
+        settings.update(Message::UpdateUnitSystem(UnitSystem::Imperial));
+        settings.update(Message::UpdateDBPath(PathBuf::from("elsewhere.db")));
+
+        settings.update(Message::ResetConfig(world.config.clone()));
+
+        let config = save(&mut settings);
+        assert_eq!(config.default_units(), UnitSystem::Metric);
+        assert_eq!(config.db_path(), world.config.db_path());
+    }
+
+    #[test]
+    fn changing_the_db_path_switches_to_that_database() {
+        let mut world = World::new();
+        world.add_item("Tanqueray", 750.0);
+        let new_db = world.dir.path().join("other.db");
+        let mut settings = Settings::new(&world.config);
+        settings.update(Message::UpdateDBPath(new_db.clone()));
+
+        let config = save(&mut settings);
+        assert_reloads(&apply(&mut world, config));
+
+        assert_eq!(world.config.db_path(), &new_db);
+        assert!(new_db.exists());
+        assert_eq!(world.items.item_count(), 0, "services should be reloaded");
+        assert_eq!(world.categories.category_count(), 0);
+        assert_eq!(world.recipes.recipe_count(), 0);
+    }
+
+    #[test]
+    fn an_unreadable_database_is_reported_and_nothing_changes() {
+        let mut world = World::new();
+        world.add_item("Tanqueray", 750.0);
+        let bad_db = world.dir.path().join("not_a_db.db");
+        std::fs::write(&bad_db, "this is not a sqlite database at all").unwrap();
+        let mut settings = Settings::new(&world.config);
+        settings.update(Message::UpdateDBPath(bad_db));
+
+        let config = save(&mut settings);
+        let messages = apply(&mut world, config);
+
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [application::Message::Error(BartendError::Db(
+                    DBError::External(_)
+                ))]
+            ),
+            "{messages:?}"
+        );
+        assert_eq!(world.config.db_path(), &world.dir.path().join("bartend.db"));
+        assert_eq!(world.items.item_count(), 1);
+    }
+
+    #[test]
+    fn a_failed_config_save_is_reported_and_nothing_changes() {
+        let mut world = World::new();
+        // A config whose directory no longer exists cannot be saved.
+        let gone = tempfile::tempdir().unwrap();
+        let unsaveable = Config::load(
+            Some(gone.path().join("config.json")),
+            Some(world.config.db_path().clone()),
+        )
+        .unwrap();
+        drop(gone);
+        let mut settings = Settings::new(&unsaveable);
+        settings.update(Message::UpdateUnitSystem(UnitSystem::Imperial));
+
+        let config = save(&mut settings);
+        let messages = apply(&mut world, config);
+
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [application::Message::Error(BartendError::Config(
+                    ConfigError::WriteError
+                ))]
+            ),
+            "{messages:?}"
+        );
+        assert_eq!(world.config.default_units(), UnitSystem::Metric);
     }
 }

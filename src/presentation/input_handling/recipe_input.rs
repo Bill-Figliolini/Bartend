@@ -5,7 +5,9 @@ use crate::{
     presentation::{
         Viewable,
         application::Message,
-        input_handling::InputMessage,
+        input_handling::{
+            Field, FormError, IngredientField, InputMessage, UnknownTarget, Validator,
+        },
         screen::recipes,
         widget::input::{Input, InputContents, NumberInput, RequiredPickInput, StringInput},
     },
@@ -60,7 +62,7 @@ impl IngredientInput {
     fn has_id(&self, id: &Id) -> bool {
         self.category.id() == id || self.quantity.id() == id || self.unit.id() == id
     }
-    fn update(&mut self, msg: InputMessage) {
+    fn update(&mut self, msg: InputMessage) -> Result<(), UnknownTarget> {
         match msg {
             InputMessage::String(id, str) if id == *self.quantity.id() => {
                 self.quantity.update(str);
@@ -71,26 +73,24 @@ impl IngredientInput {
             InputMessage::Category(id, category) if id == *self.category.id() => {
                 self.category.update(category);
             }
-            _ => unreachable!(),
+            msg => return Err(UnknownTarget(msg)),
         }
+        Ok(())
     }
-    fn has_error(&self) -> bool {
-        self.category.has_error() || self.quantity.has_error()
+    /// Validates every field of this row, recording failures under `index`.
+    fn get_output(&mut self, index: usize, validator: &mut Validator) -> Option<Ingredient> {
+        let field = |field| Field::Ingredient { index, field };
+        let category =
+            validator.check(field(IngredientField::Category), self.category.get_output());
+        let quantity =
+            validator.check(field(IngredientField::Quantity), self.quantity.get_output());
+        let unit = validator.check(field(IngredientField::Unit), self.unit.get_output());
+        Some(Ingredient {
+            category: category?.id,
+            quantity: Quantity::new(quantity?, unit?),
+        })
     }
-    fn get_output(&mut self) -> Result<Ingredient, ()> {
-        let category_result = self.category.get_output();
-        let quantity_result = self.quantity.get_output();
-        if self.has_error() {
-            Err(())
-        } else {
-            let quantity = Quantity::new(
-                quantity_result.expect("Already validated"),
-                self.unit.get_output().expect("Already validated"),
-            );
-            let category = category_result.expect("Already validated").id;
-            Ok(Ingredient { category, quantity })
-        }
-    }
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> iced::Element<'_, Message> {
         row![self.category.view(), self.quantity.view(), self.unit.view()].into()
     }
@@ -120,10 +120,15 @@ impl RecipeInput {
             self.unit_system,
         ));
     }
+    /// Ignores an index that is out of range, e.g. from a remove button
+    /// pressed twice before the view refreshed.
     pub fn remove_ingredient(&mut self, index: usize) {
-        self.ingredient_inputs.remove(index);
+        if index < self.ingredient_inputs.len() {
+            self.ingredient_inputs.remove(index);
+        }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> iced::Element<'_, Message> {
         let name = self.name_input.view();
         let ingredients = column(self.ingredient_inputs.iter().enumerate().map(
@@ -137,48 +142,46 @@ impl RecipeInput {
         ));
         column![name, ingredients].into()
     }
-    pub fn update(&mut self, msg: InputMessage) {
-        let id = msg.id();
-        if self.name_input.id() == &id {
-            if let InputMessage::String(_, str) = msg {
+    pub fn update(&mut self, msg: InputMessage) -> Result<(), UnknownTarget> {
+        match msg {
+            InputMessage::String(id, str) if self.name_input.id() == &id => {
                 self.name_input.update(str);
-            } else {
-                unreachable!()
+                Ok(())
             }
-        } else {
-            match self
-                .ingredient_inputs
-                .iter_mut()
-                .find(|ingredient| ingredient.has_id(&id))
-            {
-                Some(ingredient) => ingredient.update(msg),
-                None => unreachable!(),
+            msg => {
+                let id = msg.id();
+                match self
+                    .ingredient_inputs
+                    .iter_mut()
+                    .find(|ingredient| ingredient.has_id(&id))
+                {
+                    Some(ingredient) => ingredient.update(msg),
+                    None => Err(UnknownTarget(msg)),
+                }
             }
         }
     }
 
-    pub fn output(&mut self) -> Result<RecipeBody, ()> {
-        let name_result = self.name_input.get_output();
-        let ingredient_results: Vec<Result<Ingredient, ()>> = self
+    /// A recipe with no ingredients is valid, so a partly written recipe can
+    /// be saved and finished later.
+    pub fn output(&mut self) -> Result<RecipeBody, FormError> {
+        let mut validator = Validator::default();
+        let name = validator.check(Field::Name, self.name_input.get_output());
+        // Collect into a Vec first so every row is validated, rather than
+        // stopping at the first invalid one.
+        let ingredients: Vec<Option<Ingredient>> = self
             .ingredient_inputs
             .iter_mut()
-            .map(IngredientInput::get_output)
+            .enumerate()
+            .map(|(index, ingredient)| ingredient.get_output(index, &mut validator))
             .collect();
-        if !self.name_input.has_error()
-            && self
-                .ingredient_inputs
-                .iter()
-                .all(|ingredient| !ingredient.has_error())
-        {
-            let name = name_result.expect("Already validated");
-            let ingredients = ingredient_results
-                .into_iter()
-                .map(|ingredient| ingredient.expect("Already validated"))
-                .collect();
-            self.clear();
-            Ok(RecipeBody { name, ingredients })
-        } else {
-            Err(())
+        let ingredients: Option<Vec<Ingredient>> = ingredients.into_iter().collect();
+        match (name, ingredients) {
+            (Some(name), Some(ingredients)) => {
+                self.clear();
+                Ok(RecipeBody { name, ingredients })
+            }
+            _ => Err(validator.into_error()),
         }
     }
 
@@ -191,20 +194,201 @@ impl RecipeInput {
         self.clear();
         self.name_input.update(recipe.name.clone());
         for ingredient in &recipe.ingredients {
-            self.add_ingredient();
-            let last_input = self.ingredient_inputs.last_mut().unwrap();
-            let category = self
+            let mut input =
+                IngredientInput::new(self.msgfn, self.categories.clone(), self.unit_system);
+            // A missing category leaves the picker empty; validation on save
+            // then asks the user to choose one.
+            if let Some(category) = self
                 .categories
                 .iter()
                 .find(|category| category.id == ingredient.category)
-                .expect("Category must be valid");
-            last_input.category.update(category.clone());
-            last_input
+            {
+                input.category.update(category.clone());
+            }
+            input
                 .quantity
                 .update(ingredient.quantity.value(unit_system).to_string());
-            last_input
-                .unit
-                .update(ingredient.quantity.unit(unit_system));
+            input.unit.update(ingredient.quantity.unit(unit_system));
+            self.ingredient_inputs.push(input);
         }
+    }
+    #[cfg(test)]
+    pub fn name_id(&self) -> Id {
+        self.name_input.id().clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        models::CategoryID,
+        presentation::{
+            input_handling::test_support::{category, config, msg},
+            widget::input::Error,
+        },
+    };
+
+    fn recipe_input() -> RecipeInput {
+        RecipeInput::new(
+            &config(),
+            msg,
+            vec![category(1, "Gin"), category(2, "Tonic")],
+        )
+    }
+
+    fn set_name(input: &mut RecipeInput, name: &str) {
+        let id = input.name_input.id().clone();
+        input
+            .update(InputMessage::String(id, name.to_string()))
+            .unwrap();
+    }
+
+    fn ingredient_error(index: usize, field: IngredientField, error: Error) -> (Field, Error) {
+        (Field::Ingredient { index, field }, error)
+    }
+
+    fn gin_and_tonic() -> RecipeBody {
+        RecipeBody {
+            name: "Gin and Tonic".to_string(),
+            ingredients: vec![
+                Ingredient {
+                    category: CategoryID(1),
+                    quantity: Quantity::new(50.0, Unit::Milliliter),
+                },
+                Ingredient {
+                    category: CategoryID(2),
+                    quantity: Quantity::new(150.0, Unit::Milliliter),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn recipe_without_ingredients_is_valid() {
+        let mut input = recipe_input();
+        set_name(&mut input, "Draft");
+        assert_eq!(
+            input.output(),
+            Ok(RecipeBody {
+                name: "Draft".to_string(),
+                ingredients: Vec::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn every_invalid_ingredient_row_is_reported() {
+        let mut input = recipe_input();
+        input.add_ingredient();
+        input.add_ingredient();
+        assert_eq!(
+            input.output(),
+            Err(FormError(vec![
+                (Field::Name, Error::StringEmpty),
+                ingredient_error(0, IngredientField::Category, Error::MustChooseValue),
+                ingredient_error(0, IngredientField::Quantity, Error::QuantityInvalid),
+                ingredient_error(1, IngredientField::Category, Error::MustChooseValue),
+                ingredient_error(1, IngredientField::Quantity, Error::QuantityInvalid),
+            ]))
+        );
+    }
+
+    #[test]
+    fn editing_a_recipe_round_trips() {
+        let mut input = recipe_input();
+        input.begin_edit(&gin_and_tonic(), UnitSystem::Metric);
+        assert_eq!(input.output(), Ok(gin_and_tonic()));
+    }
+
+    #[test]
+    fn editing_with_missing_category_leaves_picker_empty() {
+        let mut input = recipe_input();
+        let mut recipe = gin_and_tonic();
+        recipe.ingredients[1].category = CategoryID(99);
+        input.begin_edit(&recipe, UnitSystem::Metric);
+
+        assert_eq!(input.ingredient_inputs.len(), 2);
+        assert_eq!(
+            input.output(),
+            Err(FormError(vec![ingredient_error(
+                1,
+                IngredientField::Category,
+                Error::MustChooseValue
+            )]))
+        );
+    }
+
+    #[test]
+    fn removing_out_of_range_ingredient_is_ignored() {
+        let mut input = recipe_input();
+        input.add_ingredient();
+        input.remove_ingredient(5);
+        assert_eq!(input.ingredient_inputs.len(), 1);
+        input.remove_ingredient(0);
+        assert!(input.ingredient_inputs.is_empty());
+    }
+
+    #[test]
+    fn message_for_removed_ingredient_is_rejected() {
+        let mut input = recipe_input();
+        input.add_ingredient();
+        let stale_id = input.ingredient_inputs[0].quantity.id().clone();
+        input.remove_ingredient(0);
+        assert!(
+            input
+                .update(InputMessage::String(stale_id, "5".to_string()))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn wrong_message_kind_for_name_is_rejected() {
+        let mut input = recipe_input();
+        let name_id = input.name_input.id().clone();
+        assert!(
+            input
+                .update(InputMessage::Unit(name_id, Unit::Gram))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn ingredient_rows_accept_their_own_fields() {
+        let mut input = recipe_input();
+        set_name(&mut input, "Bitters");
+        input.add_ingredient();
+        let row = &input.ingredient_inputs[0];
+        let (category_id, quantity_id, unit_id) = (
+            row.category.id().clone(),
+            row.quantity.id().clone(),
+            row.unit.id().clone(),
+        );
+
+        input
+            .update(InputMessage::Category(category_id, category(2, "Tonic")))
+            .unwrap();
+        input
+            .update(InputMessage::String(quantity_id, "2".to_string()))
+            .unwrap();
+        input
+            .update(InputMessage::Unit(unit_id.clone(), Unit::Dash))
+            .unwrap();
+        assert!(
+            input
+                .update(InputMessage::String(unit_id, "wrong kind".to_string()))
+                .is_err()
+        );
+
+        assert_eq!(
+            input.output(),
+            Ok(RecipeBody {
+                name: "Bitters".to_string(),
+                ingredients: vec![Ingredient {
+                    category: CategoryID(2),
+                    quantity: Quantity::new(2.0, Unit::Dash),
+                }],
+            })
+        );
     }
 }

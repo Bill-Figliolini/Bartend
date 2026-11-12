@@ -171,3 +171,69 @@ impl FromSql for DBVersion {
         Ok(Self(value))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        models::{ItemBody, Quantity, Unit},
+        persistence::repositories::ItemRepository,
+    };
+
+    #[test]
+    fn a_saved_database_reopens_with_its_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bartend.db");
+        let body = ItemBody {
+            name: "Tanqueray".to_string(),
+            quantity: Quantity::new(750.0, Unit::Milliliter),
+        };
+        let id = Database::load(&path)
+            .unwrap()
+            .item_db()
+            .insert(&body)
+            .unwrap();
+
+        let reopened = Database::load(&path).unwrap();
+
+        assert_eq!(reopened.item_db().get_all().unwrap()[&id], body);
+    }
+
+    #[test]
+    fn non_constraint_sqlite_errors_are_external() {
+        let error = DBError::from(rusqlite::Error::InvalidQuery);
+        assert!(matches!(error, DBError::External(_)));
+    }
+
+    #[test]
+    fn errors_describe_the_problem() {
+        let cases = [
+            (
+                DBError::External("disk full".to_string()),
+                "DB ERROR: External DB Error: disk full",
+            ),
+            (
+                DBError::RestrictViolation,
+                "DB ERROR: Attempted to delete Restricted Value",
+            ),
+            (
+                DBError::NotABartendDB,
+                "DB ERROR: Attempted to read a DB from another application",
+            ),
+            (
+                DBError::FutureSchema {
+                    found: DBVersion(3),
+                    supported: DBVersion(1),
+                },
+                "DB ERROR: Attempted to read db from version 3 of Bartend. Only version 1 is supported",
+            ),
+            (
+                DBError::InvalidUnit,
+                "DB ERROR: Attempted to read invalid unit",
+            ),
+        ];
+        for (error, expected) in cases {
+            assert_eq!(error.to_string(), expected);
+        }
+    }
+}

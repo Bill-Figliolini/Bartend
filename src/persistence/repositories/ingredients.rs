@@ -13,10 +13,12 @@ pub(super) fn insert(
 ) -> Result<(), DBError> {
     let query = "INSERT INTO ingredients(recipe_id, ingredient_index, category_id, quantity, unit) VALUES (?1, ?2, ?3, ?4, ?5)";
     let (quantity, unit) = ingredient.quantity.db_format();
-    transaction.execute(
-        query,
-        (recipe, index as i64, ingredient.category, quantity, unit),
-    )?;
+    #[expect(
+        clippy::cast_possible_wrap,
+        reason = "an ingredient's position in its recipe cannot approach i64::MAX"
+    )]
+    let index = index as i64;
+    transaction.execute(query, (recipe, index, ingredient.category, quantity, unit))?;
     Ok(())
 }
 

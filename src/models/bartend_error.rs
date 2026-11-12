@@ -44,3 +44,50 @@ impl Display for LogicError {
     }
 }
 impl Error for BartendError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{CategoryID, ItemID, RecipeID};
+
+    #[test]
+    fn logic_errors_describe_the_problem() {
+        let cases = [
+            (
+                LogicError::InvalidCategoryRelation {
+                    parent: CategoryID(1),
+                    child: CategoryID(2),
+                },
+                "LOGIC ERROR: Category Edge 1 to 2 would create loop!",
+            ),
+            (
+                LogicError::InvalidCategory(CategoryID(3)),
+                "LOGIC ERROR: invalid Category 3",
+            ),
+            (
+                LogicError::InvalidItem(ItemID(4)),
+                "LOGIC ERROR: invalid Item 4",
+            ),
+            (
+                LogicError::InvalidRecipe(RecipeID(5)),
+                "LOGIC ERROR: invalid Recipe 5",
+            ),
+            (
+                LogicError::CategoryNotInGraph(CategoryID(6)),
+                "LOGIC ERROR: Category not in graph 6",
+            ),
+        ];
+        for (error, expected) in cases {
+            assert_eq!(BartendError::from(error).to_string(), expected);
+        }
+    }
+
+    #[test]
+    fn wrapped_errors_display_their_source() {
+        let db = BartendError::from(DBError::InvalidUnit);
+        assert_eq!(db.to_string(), DBError::InvalidUnit.to_string());
+
+        let config = BartendError::Config(ConfigError::ReadError);
+        assert_eq!(config.to_string(), ConfigError::ReadError.to_string());
+    }
+}
