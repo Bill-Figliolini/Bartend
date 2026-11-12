@@ -45,14 +45,14 @@ pub enum Message {
 }
 
 pub enum Command {
-    AddItem(ItemBody, Option<CategoryID>),
-    UpdateItem(Item, Option<CategoryID>),
-    DeleteItem(ItemID),
+    Add(ItemBody, Option<CategoryID>),
+    Update(Item, Option<CategoryID>),
+    Delete(ItemID),
 }
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
-            Command::AddItem(item_body, category_id) => {
+            Command::Add(item_body, category_id) => {
                 let mut tasks = Vec::new();
                 let item_id = match ctx.item_service.add(&ctx.database.item_db(), &item_body) {
                     Ok(id) => {
@@ -64,15 +64,15 @@ impl Command {
                 if let Some(category_id) = category_id
                     && let Err(e) = ctx.category_service.add_item_mapping(
                         &ctx.database.category_db(),
-                        &item_id,
-                        &category_id,
+                        item_id,
+                        category_id,
                     )
                 {
                     tasks.push(Task::done(application::Message::Error(e)));
                 }
                 Task::batch(tasks)
             }
-            Command::UpdateItem(item, category_id) => {
+            Command::Update(item, category_id) => {
                 let mut tasks = Vec::new();
                 let item_id = item.id;
                 if let Err(e) = ctx.item_service.update(&ctx.database.item_db(), item) {
@@ -83,13 +83,13 @@ impl Command {
                 if let Err(e) = ctx.category_service.update_item_mapping(
                     &ctx.database.category_db(),
                     item_id,
-                    category_id.as_ref(),
+                    category_id,
                 ) {
                     tasks.push(Task::done(application::Message::Error(e)));
                 }
                 Task::batch(tasks)
             }
-            Command::DeleteItem(id) => match ctx.item_service.delete(&ctx.database.item_db(), id) {
+            Command::Delete(id) => match ctx.item_service.delete(&ctx.database.item_db(), id) {
                 Ok(()) => Task::done(application::Message::ReloadScreen),
                 Err(e) => Task::done(application::Message::Error(e)),
             },
@@ -147,10 +147,10 @@ impl Inventory {
         let category_column =
             table::column(
                 text("Category").width(200),
-                |item: ItemID| match category_service.item_category(&item) {
+                |item: ItemID| match category_service.item_category(item) {
                     Some(cat_id) => text(
                         category_service
-                            .get(&cat_id)
+                            .get(cat_id)
                             .cloned()
                             .unwrap_or_default()
                             .name,
@@ -164,12 +164,10 @@ impl Inventory {
             text("Edit").width(edit_column_width).center(),
             |item: ItemID| match self.edit_state {
                 EditState::None => {
-                    let category = category_service
-                        .item_category(&item)
-                        .map(|id_ref| Category {
-                            id: id_ref,
-                            body: category_service.get(&id_ref).cloned().unwrap_or_default(),
-                        });
+                    let category = category_service.item_category(item).map(|id_ref| Category {
+                        id: id_ref,
+                        body: category_service.get(id_ref).cloned().unwrap_or_default(),
+                    });
                     iced::widget::Button::new(text("Edit").center()).on_press(
                         application::Message::Inventory(Message::BeginEdit(item, category)),
                     )
@@ -286,10 +284,8 @@ impl Inventory {
             Message::Save => {
                 if let Ok(result) = self.input.output() {
                     match self.edit_state {
-                        EditState::None => {
-                            Some(Command::AddItem(result.0, result.1.map(|cat| cat.id)))
-                        }
-                        EditState::Editing(item_id) => Some(Command::UpdateItem(
+                        EditState::None => Some(Command::Add(result.0, result.1.map(|cat| cat.id))),
+                        EditState::Editing(item_id) => Some(Command::Update(
                             Item {
                                 id: item_id,
                                 body: result.0,
@@ -309,7 +305,7 @@ impl Inventory {
                     .min(item_service.item_count().div_ceil(15).saturating_sub(1));
                 None
             }
-            Message::DeleteItem(item) => Some(Command::DeleteItem(item)),
+            Message::DeleteItem(item) => Some(Command::Delete(item)),
             Message::SelectPage(page) => {
                 self.current_page = page;
                 None

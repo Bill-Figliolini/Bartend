@@ -23,9 +23,9 @@ pub struct RecipeInput {
 }
 #[derive(Debug)]
 pub struct IngredientInput {
-    category_input: RequiredPickInput<Category, Message>,
-    quantity_input: NumberInput<Message>,
-    unit_input: RequiredPickInput<Unit, Message>,
+    category: RequiredPickInput<Category, Message>,
+    quantity: NumberInput<Message>,
+    unit: RequiredPickInput<Unit, Message>,
 }
 
 impl IngredientInput {
@@ -34,72 +34,65 @@ impl IngredientInput {
         categories: Vec<Category>,
         unit_system: UnitSystem,
     ) -> Self {
-        let category_input = RequiredPickInput::new(
+        let category = RequiredPickInput::new(
             move |id, category| msg(InputMessage::Category(id, category)),
             categories,
             None,
             "Category".to_string(),
         );
-        let quantity_input = NumberInput::new(
+        let quantity = NumberInput::new(
             move |id, str| msg(InputMessage::String(id, str)),
             "Quantity".to_string(),
             String::new(),
         );
-        let unit_input = RequiredPickInput::new(
+        let unit = RequiredPickInput::new(
             move |id, unit| msg(InputMessage::Unit(id, unit)),
             Unit::get_units(),
             Some(unit_system.default_units()),
             String::new(),
         );
         Self {
-            category_input,
-            quantity_input,
-            unit_input,
+            category,
+            quantity,
+            unit,
         }
     }
     fn has_id(&self, id: &Id) -> bool {
-        self.category_input.id() == id
-            || self.quantity_input.id() == id
-            || self.unit_input.id() == id
+        self.category.id() == id || self.quantity.id() == id || self.unit.id() == id
     }
     fn update(&mut self, msg: InputMessage) {
         match msg {
-            InputMessage::String(id, str) if id == *self.quantity_input.id() => {
-                self.quantity_input.update(str);
+            InputMessage::String(id, str) if id == *self.quantity.id() => {
+                self.quantity.update(str);
             }
-            InputMessage::Unit(id, unit) if id == *self.unit_input.id() => {
-                self.unit_input.update(unit);
+            InputMessage::Unit(id, unit) if id == *self.unit.id() => {
+                self.unit.update(unit);
             }
-            InputMessage::Category(id, category) if id == *self.category_input.id() => {
-                self.category_input.update(category);
+            InputMessage::Category(id, category) if id == *self.category.id() => {
+                self.category.update(category);
             }
             _ => unreachable!(),
         }
     }
     fn has_error(&self) -> bool {
-        self.category_input.has_error() || self.quantity_input.has_error()
+        self.category.has_error() || self.quantity.has_error()
     }
     fn get_output(&mut self) -> Result<Ingredient, ()> {
-        let category_result = self.category_input.get_output();
-        let quantity_result = self.quantity_input.get_output();
+        let category_result = self.category.get_output();
+        let quantity_result = self.quantity.get_output();
         if self.has_error() {
             Err(())
         } else {
             let quantity = Quantity::new(
                 quantity_result.expect("Already validated"),
-                self.unit_input.get_output().expect("Already validated"),
+                self.unit.get_output().expect("Already validated"),
             );
             let category = category_result.expect("Already validated").id;
             Ok(Ingredient { category, quantity })
         }
     }
     fn view(&self) -> iced::Element<'_, Message> {
-        row![
-            self.category_input.view(),
-            self.quantity_input.view(),
-            self.unit_input.view()
-        ]
-        .into()
+        row![self.category.view(), self.quantity.view(), self.unit.view()].into()
     }
 }
 impl RecipeInput {
@@ -205,12 +198,12 @@ impl RecipeInput {
                 .iter()
                 .find(|category| category.id == ingredient.category)
                 .expect("Category must be valid");
-            last_input.category_input.update(category.clone());
+            last_input.category.update(category.clone());
             last_input
-                .quantity_input
+                .quantity
                 .update(ingredient.quantity.value(unit_system).to_string());
             last_input
-                .unit_input
+                .unit
                 .update(ingredient.quantity.unit(unit_system));
         }
     }

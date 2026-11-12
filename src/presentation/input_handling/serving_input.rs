@@ -118,7 +118,7 @@ impl IngredientUseInput {
         category_service: &CategoryService,
     ) -> Self {
         let valid_ingredient_ids: Vec<ItemID> = category_service
-            .satisfying_items(&ingredient.category)
+            .satisfying_items(ingredient.category)
             .into_iter()
             .collect();
         let valid_ingredients = valid_ingredient_ids
@@ -148,7 +148,7 @@ impl IngredientUseInput {
         let category = text!(
             "{}: ID: {}",
             category_service
-                .get(&self.category)
+                .get(self.category)
                 .cloned()
                 .unwrap_or_default()
                 .name,

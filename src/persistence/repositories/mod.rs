@@ -41,8 +41,8 @@ pub trait CategoryRepository {
     fn get_graph(&self) -> Result<HashMap<CategoryID, HashSet<CategoryID>>, DBError>;
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
     fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError>;
-    fn map_insert(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
-    fn map_delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError>;
+    fn map_insert(&self, item: ItemID, category: CategoryID) -> Result<(), DBError>;
+    fn map_delete(&self, item: ItemID, category: CategoryID) -> Result<(), DBError>;
 }
 pub trait RecipeRepository {
     fn insert(&self, body: &RecipeBody) -> Result<RecipeID, DBError>;

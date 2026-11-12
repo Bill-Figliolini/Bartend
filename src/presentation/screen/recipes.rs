@@ -42,26 +42,24 @@ pub enum Message {
 }
 
 pub enum Command {
-    AddRecipe(RecipeBody),
-    UpdateRecipe(Recipe),
-    DeleteRecipe(RecipeID),
+    Add(RecipeBody),
+    Update(Recipe),
+    Delete(RecipeID),
 }
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
-            Command::AddRecipe(body) => {
-                match ctx.recipe_service.add(&ctx.database.recipe_db(), body) {
-                    Ok(_) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
-            }
-            Command::UpdateRecipe(recipe) => {
+            Command::Add(body) => match ctx.recipe_service.add(&ctx.database.recipe_db(), body) {
+                Ok(_) => Task::done(application::Message::ReloadScreen),
+                Err(e) => Task::done(application::Message::Error(e)),
+            },
+            Command::Update(recipe) => {
                 match ctx.recipe_service.update(&ctx.database.recipe_db(), recipe) {
                     Ok(()) => Task::done(application::Message::ReloadScreen),
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }
-            Command::DeleteRecipe(recipe) => {
+            Command::Delete(recipe) => {
                 match ctx.recipe_service.delete(&ctx.database.recipe_db(), recipe) {
                     Ok(()) => Task::done(application::Message::ReloadScreen),
                     Err(e) => Task::done(application::Message::Error(e)),
@@ -99,8 +97,8 @@ impl Recipes {
     }
     fn save(&mut self, body: RecipeBody) -> Command {
         match self.edit_state {
-            EditState::Editing(id) => Command::UpdateRecipe(Recipe { id, body }),
-            EditState::None => Command::AddRecipe(body),
+            EditState::Editing(id) => Command::Update(Recipe { id, body }),
+            EditState::None => Command::Add(body),
         }
     }
     fn build_display_table(
@@ -223,7 +221,7 @@ impl Recipes {
                     .min(recipe_service.recipe_count().div_ceil(15).saturating_sub(1));
                 None
             }
-            Message::DeleteRecipe(recipe) => Some(Command::DeleteRecipe(recipe)),
+            Message::DeleteRecipe(recipe) => Some(Command::Delete(recipe)),
             Message::SelectPage(page) => {
                 self.current_page = page;
                 None
@@ -240,7 +238,7 @@ fn view_ingredient<'a>(
     unit_system: &'a UnitSystem,
 ) -> Element<'a, application::Message> {
     let category_name = category_service
-        .get(&ingredient.category)
+        .get(ingredient.category)
         .cloned()
         .unwrap_or_default()
         .name;

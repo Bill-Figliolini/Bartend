@@ -68,8 +68,8 @@ impl Command {
             Command::AddRelation(parent, child) => {
                 match ctx.category_service.add_category_relation(
                     &ctx.database.category_db(),
-                    &parent,
-                    &child,
+                    parent,
+                    child,
                 ) {
                     Ok(()) => Task::none(),
                     Err(e) => Task::done(application::Message::Error(e)),
@@ -78,8 +78,8 @@ impl Command {
             Command::RemoveRelation(parent, child) => {
                 match ctx.category_service.remove_category_relation(
                     &ctx.database.category_db(),
-                    &parent,
-                    &child,
+                    parent,
+                    child,
                 ) {
                     Ok(()) => Task::none(),
                     Err(e) => Task::done(application::Message::Error(e)),
@@ -128,7 +128,7 @@ impl Categories {
         let name_column = table::column(text("Name").width(200), |category: CategoryID| {
             text(
                 category_service
-                    .get(&category)
+                    .get(category)
                     .cloned()
                     .unwrap_or_default()
                     .name,
@@ -219,7 +219,7 @@ impl Categories {
                 match self.edit_state {
                     EditState::None => {
                         self.edit_state = EditState::Editing(category);
-                        let body = category_service.get(&category).cloned().unwrap_or_default();
+                        let body = category_service.get(category).cloned().unwrap_or_default();
                         self.input.begin_edit(&body, UnitSystem::Metric);
                     }
                     EditState::Editing(category_id) if category_id == category => {
@@ -265,12 +265,12 @@ impl Categories {
         service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let options = service
-            .valid_relations(&id)
+            .valid_relations(id)
             .into_iter()
             .fold(Vec::new(), |mut acc, id| {
                 acc.push(Category {
                     id,
-                    body: service.get(&id).cloned().unwrap_or_default(),
+                    body: service.get(id).cloned().unwrap_or_default(),
                 });
                 acc
             });
@@ -286,13 +286,13 @@ impl Categories {
         service: &CategoryService,
     ) -> Element<'_, application::Message> {
         let options = service
-            .child_categories(&id)
+            .child_categories(id)
             .unwrap_or_default()
             .into_iter()
             .fold(Vec::new(), |mut acc, id| {
                 acc.push(Category {
                     id,
-                    body: service.get(&id).cloned().unwrap_or_default(),
+                    body: service.get(id).cloned().unwrap_or_default(),
                 });
                 acc
             });

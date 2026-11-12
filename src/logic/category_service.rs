@@ -46,17 +46,17 @@ impl CategoryService {
             graph,
         })
     }
-    pub fn item_category(&self, item: &ItemID) -> Option<CategoryID> {
-        self.item_mapping.get(item).copied()
+    pub fn item_category(&self, item: ItemID) -> Option<CategoryID> {
+        self.item_mapping.get(&item).copied()
     }
-    pub fn satisfying_items(&self, category: &CategoryID) -> HashSet<ItemID> {
+    pub fn satisfying_items(&self, category: CategoryID) -> HashSet<ItemID> {
         let mut items = HashSet::new();
         items.extend(self.get_items(category));
-        if let Some(categories_to_add) = self.graph.get_all_children(category) {
+        if let Some(categories_to_add) = self.graph.get_all_children(&category) {
             categories_to_add
                 .into_iter()
                 .fold(&mut items, |acc, category| {
-                    acc.extend(self.get_items(&category));
+                    acc.extend(self.get_items(category));
                     acc
                 });
         }
@@ -65,11 +65,11 @@ impl CategoryService {
 
     pub fn child_categories(
         &self,
-        category: &CategoryID,
+        category: CategoryID,
     ) -> Result<HashSet<CategoryID>, BartendError> {
-        match self.graph.get_edges(category) {
+        match self.graph.get_edges(&category) {
             Some(children) => Ok(children),
-            None => Err(LogicError::CategoryNotInGraph(*category))?,
+            None => Err(LogicError::CategoryNotInGraph(category))?,
         }
     }
 
@@ -84,11 +84,11 @@ impl CategoryService {
             .collect()
     }
 
-    pub fn get(&self, id: &CategoryID) -> Result<&CategoryBody, BartendError> {
-        match self.categories.get(id) {
+    pub fn get(&self, id: CategoryID) -> Result<&CategoryBody, BartendError> {
+        match self.categories.get(&id) {
             //another logic error
             Some(body) => Ok(body),
-            None => Err(LogicError::InvalidCategory(*id))?,
+            None => Err(LogicError::InvalidCategory(id))?,
         }
     }
 
@@ -113,9 +113,9 @@ impl CategoryService {
         entries.into_iter().map(|(_, id)| id).collect()
     }
 
-    pub fn get_items(&self, category: &CategoryID) -> HashSet<ItemID> {
+    pub fn get_items(&self, category: CategoryID) -> HashSet<ItemID> {
         self.category_mapping
-            .get(category)
+            .get(&category)
             .unwrap_or(&HashSet::new())
             .iter()
             .copied()
@@ -162,30 +162,30 @@ impl CategoryService {
     pub fn add_item_mapping(
         &mut self,
         db: &impl CategoryRepository,
-        item: &ItemID,
-        category: &CategoryID,
+        item: ItemID,
+        category: CategoryID,
     ) -> Result<(), BartendError> {
         db.map_insert(item, category)?;
         self.category_mapping
-            .entry(*category)
+            .entry(category)
             .or_default()
-            .insert(*item);
-        self.item_mapping.insert(*item, *category);
+            .insert(item);
+        self.item_mapping.insert(item, category);
         Ok(())
     }
     pub fn update_item_mapping(
         &mut self,
         db: &impl CategoryRepository,
         item: ItemID,
-        category: Option<&CategoryID>,
+        category: Option<CategoryID>,
     ) -> Result<(), BartendError> {
-        let mut old_category = self.item_category(&item);
+        let mut old_category = self.item_category(item);
         match (old_category.take(), category) {
             (None, Some(new)) => {
-                self.add_item_mapping(db, &item, new)?;
+                self.add_item_mapping(db, item, new)?;
             }
             (Some(old), None) => {
-                db.map_delete(&item, &old)?;
+                db.map_delete(item, old)?;
                 self.item_mapping.remove(&item);
                 match self.category_mapping.entry(old) {
                     Entry::Occupied(mut items) => {
@@ -197,7 +197,7 @@ impl CategoryService {
                 }
             }
             (Some(old), Some(new)) => {
-                db.map_delete(&item, &old)?;
+                db.map_delete(item, old)?;
                 match self.category_mapping.entry(old) {
                     Entry::Occupied(mut items) => {
                         items.get_mut().remove(&item);
@@ -207,7 +207,7 @@ impl CategoryService {
                     }
                 }
                 self.item_mapping.remove(&item);
-                self.add_item_mapping(db, &item, new)?;
+                self.add_item_mapping(db, item, new)?;
             }
             (None, None) => {}
         }
@@ -216,23 +216,20 @@ impl CategoryService {
     pub fn add_category_relation(
         &mut self,
         db: &impl CategoryRepository,
-        parent: &CategoryID,
-        child: &CategoryID,
+        parent: CategoryID,
+        child: CategoryID,
     ) -> Result<(), BartendError> {
-        match self.graph.insert_edge(parent, child) {
+        match self.graph.insert_edge(&parent, &child) {
             Ok(()) => {
-                db.insert_relation(*parent, *child)?;
+                db.insert_relation(parent, child)?;
                 Ok(())
             }
             Err(graph_error) => match graph_error {
                 super::graph::GraphError::EdgeEndpointNotInGraph => {
-                    Err(LogicError::CategoryNotInGraph(*parent))?
+                    Err(LogicError::CategoryNotInGraph(parent))?
                 }
                 super::graph::GraphError::WouldIntroduceCycle => {
-                    Err(LogicError::InvalidCategoryRelation {
-                        parent: *parent,
-                        child: *child,
-                    })?
+                    Err(LogicError::InvalidCategoryRelation { parent, child })?
                 }
             },
         }
@@ -240,16 +237,16 @@ impl CategoryService {
     pub fn remove_category_relation(
         &mut self,
         db: &impl CategoryRepository,
-        parent: &CategoryID,
-        child: &CategoryID,
+        parent: CategoryID,
+        child: CategoryID,
     ) -> Result<(), BartendError> {
-        db.delete_edge(*parent, *child)?;
-        self.graph.remove_edge(parent, child);
+        db.delete_edge(parent, child)?;
+        self.graph.remove_edge(&parent, &child);
         Ok(())
     }
-    pub fn valid_relations(&self, category: &CategoryID) -> HashSet<CategoryID> {
+    pub fn valid_relations(&self, category: CategoryID) -> HashSet<CategoryID> {
         self.graph
-            .get_non_cyclic_additions(category)
+            .get_non_cyclic_additions(&category)
             .unwrap_or_default()
     }
     pub fn category_count(&self) -> usize {
@@ -335,16 +332,16 @@ mod tests {
         }
         fn map_insert(
             &self,
-            _item: &ItemID,
-            _category: &CategoryID,
+            _item: ItemID,
+            _category: CategoryID,
         ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }
 
         fn map_delete(
             &self,
-            _item: &ItemID,
-            _category: &CategoryID,
+            _item: ItemID,
+            _category: CategoryID,
         ) -> Result<(), crate::persistence::DBError> {
             Ok(())
         }
@@ -437,7 +434,7 @@ mod tests {
             let item = ItemID(0);
             let category = CategoryID(0);
 
-            _ = service.add_item_mapping(db, &item, &category);
+            _ = service.add_item_mapping(db, item, category);
 
             assert!(
                 service

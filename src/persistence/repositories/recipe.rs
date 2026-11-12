@@ -16,7 +16,7 @@ impl RecipeDB<'_> {
     ) -> Result<Recipe, rusqlite::Error> {
         let id = row.get(0)?;
         let name = row.get(1)?;
-        let ingredients = ingredients::get(connection, &id)?;
+        let ingredients = ingredients::get(connection, id)?;
         Ok(Recipe {
             id,
             body: RecipeBody { name, ingredients },
@@ -33,7 +33,7 @@ impl RecipeRepository for RecipeDB<'_> {
         let recipe = RecipeID(transaction.last_insert_rowid());
 
         for (index, ingredient) in body.ingredients.iter().enumerate() {
-            ingredients::insert(&transaction, &recipe, &index, ingredient)?;
+            ingredients::insert(&transaction, recipe, index, ingredient)?;
         }
         transaction.commit()?;
         Ok(recipe)
@@ -44,10 +44,10 @@ impl RecipeRepository for RecipeDB<'_> {
         let transaction = self.connection.unchecked_transaction()?;
         transaction.execute(query, (recipe.id, &recipe.body.name))?;
 
-        ingredients::delete(&transaction, &recipe.id)?;
+        ingredients::delete(&transaction, recipe.id)?;
 
         for (index, ingredient) in recipe.body.ingredients.iter().enumerate() {
-            ingredients::insert(&transaction, &recipe.id, &index, ingredient)?;
+            ingredients::insert(&transaction, recipe.id, index, ingredient)?;
         }
         transaction.commit()?;
         Ok(())

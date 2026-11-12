@@ -22,8 +22,8 @@ impl CategoryDB<'_> {
     }
     fn internal_relation_insert(
         connection: &Connection,
-        parent: &CategoryID,
-        child: &CategoryID,
+        parent: CategoryID,
+        child: CategoryID,
     ) -> Result<(), DBError> {
         let query = "INSERT OR IGNORE INTO graph(parent_id, child_id) VALUES (?1, ?2);";
         connection.execute(query, (parent, child))?;
@@ -58,7 +58,7 @@ impl CategoryRepository for CategoryDB<'_> {
         {
             for parent in parents {
                 for child in children {
-                    CategoryDB::internal_relation_insert(&transaction, parent, child)?;
+                    CategoryDB::internal_relation_insert(&transaction, *parent, *child)?;
                 }
             }
         }
@@ -96,7 +96,7 @@ impl CategoryRepository for CategoryDB<'_> {
     }
 
     fn insert_relation(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError> {
-        CategoryDB::internal_relation_insert(self.connection, &parent, &child)
+        CategoryDB::internal_relation_insert(self.connection, parent, child)
     }
 
     fn delete_edge(&self, parent: CategoryID, child: CategoryID) -> Result<(), DBError> {
@@ -117,14 +117,14 @@ impl CategoryRepository for CategoryDB<'_> {
             .collect();
         Ok(map)
     }
-    fn map_insert(&self, item_id: &ItemID, category_id: &CategoryID) -> Result<(), DBError> {
+    fn map_insert(&self, item_id: ItemID, category_id: CategoryID) -> Result<(), DBError> {
         self.connection.execute(
             "INSERT INTO category_item(category_id, item_id) VALUES (?1, ?2)",
             (category_id, item_id),
         )?;
         Ok(())
     }
-    fn map_delete(&self, item: &ItemID, category: &CategoryID) -> Result<(), DBError> {
+    fn map_delete(&self, item: ItemID, category: CategoryID) -> Result<(), DBError> {
         self.connection.execute(
             "DELETE FROM category_item WHERE item_id = ?1 AND category_id = ?2",
             (item, category),
@@ -417,7 +417,7 @@ mod tests {
                 let item_id = db.item_db().insert(&item).unwrap();
                 let category_id = db.category_db().insert(&category).unwrap();
 
-                let result = db.category_db().map_insert(&item_id, &category_id);
+                let result = db.category_db().map_insert(item_id, category_id);
 
                 result.unwrap();
 
@@ -445,7 +445,7 @@ mod tests {
                 let item_id = db.item_db().insert(&item).unwrap();
                 let category_id = db.category_db().insert(&category).unwrap();
 
-                let result = db.category_db().map_insert(&item_id, &category_id);
+                let result = db.category_db().map_insert(item_id, category_id);
 
                 result.unwrap();
 
@@ -469,7 +469,7 @@ mod tests {
                 let item_id = db.item_db().insert(&item).unwrap();
                 let category_id = db.category_db().insert(&category).unwrap();
 
-                let result = db.category_db().map_insert(&item_id, &category_id);
+                let result = db.category_db().map_insert(item_id, category_id);
 
                 result.unwrap();
 
@@ -502,10 +502,10 @@ mod tests {
                 let item_id = db.item_db().insert(&item).unwrap();
                 let category_id = db.category_db().insert(&category).unwrap();
 
-                let result = db.category_db().map_insert(&item_id, &category_id);
+                let result = db.category_db().map_insert(item_id, category_id);
                 result.unwrap();
 
-                let result = db.category_db().map_delete(&item_id, &category_id);
+                let result = db.category_db().map_delete(item_id, category_id);
                 result.unwrap();
 
                 let in_db = db.category_db().get_map().unwrap();
