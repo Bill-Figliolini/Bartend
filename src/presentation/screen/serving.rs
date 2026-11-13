@@ -8,7 +8,7 @@ use crate::{
     models::{Config, ItemUse, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{InputMessage, ServingInput, UnknownTarget},
+        input_handling::{ServingInput, ServingMessage},
         widget::footer::footer,
     },
 };
@@ -17,7 +17,7 @@ use crate::{
 pub(in crate::presentation) enum Message {
     Reload,
     SwapUnits,
-    Input(InputMessage),
+    Input(ServingMessage),
     Save,
 }
 
@@ -46,7 +46,7 @@ pub(in crate::presentation) struct Serving {
 
 impl Serving {
     pub fn new(config: &Config, recipe_service: &RecipeService) -> Self {
-        let input = ServingInput::new(input_msg, recipe_service);
+        let input = ServingInput::new(recipe_service);
         let unit_system = config.default_units();
         Self { input, unit_system }
     }
@@ -57,7 +57,9 @@ impl Serving {
     ) -> iced::Element<'_, application::Message> {
         let save_button = button("Save").on_press(application::Message::Serving(Message::Save));
         let body = row![
-            self.input.view(category_service, self.unit_system),
+            self.input
+                .view(category_service, self.unit_system)
+                .map(|msg| application::Message::Serving(Message::Input(msg))),
             save_button
         ];
         let unit_swap_button = button(text(self.unit_system.to_string()))
@@ -85,8 +87,7 @@ impl Serving {
             }
             Message::Input(input_message) => {
                 self.input
-                    .update(input_message, item_service, category_service)
-                    .unwrap_or_else(UnknownTarget::discard);
+                    .update(input_message, item_service, category_service);
                 None
             }
             Message::Save => {
@@ -98,10 +99,6 @@ impl Serving {
             }
         }
     }
-}
-
-fn input_msg(msg: InputMessage) -> application::Message {
-    application::Message::Serving(Message::Input(msg))
 }
 
 #[cfg(test)]
@@ -123,7 +120,7 @@ mod tests {
         (world, tanqueray, shot)
     }
 
-    fn send(screen: &mut Serving, world: &World, input: InputMessage) {
+    fn send(screen: &mut Serving, world: &World, input: ServingMessage) {
         let message = Message::Input(input);
         assert!(
             screen
@@ -137,8 +134,7 @@ mod tests {
             id,
             body: world.recipes.get(id).unwrap(),
         };
-        let recipe_id = screen.input.recipe_id();
-        send(screen, world, InputMessage::Recipe(recipe_id, recipe));
+        send(screen, world, ServingMessage::Recipe(recipe));
     }
 
     fn select_item(screen: &mut Serving, world: &World, index: usize, id: ItemID) {
@@ -146,8 +142,8 @@ mod tests {
             id,
             body: world.items.get(id).unwrap().clone(),
         };
-        let item_id = screen.input.item_id(index);
-        send(screen, world, InputMessage::Item(item_id, item));
+        let key = screen.input.row_key(index);
+        send(screen, world, ServingMessage::Item(key, item));
     }
 
     fn save(screen: &mut Serving, world: &World) -> Option<Command> {
@@ -221,20 +217,5 @@ mod tests {
         let mut screen = Serving::new(&world.config, &world.recipes);
         screen.update(&world.items, &world.categories, Message::SwapUnits);
         assert_eq!(screen.unit_system, UnitSystem::Imperial);
-    }
-
-    #[test]
-    fn stale_input_is_discarded() {
-        let (world, tanqueray, _) = gin_world();
-        let mut screen = Serving::new(&world.config, &world.recipes);
-        let item = Item {
-            id: tanqueray,
-            body: world.items.get(tanqueray).unwrap().clone(),
-        };
-        send(
-            &mut screen,
-            &world,
-            InputMessage::Item(iced::widget::Id::unique(), item),
-        );
     }
 }

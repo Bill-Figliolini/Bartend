@@ -5,7 +5,7 @@ use crate::{
     models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{CategoryInput, InputMessage, UnknownTarget},
+        input_handling::{CategoryInput, CategoryMessage},
         widget::{self, text_style},
     },
 };
@@ -29,7 +29,7 @@ pub struct Categories {
 #[derive(Debug, Clone)]
 pub enum Message {
     Reload,
-    Input(InputMessage),
+    Input(CategoryMessage),
     Edit(CategoryID),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
@@ -105,7 +105,7 @@ enum EditState {
 impl Categories {
     pub fn new(config: &Config) -> Self {
         Self {
-            input: CategoryInput::new(config, input_msg),
+            input: CategoryInput::new(config),
             edit_state: EditState::None,
             current_page: 0,
             stub: None,
@@ -119,7 +119,11 @@ impl Categories {
         };
         let save_button = iced::widget::Button::new("Save")
             .on_press(application::Message::Categories(Message::Save));
-        let body = row![self.input.view(), save_button];
+        let input = self
+            .input
+            .view()
+            .map(|msg| application::Message::Categories(Message::Input(msg)));
+        let body = row![input, save_button];
         column![header, body].into()
     }
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -215,9 +219,7 @@ impl Categories {
     ) -> Option<Command> {
         match message {
             Message::Input(msg) => {
-                self.input
-                    .update(msg)
-                    .unwrap_or_else(UnknownTarget::discard);
+                self.input.update(msg);
                 None
             }
             Message::Edit(category) => {
@@ -310,10 +312,6 @@ impl Categories {
         .into()
     }
 }
-fn input_msg(msg: InputMessage) -> application::Message {
-    application::Message::Categories(Message::Input(msg))
-}
-
 fn category_add_msg(parent: CategoryID, child: CategoryID) -> application::Message {
     application::Message::Categories(Message::AddRelation(parent, child))
 }
@@ -333,7 +331,7 @@ mod tests {
     };
 
     fn type_name(screen: &mut Categories, world: &World, name: &str) {
-        let input = InputMessage::String(screen.input.name_id(), name.to_string());
+        let input = CategoryMessage::Name(name.to_string());
         assert!(
             screen
                 .update(Message::Input(input), &world.categories)
@@ -531,18 +529,6 @@ mod tests {
         assert!(matches!(screen.edit_state, EditState::None));
         assert_eq!(screen.current_page, 0);
         assert!(screen.update(Message::Save, &world.categories).is_none());
-    }
-
-    #[test]
-    fn stale_input_is_discarded() {
-        let world = World::new();
-        let mut screen = Categories::new(&world.config);
-        let stale = InputMessage::String(iced::widget::Id::unique(), "Gin".to_string());
-        assert!(
-            screen
-                .update(Message::Input(stale), &world.categories)
-                .is_none()
-        );
     }
 
     #[test]

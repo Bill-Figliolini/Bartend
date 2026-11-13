@@ -1,45 +1,44 @@
+use iced::Element;
+
 use crate::{
     models::{CategoryBody, Config, UnitSystem},
     presentation::{
-        application::Message,
-        input_handling::{Field, FormError, InputMessage, UnknownTarget, Validator, route},
+        input_handling::{Field, FormError, Validator},
         widget::input::StringField,
     },
 };
 
+/// An edit to one field of a [`CategoryInput`].
+#[derive(Debug, Clone)]
+pub enum CategoryMessage {
+    Name(String),
+}
+
 #[derive(Debug)]
 pub struct CategoryInput {
     name_input: StringField,
-    msg: fn(InputMessage) -> Message,
     /// Set once a save has been attempted, so errors are not shown on a form
     /// the user has not finished yet.
     show_errors: bool,
 }
 
 impl CategoryInput {
-    pub fn new(_config: &Config, msg: fn(InputMessage) -> Message) -> Self {
+    pub fn new(_config: &Config) -> Self {
         Self {
             name_input: StringField::new("Name"),
-            msg,
             show_errors: false,
         }
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> iced::Element<'_, Message> {
-        self.name_input.view(
-            route(self.msg, self.name_input.id(), InputMessage::String),
-            self.show_errors,
-        )
+    pub fn view(&self) -> Element<'_, CategoryMessage> {
+        self.name_input
+            .view(CategoryMessage::Name, self.show_errors)
     }
 
-    pub fn update(&mut self, msg: InputMessage) -> Result<(), UnknownTarget> {
+    pub fn update(&mut self, msg: CategoryMessage) {
         match msg {
-            InputMessage::String(id, new_text) if self.name_input.id() == &id => {
-                self.name_input.set(new_text);
-                Ok(())
-            }
-            msg => Err(UnknownTarget(msg)),
+            CategoryMessage::Name(text) => self.name_input.set(text),
         }
     }
 
@@ -63,35 +62,23 @@ impl CategoryInput {
         self.clear();
         self.name_input.set(edit.name.clone());
     }
-    #[cfg(test)]
-    pub fn name_id(&self) -> iced::widget::Id {
-        self.name_input.id().clone()
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use iced::widget::Id;
-
     use super::*;
     use crate::presentation::{
-        input_handling::{
-            FormError,
-            test_support::{config, msg},
-        },
+        input_handling::{FormError, test_support::config},
         widget::input::Error,
     };
 
     fn set_name(input: &mut CategoryInput, name: &str) {
-        let id = input.name_input.id().clone();
-        input
-            .update(InputMessage::String(id, name.to_string()))
-            .unwrap();
+        input.update(CategoryMessage::Name(name.to_string()));
     }
 
     #[test]
     fn empty_name_reports_name_field() {
-        let mut input = CategoryInput::new(&config(), msg);
+        let mut input = CategoryInput::new(&config());
         assert_eq!(
             input.output(),
             Err(FormError(vec![(Field::Name, Error::StringEmpty)]))
@@ -100,7 +87,7 @@ mod tests {
 
     #[test]
     fn valid_name_is_returned_and_form_cleared() {
-        let mut input = CategoryInput::new(&config(), msg);
+        let mut input = CategoryInput::new(&config());
         set_name(&mut input, "Gin");
         assert_eq!(
             input.output(),
@@ -113,7 +100,7 @@ mod tests {
 
     #[test]
     fn errors_are_shown_only_after_a_save_attempt() {
-        let mut input = CategoryInput::new(&config(), msg);
+        let mut input = CategoryInput::new(&config());
         assert!(!input.show_errors);
         input.output().unwrap_err();
         assert!(input.show_errors);
@@ -123,17 +110,10 @@ mod tests {
 
     #[test]
     fn successful_save_hides_errors() {
-        let mut input = CategoryInput::new(&config(), msg);
+        let mut input = CategoryInput::new(&config());
         input.output().unwrap_err();
         set_name(&mut input, "Gin");
         input.output().unwrap();
         assert!(!input.show_errors);
-    }
-
-    #[test]
-    fn message_for_unknown_field_is_rejected() {
-        let mut input = CategoryInput::new(&config(), msg);
-        let stale = InputMessage::String(Id::unique(), "Gin".to_string());
-        assert!(input.update(stale).is_err());
     }
 }

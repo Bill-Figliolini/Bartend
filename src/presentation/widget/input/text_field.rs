@@ -1,9 +1,6 @@
 use std::marker::PhantomData;
 
-use iced::{
-    Element,
-    widget::{Id, text_input},
-};
+use iced::{Element, widget::text_input};
 
 use crate::presentation::widget::input::{Error, with_error};
 
@@ -56,7 +53,6 @@ impl Rule for NonNegative {
 /// that owns the field, when it calls [`view`](Self::view).
 #[derive(Debug)]
 pub struct TextField<R: Rule> {
-    id: Id,
     text: String,
     placeholder: String,
     rule: PhantomData<R>,
@@ -68,7 +64,6 @@ pub type NumberField = TextField<NonNegative>;
 impl<R: Rule> TextField<R> {
     pub fn new(placeholder: impl Into<String>) -> Self {
         Self {
-            id: Id::unique(),
             text: String::new(),
             placeholder: placeholder.into(),
             rule: PhantomData,
@@ -87,19 +82,13 @@ impl<R: Rule> TextField<R> {
         R::apply(&self.text)
     }
 
-    pub fn id(&self) -> &Id {
-        &self.id
-    }
-
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view<'a, M: Clone + 'a>(
         &'a self,
         on_input: impl Fn(String) -> M + 'a,
         show_error: bool,
     ) -> Element<'a, M> {
-        let input = text_input(&self.placeholder, &self.text)
-            .id(self.id.clone())
-            .on_input(on_input);
+        let input = text_input(&self.placeholder, &self.text).on_input(on_input);
         let error = if show_error { self.value().err() } else { None };
         with_error(input.into(), error)
     }
@@ -152,12 +141,6 @@ mod tests {
         field.clear();
         assert_eq!(field.text, "");
         assert_eq!(field.value(), Err(Error::StringEmpty));
-    }
-
-    #[test]
-    fn fields_have_distinct_ids() {
-        let (a, b) = (StringField::new("A"), StringField::new("B"));
-        assert_ne!(a.id(), b.id());
     }
 
     #[test]

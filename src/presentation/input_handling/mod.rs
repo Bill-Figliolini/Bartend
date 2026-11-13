@@ -5,76 +5,86 @@ mod serving_input;
 
 use std::fmt::Display;
 
-use iced::widget::Id;
+use crate::presentation::widget::input::Error;
 
-use crate::{
-    models::{Category, Item, Recipe, Unit},
-    presentation::{application::Message, widget::input::Error},
-};
+/// Identifies one row of a [`Rows`] for as long as it exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RowKey(u64);
 
-#[derive(Clone, Debug)]
-pub enum InputMessage {
-    String(Id, String),
-    Unit(Id, Unit),
-    Category(Id, Category),
-    Recipe(Id, Recipe),
-    Item(Id, Item),
+/// The repeated rows of a form, such as a recipe's ingredients.
+///
+/// Each row gets a key that is never reused, even after `clear`, so a
+/// message for a removed row cannot reach a different one. That matters
+/// because a message can still be in flight for a row that was removed in
+/// the same frame (e.g. an edit, or a second click on its remove button).
+#[derive(Debug)]
+struct Rows<T> {
+    rows: Vec<(RowKey, T)>,
+    next_key: u64,
 }
 
-impl InputMessage {
-    fn id(&self) -> Id {
-        match self {
-            InputMessage::String(id, _)
-            | InputMessage::Unit(id, _)
-            | InputMessage::Category(id, _)
-            | InputMessage::Recipe(id, _)
-            | InputMessage::Item(id, _) => id.clone(),
+impl<T> Default for Rows<T> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            next_key: 0,
         }
     }
 }
 
-/// A widget callback that tags each value with the widget's `id`, as
-/// `variant`, and wraps it in the screen's message.
-#[cfg_attr(coverage_nightly, coverage(off))]
-fn route<T: 'static>(
-    msg: fn(InputMessage) -> Message,
-    id: &Id,
-    variant: fn(Id, T) -> InputMessage,
-) -> impl Fn(T) -> Message + 'static {
-    let id = id.clone();
-    move |value| msg(variant(id.clone(), value))
-}
+impl<T> Rows<T> {
+    fn push(&mut self, row: T) -> RowKey {
+        let key = RowKey(self.next_key);
+        self.next_key += 1;
+        self.rows.push((key, row));
+        key
+    }
 
-/// An input message sent to a form that has no field with its id (or whose
-/// field with that id takes a different kind of message).
-///
-/// Field ids are unique per widget, so this happens when a message arrives
-/// from a widget that has since been removed or rebuilt, for example an
-/// ingredient row deleted in the same frame. Such messages are harmless.
-#[derive(Debug, Clone)]
-pub struct UnknownTarget(InputMessage);
+    /// Returns whether a row with `key` was there to remove.
+    fn remove(&mut self, key: RowKey) -> bool {
+        let before = self.rows.len();
+        self.rows.retain(|(row_key, _)| *row_key != key);
+        self.rows.len() != before
+    }
 
-impl UnknownTarget {
-    /// Drops the stale message. Builds with the `devtools` feature log it.
-    pub fn discard(self) {
-        #[cfg(feature = "devtools")]
-        eprintln!("{self}");
-        #[cfg(not(feature = "devtools"))]
-        let _ = self;
+    fn get_mut(&mut self, key: RowKey) -> Option<&mut T> {
+        self.rows
+            .iter_mut()
+            .find(|(row_key, _)| *row_key == key)
+            .map(|(_, row)| row)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (RowKey, &T)> {
+        self.rows.iter().map(|(key, row)| (*key, row))
+    }
+
+    fn values(&self) -> impl Iterator<Item = &T> {
+        self.rows.iter().map(|(_, row)| row)
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    fn clear(&mut self) {
+        self.rows.clear();
+    }
+
+    #[cfg(test)]
+    fn key(&self, index: usize) -> RowKey {
+        self.rows[index].0
     }
 }
 
-impl Display for UnknownTarget {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Input message for a field not in this form: {:?}",
-            self.0
-        )
-    }
+/// Drops a message for a row that has since been removed; see [`Rows`].
+/// Such messages are harmless. Builds with the `devtools` feature log them.
+fn discard_stale_row(key: RowKey, msg: &dyn std::fmt::Debug) {
+    #[cfg(feature = "devtools")]
+    eprintln!("Message for a removed row {key:?}: {msg:?}");
+    #[cfg(not(feature = "devtools"))]
+    let _ = (key, msg);
 }
-
-impl std::error::Error for UnknownTarget {}
 
 /// A field of one of the input forms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,55 +169,45 @@ impl Display for FormError {
 impl std::error::Error for FormError {}
 
 pub use {
-    category_input::CategoryInput, item_input::ItemInput, recipe_input::RecipeInput,
-    serving_input::ServingInput,
+    category_input::{CategoryInput, CategoryMessage},
+    item_input::{ItemInput, ItemMessage},
+    recipe_input::{RecipeInput, RecipeMessage},
+    serving_input::{ServingInput, ServingMessage},
 };
 
 #[cfg(test)]
 mod tests {
-    use iced::widget::Id;
-
     use super::*;
-    use crate::models::{CategoryBody, CategoryID, ItemBody, ItemID, RecipeBody, RecipeID};
 
     #[test]
-    fn every_message_reports_its_field_id() {
-        let id = Id::unique();
-        let messages = [
-            InputMessage::String(id.clone(), String::new()),
-            InputMessage::Unit(id.clone(), Unit::Gram),
-            InputMessage::Category(
-                id.clone(),
-                Category {
-                    id: CategoryID(1),
-                    body: CategoryBody::default(),
-                },
-            ),
-            InputMessage::Recipe(
-                id.clone(),
-                Recipe {
-                    id: RecipeID(1),
-                    body: RecipeBody::default(),
-                },
-            ),
-            InputMessage::Item(
-                id.clone(),
-                Item {
-                    id: ItemID(1),
-                    body: ItemBody::default(),
-                },
-            ),
-        ];
-        for message in messages {
-            assert_eq!(message.id(), id);
-        }
+    fn row_keys_are_never_reused() {
+        let mut rows = Rows::default();
+        let a = rows.push("a");
+        rows.clear();
+        let b = rows.push("b");
+        assert_ne!(a, b);
+        assert!(rows.get_mut(a).is_none());
+        assert_eq!(rows.get_mut(b), Some(&mut "b"));
     }
 
     #[test]
-    fn unknown_targets_name_the_stale_message() {
-        let stale = UnknownTarget(InputMessage::String(Id::unique(), "Gin".to_string()));
-        assert!(stale.to_string().contains("\"Gin\""));
-        stale.discard();
+    fn removing_a_row_leaves_the_others() {
+        let mut rows = Rows::default();
+        let a = rows.push("a");
+        let b = rows.push("b");
+        assert!(rows.remove(a));
+        assert!(!rows.remove(a), "a second remove finds nothing");
+        assert_eq!(rows.iter().collect::<Vec<_>>(), vec![(b, &"b")]);
+        assert_eq!(rows.values().collect::<Vec<_>>(), vec![&"b"]);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.key(0), b);
+    }
+
+    #[test]
+    fn stale_row_messages_are_discarded() {
+        let mut rows = Rows::default();
+        let key = rows.push(());
+        discard_stale_row(key, &"Gin");
     }
 
     #[test]
@@ -254,16 +254,7 @@ mod tests {
 
 #[cfg(test)]
 mod test_support {
-    use super::InputMessage;
-    use crate::{
-        models::{Category, CategoryBody, CategoryID, Config},
-        presentation::application::Message,
-    };
-
-    /// Forms need a message constructor; tests never dispatch messages.
-    pub(super) fn msg(_: InputMessage) -> Message {
-        Message::NoOp
-    }
+    use crate::models::{Category, CategoryBody, CategoryID, Config};
 
     /// A default (metric) config, backed by a throwaway directory.
     pub(super) fn config() -> Config {

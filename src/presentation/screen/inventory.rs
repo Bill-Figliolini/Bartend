@@ -10,7 +10,7 @@ use crate::{
     models::{Category, CategoryFilter, CategoryID, Config, Item, ItemBody, ItemID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{InputMessage, ItemInput, UnknownTarget},
+        input_handling::{ItemInput, ItemMessage},
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -36,7 +36,7 @@ pub enum Message {
     SwapUnits,
     BeginEdit(ItemID, Option<Category>),
     CancelEdit,
-    Input(InputMessage),
+    Input(ItemMessage),
     DeleteItem(ItemID),
     SelectPage(usize),
 
@@ -103,11 +103,7 @@ impl Inventory {
 
         Self {
             // Input Handlers
-            input: ItemInput::new(
-                config,
-                input_msg,
-                category_service.get_all(CategoryFilter {}),
-            ),
+            input: ItemInput::new(config, category_service.get_all(CategoryFilter {})),
 
             // Display Managers
             unit_system,
@@ -126,7 +122,11 @@ impl Inventory {
         };
         let save_button = iced::widget::Button::new(text("save"))
             .on_press(application::Message::Inventory(Message::Save));
-        column![entry_header, row![self.input.view(), save_button]].into()
+        let input = self
+            .input
+            .view()
+            .map(|msg| application::Message::Inventory(Message::Input(msg)));
+        column![entry_header, row![input, save_button]].into()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -262,9 +262,7 @@ impl Inventory {
                 None
             }
             Message::Input(msg) => {
-                self.input
-                    .update(msg)
-                    .unwrap_or_else(UnknownTarget::discard);
+                self.input.update(msg);
                 None
             }
             Message::BeginEdit(item, category) => match self.edit_state {
@@ -318,9 +316,6 @@ impl Inventory {
         }
     }
 }
-fn input_msg(msg: InputMessage) -> application::Message {
-    application::Message::Inventory(Message::Input(msg))
-}
 
 #[cfg(test)]
 mod tests {
@@ -332,23 +327,13 @@ mod tests {
         presentation::screen::test_support::{World, drain},
     };
 
-    fn send(screen: &mut Inventory, world: &World, input: InputMessage) {
+    fn send(screen: &mut Inventory, world: &World, input: ItemMessage) {
         assert!(screen.update(&world.items, Message::Input(input)).is_none());
     }
 
     fn fill(screen: &mut Inventory, world: &World, name: &str, quantity: &str) {
-        let name_id = screen.input.name_id();
-        let quantity_id = screen.input.quantity_id();
-        send(
-            screen,
-            world,
-            InputMessage::String(name_id, name.to_string()),
-        );
-        send(
-            screen,
-            world,
-            InputMessage::String(quantity_id, quantity.to_string()),
-        );
+        send(screen, world, ItemMessage::Name(name.to_string()));
+        send(screen, world, ItemMessage::Quantity(quantity.to_string()));
     }
 
     fn category(world: &World, id: CategoryID) -> Category {
@@ -379,11 +364,10 @@ mod tests {
         let gin = world.add_category("Gin");
         let mut screen = Inventory::new(&world.config, &world.categories);
         fill(&mut screen, &world, "Tanqueray", "750");
-        let category_id = screen.input.category_id();
         send(
             &mut screen,
             &world,
-            InputMessage::Category(category_id, category(&world, gin)),
+            ItemMessage::Category(category(&world, gin)),
         );
 
         let command = screen.update(&world.items, Message::Save);
@@ -442,11 +426,10 @@ mod tests {
         let edit = Message::BeginEdit(item, Some(category(&world, gin)));
         assert!(screen.update(&world.items, edit).is_none());
         fill(&mut screen, &world, "Tito's", "500");
-        let category_id = screen.input.category_id();
         send(
             &mut screen,
             &world,
-            InputMessage::Category(category_id, category(&world, vodka)),
+            ItemMessage::Category(category(&world, vodka)),
         );
         let command = screen.update(&world.items, Message::Save);
         let Some(command @ Command::Update(Item { id, .. }, Some(_))) = command else {
@@ -559,13 +542,5 @@ mod tests {
 
         assert!(matches!(screen.edit_state, EditState::None));
         assert_eq!(screen.current_page, 1);
-    }
-
-    #[test]
-    fn stale_input_is_discarded() {
-        let world = World::new();
-        let mut screen = Inventory::new(&world.config, &world.categories);
-        let stale = InputMessage::String(iced::widget::Id::unique(), "Gin".to_string());
-        send(&mut screen, &world, stale);
     }
 }

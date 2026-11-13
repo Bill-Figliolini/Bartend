@@ -4,10 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use iced::{
-    Element,
-    widget::{Id, combo_box},
-};
+use iced::{Element, widget::combo_box};
 
 use crate::presentation::widget::input::{Error, with_error};
 
@@ -66,7 +63,6 @@ impl<T: Clone + PartialEq> Requirement<T> for Optional {
 /// A searchable drop-down of `T`s; `Q` says whether a choice is required.
 #[derive(Debug)]
 pub struct PickField<T, Q> {
-    id: Id,
     options: combo_box::State<T>,
     selection: Option<T>,
     placeholder: String,
@@ -85,7 +81,6 @@ where
         let mut placeholder = placeholder.into();
         placeholder.push_str(Q::SUFFIX);
         Self {
-            id: Id::unique(),
             options: combo_box::State::new(options),
             selection: initial,
             placeholder,
@@ -103,10 +98,6 @@ where
 
     pub fn value(&self) -> Result<Q::Output, Q::Error> {
         Q::apply(self.selection.as_ref())
-    }
-
-    pub fn id(&self) -> &Id {
-        &self.id
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]

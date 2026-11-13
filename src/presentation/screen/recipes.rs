@@ -3,7 +3,7 @@ use crate::{
     models::{CategoryFilter, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{InputMessage, RecipeInput, UnknownTarget},
+        input_handling::{RecipeInput, RecipeMessage},
         widget::{footer::footer, header::header, text_style::title},
     },
 };
@@ -29,11 +29,9 @@ pub struct Recipes {
 }
 #[derive(Debug, Clone)]
 pub enum Message {
-    Input(InputMessage),
+    Input(RecipeMessage),
     Save,
-    AddIngredient,
     SwapUnits,
-    RemoveIngredient(usize),
     BeginEdit(Recipe),
     EndEdit,
     DeleteRecipe(RecipeID),
@@ -72,11 +70,7 @@ impl Recipes {
     pub fn new(config: &Config, category_service: &CategoryService) -> Self {
         let unit_system = config.default_units();
         Self {
-            input: RecipeInput::new(
-                config,
-                input_msg,
-                category_service.get_all(CategoryFilter {}),
-            ),
+            input: RecipeInput::new(config, category_service.get_all(CategoryFilter {})),
             edit_state: EditState::None,
 
             current_page: 0,
@@ -89,11 +83,11 @@ impl Recipes {
             EditState::Editing(_) => text("Editing: "),
             EditState::None => text("New Recipe: "),
         };
-        let input = self.input.view();
+        let input = self.input.view().map(input_msg);
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
         let input_row = row![input, save_button];
-        let add_ingredient_button = button("Add Ingredient")
-            .on_press(application::Message::Recipes(Message::AddIngredient));
+        let add_ingredient_button =
+            button("Add Ingredient").on_press(input_msg(RecipeMessage::AddRow));
         column![header, input_row, add_ingredient_button].into()
     }
     fn save(&mut self, body: RecipeBody) -> Command {
@@ -185,23 +179,13 @@ impl Recipes {
     pub fn update(&mut self, message: Message, recipe_service: &RecipeService) -> Option<Command> {
         match message {
             Message::Input(msg) => {
-                self.input
-                    .update(msg)
-                    .unwrap_or_else(UnknownTarget::discard);
+                self.input.update(msg);
                 None
             }
             Message::Save => match self.input.output() {
                 Ok(body) => Some(self.save(body)),
                 Err(_) => None,
             },
-            Message::AddIngredient => {
-                self.input.add_ingredient();
-                None
-            }
-            Message::RemoveIngredient(index) => {
-                self.input.remove_ingredient(index);
-                None
-            }
             Message::BeginEdit(recipe) => {
                 self.edit_state = EditState::Editing(recipe.id);
                 self.input.begin_edit(&recipe.body, self.unit_system);
@@ -231,7 +215,7 @@ impl Recipes {
         }
     }
 }
-fn input_msg(msg: InputMessage) -> application::Message {
+fn input_msg(msg: RecipeMessage) -> application::Message {
     application::Message::Recipes(Message::Input(msg))
 }
 #[cfg_attr(coverage_nightly, coverage(off))]
@@ -262,7 +246,7 @@ mod tests {
     };
 
     fn type_name(screen: &mut Recipes, world: &World, name: &str) {
-        let input = InputMessage::String(screen.input.name_id(), name.to_string());
+        let input = RecipeMessage::Name(name.to_string());
         assert!(
             screen
                 .update(Message::Input(input), &world.recipes)
@@ -306,10 +290,12 @@ mod tests {
         let mut screen = Recipes::new(&world.config, &world.categories);
         type_name(&mut screen, &world, "Draft");
 
-        screen.update(Message::AddIngredient, &world.recipes);
+        let add = Message::Input(RecipeMessage::AddRow);
+        screen.update(add, &world.recipes);
         assert!(screen.update(Message::Save, &world.recipes).is_none());
 
-        screen.update(Message::RemoveIngredient(0), &world.recipes);
+        let remove = RecipeMessage::RemoveRow(screen.input.row_key(0));
+        screen.update(Message::Input(remove), &world.recipes);
         assert!(matches!(
             screen.update(Message::Save, &world.recipes),
             Some(Command::Add(_))
@@ -437,17 +423,5 @@ mod tests {
         assert!(matches!(screen.edit_state, EditState::None));
         assert_eq!(screen.current_page, 0);
         assert!(screen.update(Message::Save, &world.recipes).is_none());
-    }
-
-    #[test]
-    fn stale_input_is_discarded() {
-        let world = World::new();
-        let mut screen = Recipes::new(&world.config, &world.categories);
-        let stale = InputMessage::String(iced::widget::Id::unique(), "Gin".to_string());
-        assert!(
-            screen
-                .update(Message::Input(stale), &world.recipes)
-                .is_none()
-        );
     }
 }

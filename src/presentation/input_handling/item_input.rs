@@ -1,13 +1,21 @@
-use iced::widget::row;
+use iced::{Element, widget::row};
 
 use crate::{
     models::{Category, Config, ItemBody, Quantity, Unit, UnitSystem},
     presentation::{
-        application::Message,
-        input_handling::{Field, FormError, InputMessage, UnknownTarget, Validator, route},
+        input_handling::{Field, FormError, Validator},
         widget::input::{NumberField, OptionalPick, RequiredPick, StringField},
     },
 };
+
+/// An edit to one field of an [`ItemInput`].
+#[derive(Debug, Clone)]
+pub enum ItemMessage {
+    Name(String),
+    Quantity(String),
+    Unit(Unit),
+    Category(Category),
+}
 
 #[derive(Debug)]
 pub struct ItemInput {
@@ -15,16 +23,11 @@ pub struct ItemInput {
     quantity: NumberField,
     unit: RequiredPick<Unit>,
     category: OptionalPick<Category>,
-    msg: fn(InputMessage) -> Message,
     /// Set once a save has been attempted; see `CategoryInput::show_errors`.
     show_errors: bool,
 }
 impl ItemInput {
-    pub fn new(
-        config: &Config,
-        msg: fn(InputMessage) -> Message,
-        categories: Vec<Category>,
-    ) -> Self {
+    pub fn new(config: &Config, categories: Vec<Category>) -> Self {
         let units = match config.default_units() {
             UnitSystem::Metric => Unit::Milliliter,
             UnitSystem::Imperial => Unit::FluidOunce,
@@ -34,46 +37,27 @@ impl ItemInput {
             quantity: NumberField::new("Quantity"),
             unit: RequiredPick::new(Unit::get_units(), Some(units), ""),
             category: OptionalPick::new(categories, None, "Category"),
-            msg,
             show_errors: false,
         }
     }
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> iced::Element<'_, Message> {
+    pub fn view(&self) -> Element<'_, ItemMessage> {
         let show = self.show_errors;
         row![
-            self.name
-                .view(route(self.msg, self.name.id(), InputMessage::String), show),
-            self.quantity.view(
-                route(self.msg, self.quantity.id(), InputMessage::String),
-                show
-            ),
-            self.unit
-                .view(route(self.msg, self.unit.id(), InputMessage::Unit), show),
-            self.category.view(
-                route(self.msg, self.category.id(), InputMessage::Category),
-                show
-            ),
+            self.name.view(ItemMessage::Name, show),
+            self.quantity.view(ItemMessage::Quantity, show),
+            self.unit.view(ItemMessage::Unit, show),
+            self.category.view(ItemMessage::Category, show),
         ]
         .into()
     }
-    pub fn update(&mut self, msg: InputMessage) -> Result<(), UnknownTarget> {
+    pub fn update(&mut self, msg: ItemMessage) {
         match msg {
-            InputMessage::String(id, str) if &id == self.name.id() => {
-                self.name.set(str);
-            }
-            InputMessage::String(id, str) if &id == self.quantity.id() => {
-                self.quantity.set(str);
-            }
-            InputMessage::Unit(id, unit) if &id == self.unit.id() => {
-                self.unit.select(unit);
-            }
-            InputMessage::Category(id, category) if &id == self.category.id() => {
-                self.category.select(category);
-            }
-            msg => return Err(UnknownTarget(msg)),
+            ItemMessage::Name(text) => self.name.set(text),
+            ItemMessage::Quantity(text) => self.quantity.set(text),
+            ItemMessage::Unit(unit) => self.unit.select(unit),
+            ItemMessage::Category(category) => self.category.select(category),
         }
-        Ok(())
     }
     pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), FormError> {
         self.show_errors = true;
@@ -111,41 +95,21 @@ impl ItemInput {
         self.quantity.set(quantity.to_string());
         self.unit.select(units);
     }
-    #[cfg(test)]
-    pub fn name_id(&self) -> iced::widget::Id {
-        self.name.id().clone()
-    }
-    #[cfg(test)]
-    pub fn quantity_id(&self) -> iced::widget::Id {
-        self.quantity.id().clone()
-    }
-    #[cfg(test)]
-    pub fn category_id(&self) -> iced::widget::Id {
-        self.category.id().clone()
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use iced::widget::Id;
-
     use super::*;
     use crate::presentation::{
         input_handling::{
             FormError,
-            test_support::{category, config, msg},
+            test_support::{category, config},
         },
         widget::input::Error,
     };
 
     fn item_input() -> ItemInput {
-        ItemInput::new(&config(), msg, vec![category(1, "Gin")])
-    }
-
-    fn set_text(input: &mut ItemInput, id: &Id, text: &str) {
-        input
-            .update(InputMessage::String(id.clone(), text.to_string()))
-            .unwrap();
+        ItemInput::new(&config(), vec![category(1, "Gin")])
     }
 
     #[test]
@@ -163,13 +127,9 @@ mod tests {
     #[test]
     fn valid_item_is_returned_with_optional_category() {
         let mut input = item_input();
-        let (name, quantity) = (input.name.id().clone(), input.quantity.id().clone());
-        set_text(&mut input, &name, "Tanqueray");
-        set_text(&mut input, &quantity, "750");
-        let category_id = input.category.id().clone();
-        input
-            .update(InputMessage::Category(category_id, category(1, "Gin")))
-            .unwrap();
+        input.update(ItemMessage::Name("Tanqueray".to_string()));
+        input.update(ItemMessage::Quantity("750".to_string()));
+        input.update(ItemMessage::Category(category(1, "Gin")));
 
         let (body, chosen) = input.output().unwrap();
         assert_eq!(
@@ -185,19 +145,11 @@ mod tests {
     #[test]
     fn clearing_keeps_the_chosen_unit() {
         let mut input = item_input();
-        let unit = input.unit.id().clone();
-        input.update(InputMessage::Unit(unit, Unit::Dash)).unwrap();
+        input.update(ItemMessage::Unit(Unit::Dash));
         input.output().unwrap_err();
         input.clear();
         assert!(!input.show_errors);
         assert_eq!(input.unit.value(), Ok(Unit::Dash));
-    }
-
-    #[test]
-    fn message_for_unknown_field_is_rejected() {
-        let mut input = item_input();
-        let stale = InputMessage::Unit(Id::unique(), Unit::Gram);
-        assert!(input.update(stale).is_err());
     }
 
     #[test]
@@ -222,14 +174,9 @@ mod tests {
     #[test]
     fn chosen_unit_is_used() {
         let mut input = item_input();
-        let (name, quantity, unit) = (
-            input.name.id().clone(),
-            input.quantity.id().clone(),
-            input.unit.id().clone(),
-        );
-        set_text(&mut input, &name, "Angostura");
-        set_text(&mut input, &quantity, "3");
-        input.update(InputMessage::Unit(unit, Unit::Dash)).unwrap();
+        input.update(ItemMessage::Name("Angostura".to_string()));
+        input.update(ItemMessage::Quantity("3".to_string()));
+        input.update(ItemMessage::Unit(Unit::Dash));
 
         let (body, _) = input.output().unwrap();
         assert_eq!(body.quantity, Quantity::new(3.0, Unit::Dash));
@@ -239,7 +186,7 @@ mod tests {
     fn imperial_config_defaults_to_fluid_ounces() {
         let mut config = config().editable();
         config.default_unit_system = UnitSystem::Imperial;
-        let input = ItemInput::new(&config.commit(), msg, Vec::new());
+        let input = ItemInput::new(&config.commit(), Vec::new());
         assert_eq!(input.unit.value(), Ok(Unit::FluidOunce));
     }
 }
