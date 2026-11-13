@@ -47,8 +47,6 @@ pub struct ItemInput {
     quantity: NumberField,
     unit: RequiredPick<Unit>,
     category: OptionalPick<Category>,
-    /// Whether fields show their errors; see the [module docs](super).
-    show_errors: bool,
 }
 impl ItemInput {
     /// The unit starts as the configured unit system's volume unit (ml or
@@ -63,38 +61,7 @@ impl ItemInput {
             quantity: NumberField::new("Quantity"),
             unit: RequiredPick::new(Unit::get_units(), Some(units), ""),
             category: OptionalPick::new(categories, None, "Category"),
-            show_errors: false,
         }
-    }
-    /// Shows errors once [`output`](Self::output) has been tried.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> Element<'_, ItemMessage> {
-        Form::view(self, self.show_errors)
-    }
-
-    pub fn update(&mut self, msg: ItemMessage) {
-        Form::update(self, msg);
-    }
-
-    /// The item, and the category chosen for it if any. Validates, shows
-    /// errors from now on, and clears the form on success.
-    pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), FormError<ItemField>> {
-        self.show_errors = true;
-        let output = Form::validate(self)?;
-        self.clear();
-        Ok(output)
-    }
-
-    /// Keeps the chosen unit; see [`Form::clear`].
-    pub fn clear(&mut self) {
-        Form::clear(self);
-        self.show_errors = false;
-    }
-
-    /// Fills the form from `edit`, showing its quantity in `unit_system`.
-    pub fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
-        self.clear();
-        self.fill(edit, unit_system);
     }
 }
 
@@ -176,9 +143,9 @@ mod tests {
 
     #[test]
     fn reports_every_invalid_field() {
-        let mut input = item_input();
+        let input = item_input();
         assert_eq!(
-            input.output(),
+            input.validate(),
             Err(FormError(vec![
                 (ItemField::Name, Error::StringEmpty),
                 (ItemField::Quantity, Error::QuantityInvalid),
@@ -193,7 +160,7 @@ mod tests {
         input.update(ItemMessage::Quantity("750".to_string()));
         input.update(ItemMessage::Category(category(1, "Gin")));
 
-        let (body, chosen) = input.output().unwrap();
+        let (body, chosen) = input.validate().unwrap();
         assert_eq!(
             body,
             ItemBody {
@@ -215,9 +182,10 @@ mod tests {
     fn clearing_keeps_the_chosen_unit() {
         let mut input = item_input();
         input.update(ItemMessage::Unit(Unit::Dash));
-        input.output().unwrap_err();
+        input.update(ItemMessage::Name("Angostura".to_string()));
         input.clear();
-        assert!(!input.show_errors);
+        let errors = input.validate().unwrap_err();
+        assert_eq!(errors.error_for(&ItemField::Name), Some(Error::StringEmpty));
         assert_eq!(input.unit.value(), Ok(Unit::Dash));
     }
 
@@ -232,8 +200,8 @@ mod tests {
         );
         for system in [UnitSystem::Metric, UnitSystem::Imperial] {
             let mut input = item_input();
-            input.begin_edit(&edit, system);
-            let (body, chosen) = input.output().unwrap();
+            input.fill(&edit, system);
+            let (body, chosen) = input.validate().unwrap();
             assert_eq!(body.name, "Tanqueray");
             assert!((body.quantity.value(UnitSystem::Metric) - 750.0).abs() < 0.01);
             assert_eq!(chosen, Some(category(1, "Gin")));
@@ -247,7 +215,7 @@ mod tests {
         input.update(ItemMessage::Quantity("3".to_string()));
         input.update(ItemMessage::Unit(Unit::Dash));
 
-        let (body, _) = input.output().unwrap();
+        let (body, _) = input.validate().unwrap();
         assert_eq!(body.quantity, Quantity::new(3.0, Unit::Dash));
     }
 

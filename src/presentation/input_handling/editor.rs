@@ -64,6 +64,7 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
     }
 
     /// The id of the value being edited, if any.
+    #[cfg(test)]
     pub fn editing(&self) -> Option<Id> {
         self.editing
     }

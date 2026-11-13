@@ -77,8 +77,6 @@ pub struct RecipeInput {
     categories: Vec<Category>,
 
     unit_system: UnitSystem,
-    /// Whether fields show their errors; see the [module docs](super).
-    show_errors: bool,
 }
 /// One ingredient row of a [`RecipeInput`].
 #[derive(Debug)]
@@ -133,38 +131,7 @@ impl RecipeInput {
             ingredient_inputs: Rows::default(),
             categories,
             unit_system: config.default_units(),
-            show_errors: false,
         }
-    }
-
-    /// Shows errors once [`output`](Self::output) has been tried.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> Element<'_, RecipeMessage> {
-        Form::view(self, self.show_errors)
-    }
-
-    pub fn update(&mut self, msg: RecipeMessage) {
-        Form::update(self, msg);
-    }
-
-    /// Validates, shows errors from now on, and clears the form on success.
-    pub fn output(&mut self) -> Result<RecipeBody, FormError<RecipeField>> {
-        self.show_errors = true;
-        let body = Form::validate(self)?;
-        self.clear();
-        Ok(body)
-    }
-
-    pub fn clear(&mut self) {
-        Form::clear(self);
-        self.show_errors = false;
-    }
-
-    /// Fills the form from `recipe`, one row per ingredient, showing
-    /// quantities in `unit_system`.
-    pub fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
-        self.clear();
-        self.fill(recipe, unit_system);
     }
 
     /// The key of the `index`th ingredient row.
@@ -316,7 +283,7 @@ mod tests {
         let mut input = recipe_input();
         set_name(&mut input, "Draft");
         assert_eq!(
-            input.output(),
+            input.validate(),
             Ok(RecipeBody {
                 name: "Draft".to_string(),
                 ingredients: Vec::new(),
@@ -336,14 +303,14 @@ mod tests {
             ingredient_error(&input, 1, IngredientField::Category, Error::MustChooseValue),
             ingredient_error(&input, 1, IngredientField::Quantity, Error::QuantityInvalid),
         ]);
-        assert_eq!(input.output(), Err(expected));
+        assert_eq!(input.validate(), Err(expected));
     }
 
     #[test]
     fn editing_a_recipe_round_trips() {
         let mut input = recipe_input();
-        input.begin_edit(&gin_and_tonic(), UnitSystem::Metric);
-        assert_eq!(input.output(), Ok(gin_and_tonic()));
+        input.fill(&gin_and_tonic(), UnitSystem::Metric);
+        assert_eq!(input.validate(), Ok(gin_and_tonic()));
     }
 
     #[test]
@@ -351,7 +318,7 @@ mod tests {
         let mut input = recipe_input();
         let mut recipe = gin_and_tonic();
         recipe.ingredients[1].category = CategoryID(99);
-        input.begin_edit(&recipe, UnitSystem::Metric);
+        input.fill(&recipe, UnitSystem::Metric);
 
         assert_eq!(input.ingredient_inputs.len(), 2);
         let expected = FormError(vec![ingredient_error(
@@ -360,7 +327,7 @@ mod tests {
             IngredientField::Category,
             Error::MustChooseValue,
         )]);
-        assert_eq!(input.output(), Err(expected));
+        assert_eq!(input.validate(), Err(expected));
     }
 
     #[test]
@@ -392,7 +359,7 @@ mod tests {
 
         // The new row did not receive the quantity meant for the old one.
         let new_row = input.row_key(0);
-        let error = input.output().unwrap_err();
+        let error = input.validate().unwrap_err();
         let quantity = RecipeField::Ingredient(new_row, IngredientField::Quantity);
         assert_eq!(error.error_for(&quantity), Some(Error::QuantityInvalid));
         let old_quantity = RecipeField::Ingredient(removed, IngredientField::Quantity);
@@ -417,7 +384,7 @@ mod tests {
             IngredientMessage::Category(category(2, "Tonic")),
         ));
 
-        let error = input.output().unwrap_err();
+        let error = input.validate().unwrap_err();
         let quantity = |key| RecipeField::Ingredient(key, IngredientField::Quantity);
         assert_eq!(error.error_for(&quantity(valid)), None);
         assert_eq!(
@@ -454,7 +421,7 @@ mod tests {
         input.update(row(IngredientMessage::Unit(Unit::Dash)));
 
         assert_eq!(
-            input.output(),
+            input.validate(),
             Ok(RecipeBody {
                 name: "Bitters".to_string(),
                 ingredients: vec![Ingredient {

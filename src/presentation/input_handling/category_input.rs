@@ -3,7 +3,7 @@ use std::fmt::Display;
 use iced::Element;
 
 use crate::{
-    models::{CategoryBody, Config, UnitSystem},
+    models::{CategoryBody, UnitSystem},
     presentation::{
         input_handling::{Form, FormError, Validator},
         widget::input::StringField,
@@ -34,44 +34,13 @@ impl Display for CategoryField {
 #[derive(Debug)]
 pub struct CategoryInput {
     name_input: StringField,
-    /// Whether fields show their errors; see the [module docs](super).
-    show_errors: bool,
 }
 
 impl CategoryInput {
-    pub fn new(_config: &Config) -> Self {
+    pub fn new() -> Self {
         Self {
             name_input: StringField::new("Name"),
-            show_errors: false,
         }
-    }
-
-    /// Shows errors once [`output`](Self::output) has been tried.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> Element<'_, CategoryMessage> {
-        Form::view(self, self.show_errors)
-    }
-
-    pub fn update(&mut self, msg: CategoryMessage) {
-        Form::update(self, msg);
-    }
-
-    /// Validates, shows errors from now on, and clears the form on success.
-    pub fn output(&mut self) -> Result<CategoryBody, FormError<CategoryField>> {
-        self.show_errors = true;
-        let body = Form::validate(self)?;
-        self.clear();
-        Ok(body)
-    }
-
-    pub fn clear(&mut self) {
-        Form::clear(self);
-        self.show_errors = false;
-    }
-
-    pub fn begin_edit(&mut self, edit: &CategoryBody, unit_system: UnitSystem) {
-        self.clear();
-        self.fill(edit, unit_system);
     }
 }
 
@@ -113,10 +82,7 @@ impl Form for CategoryInput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::presentation::{
-        input_handling::{FormError, test_support::config},
-        widget::input::Error,
-    };
+    use crate::presentation::{input_handling::FormError, widget::input::Error};
 
     fn set_name(input: &mut CategoryInput, name: &str) {
         input.update(CategoryMessage::Name(name.to_string()));
@@ -124,47 +90,44 @@ mod tests {
 
     #[test]
     fn empty_name_reports_name_field() {
-        let mut input = CategoryInput::new(&config());
+        let input = CategoryInput::new();
         assert_eq!(
-            input.output(),
+            input.validate(),
             Err(FormError(vec![(CategoryField::Name, Error::StringEmpty)]))
         );
     }
 
     #[test]
-    fn valid_name_is_returned_and_form_cleared() {
-        let mut input = CategoryInput::new(&config());
+    fn valid_name_is_returned() {
+        let mut input = CategoryInput::new();
         set_name(&mut input, "Gin");
-        assert_eq!(
-            input.output(),
-            Ok(CategoryBody {
-                name: "Gin".to_string()
-            })
-        );
-        assert!(input.output().is_err(), "form should be empty after a save");
+        let gin = Ok(CategoryBody {
+            name: "Gin".to_string(),
+        });
+        assert_eq!(input.validate(), gin);
+        assert_eq!(input.validate(), gin, "validating changes nothing");
+    }
+
+    #[test]
+    fn clear_empties_the_name() {
+        let mut input = CategoryInput::new();
+        set_name(&mut input, "Gin");
+        input.clear();
+        input.validate().unwrap_err();
+    }
+
+    #[test]
+    fn editing_fills_the_name() {
+        let mut input = CategoryInput::new();
+        let gin = CategoryBody {
+            name: "Gin".to_string(),
+        };
+        input.fill(&gin, UnitSystem::Metric);
+        assert_eq!(input.validate(), Ok(gin));
     }
 
     #[test]
     fn fields_display_their_names() {
         assert_eq!(CategoryField::Name.to_string(), "Name");
-    }
-
-    #[test]
-    fn errors_are_shown_only_after_a_save_attempt() {
-        let mut input = CategoryInput::new(&config());
-        assert!(!input.show_errors);
-        input.output().unwrap_err();
-        assert!(input.show_errors);
-        input.clear();
-        assert!(!input.show_errors);
-    }
-
-    #[test]
-    fn successful_save_hides_errors() {
-        let mut input = CategoryInput::new(&config());
-        input.output().unwrap_err();
-        set_name(&mut input, "Gin");
-        input.output().unwrap();
-        assert!(!input.show_errors);
     }
 }

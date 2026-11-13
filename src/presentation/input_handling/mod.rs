@@ -1,37 +1,41 @@
 //! The forms in each screen's entry area: one per screen, built from the
 //! fields in [`widget::input`](crate::presentation::widget::input).
 //!
-//! Every form follows the same pattern:
+//! The add-or-edit forms (items, categories and recipes) implement [`Form`]
+//! and are driven by an [`Editor`]:
 //!
 //! - **Messages.** Each form has its own message enum (e.g. [`ItemMessage`])
 //!   with a variant per field, so an edit can only reach the field it was
-//!   meant for. `view` returns an `Element` of that message; the screen
-//!   wraps it into its own message with `.map(..)` and hands it back to the
-//!   form's `update`, which cannot fail.
+//!   meant for. The screen wraps it as [`EditorMessage::Input`], alongside
+//!   `Save` and `Cancel`, and hands it to [`Editor::update`].
 //! - **Rows.** Repeated groups of fields, such as a recipe's ingredients,
 //!   are kept in [`Rows`], and their messages carry the row's [`RowKey`].
 //!   Keys are never reused, so a message for a row that is gone is dropped
 //!   rather than landing on another row.
-//! - **Saving.** `output` checks every field, not just up to the first
-//!   failure. It either returns the finished value and clears the form, or
-//!   returns a [`FormError`] naming each failed field by the form's own field
-//!   enum, e.g. `ItemField::Quantity` or, for a row,
-//!   `RecipeField::Ingredient(key, IngredientField::Quantity)`.
-//! - **Showing errors.** Each form has a `show_errors` flag that `output`
-//!   sets and `clear` resets. Fields show no errors until then, so a form
-//!   the user has only just started is not covered in complaints. After it,
-//!   each error is worked out afresh on every view, so it disappears as soon
-//!   as the field is fixed.
-//! - **Editing.** `begin_edit` clears the form and fills it from an existing
-//!   value.
+//! - **Saving.** [`Form::validate`] checks every field, not just up to the
+//!   first failure, and changes nothing. It returns the finished value or a
+//!   [`FormError`] naming each failed field by the form's own field enum,
+//!   e.g. `ItemField::Quantity` or, for a row,
+//!   `RecipeField::Ingredient(key, IngredientField::Quantity)`. On success
+//!   the editor clears the form and says whether to add or update.
+//! - **Showing errors.** The editor shows no errors until the first save
+//!   attempt, so a form the user has only just started is not covered in
+//!   complaints. After it, each error is worked out afresh on every view, so
+//!   it disappears as soon as the field is fixed. Any reset hides them again.
+//! - **Editing.** [`Editor::toggle_edit`] clears the form and fills it from
+//!   an existing value with [`Form::fill`]; cancelling clears it again, so a
+//!   later save cannot add a copy of the value that was being edited.
+//!
+//! [`ServingInput`] is the exception: it has no edit mode and needs the
+//! services to update and draw itself, so it keeps its own `show_errors`
+//! flag and `output`, which validates and clears in one step.
 //!
 //! To add a field: add it to the form struct, a variant to the message enum
 //! and to `update` (the compiler points out that match), then to `view`;
 //! and if the field can fail, a variant to the field enum and a check in
-//! `output`.
+//! `validate`.
 
 mod category_input;
-#[expect(dead_code, reason = "screens move to Editor in the next phase")]
 mod editor;
 mod item_input;
 mod recipe_input;
@@ -43,8 +47,7 @@ use iced::Element;
 
 use crate::{models::UnitSystem, presentation::widget::input::Error};
 
-/// A form that adds or edits one value, driven by an
-/// [`Editor`](editor::Editor).
+/// A form that adds or edits one value, driven by an [`Editor`].
 ///
 /// A form only holds what the user entered and checks it. When errors are
 /// shown, when the form is cleared, and whether a save adds or updates are
@@ -212,6 +215,7 @@ impl<F> Validator<F> {
 
 pub use {
     category_input::{CategoryInput, CategoryMessage},
+    editor::{Editor, EditorMessage, Saved},
     item_input::{ItemInput, ItemMessage},
     recipe_input::{RecipeInput, RecipeMessage},
     serving_input::{ServingInput, ServingMessage},

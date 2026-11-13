@@ -2,10 +2,10 @@ use std::vec;
 
 use crate::{
     logic::CategoryService,
-    models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
+    models::{Category, CategoryBody, CategoryID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{CategoryInput, CategoryMessage},
+        input_handling::{CategoryInput, CategoryMessage, Editor, EditorMessage, Saved},
         widget::{self, text_style},
     },
 };
@@ -18,9 +18,7 @@ use iced::{
 
 #[derive(Debug)]
 pub struct Categories {
-    input: CategoryInput,
-
-    edit_state: EditState,
+    editor: Editor<CategoryInput, CategoryID>,
 
     current_page: usize,
     stub: Option<Category>,
@@ -29,13 +27,14 @@ pub struct Categories {
 #[derive(Debug, Clone)]
 pub enum Message {
     Reload,
-    Input(CategoryMessage),
+    Editor(EditorMessage<CategoryMessage>),
+    /// Starts editing the category, or cancels if it is already being
+    /// edited.
     Edit(CategoryID),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
     DeleteCategory(CategoryID),
     SelectPage(usize),
-    Save,
 }
 pub enum Command {
     AddCategory(CategoryBody),
@@ -97,34 +96,13 @@ impl Command {
         }
     }
 }
-#[derive(Debug)]
-enum EditState {
-    Editing(CategoryID),
-    None,
-}
 impl Categories {
-    pub fn new(config: &Config) -> Self {
+    pub fn new() -> Self {
         Self {
-            input: CategoryInput::new(config),
-            edit_state: EditState::None,
+            editor: Editor::new(CategoryInput::new(), "Category"),
             current_page: 0,
             stub: None,
         }
-    }
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_category_entry(&self) -> Element<'_, application::Message> {
-        let header = match self.edit_state {
-            EditState::None => text("New Category:"),
-            EditState::Editing(_) => text("Edit Category:"),
-        };
-        let save_button = iced::widget::Button::new("Save")
-            .on_press(application::Message::Categories(Message::Save));
-        let input = self
-            .input
-            .view()
-            .map(|msg| application::Message::Categories(Message::Input(msg)));
-        let body = row![input, save_button];
-        column![header, body].into()
     }
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn build_category_display(
@@ -149,18 +127,14 @@ impl Categories {
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
-            |category: CategoryID| match self.edit_state {
-                EditState::None => iced::widget::Button::new(text("Edit").center())
-                    .on_press(application::Message::Categories(Message::Edit(category)))
-                    .width(edit_column_width),
-                EditState::Editing(category_id) if category == category_id => {
-                    iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::Categories(Message::Edit(category_id)))
-                        .width(edit_column_width)
-                }
-                EditState::Editing(_) => {
-                    iced::widget::Button::new(text("Edit").center()).width(edit_column_width)
-                }
+            |category: CategoryID| {
+                self.editor
+                    .edit_button(
+                        category,
+                        || application::Message::Categories(Message::Edit(category)),
+                        editor_msg(EditorMessage::Cancel),
+                    )
+                    .width(edit_column_width)
             },
         );
         let delete_column_width = 50;
@@ -185,7 +159,7 @@ impl Categories {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self, category_service: &CategoryService) -> Element<'_, application::Message> {
         let header = widget::header::header(text_style::title("Categories"));
-        let category_entry = self.build_category_entry();
+        let category_entry = self.editor.view().map(editor_msg);
         let categories = self.build_category_display(category_service);
         let mut page_controller_contents = Vec::new();
         if self.current_page != 0 {
@@ -218,37 +192,21 @@ impl Categories {
         category_service: &CategoryService,
     ) -> Option<Command> {
         match message {
-            Message::Input(msg) => {
-                self.input.update(msg);
-                None
-            }
-            Message::Edit(category) => {
-                match self.edit_state {
-                    EditState::None => {
-                        self.edit_state = EditState::Editing(category);
-                        let body = category_service.get(category).cloned().unwrap_or_default();
-                        self.input.begin_edit(&body, UnitSystem::Metric);
-                    }
-                    EditState::Editing(category_id) if category_id == category => {
-                        self.input.clear();
-                        self.edit_state = EditState::None;
-                    }
-                    EditState::Editing(_) => unreachable!(
-                        "Edit buttons to items not currently under edit should not be accesable"
-                    ),
+            Message::Editor(msg) => match self.editor.update(msg) {
+                Ok(Some(Saved::Add(body))) => Some(Command::AddCategory(body)),
+                Ok(Some(Saved::Update(id, body))) => {
+                    Some(Command::UpdateCategory(Category { id, body }))
                 }
+                Ok(None) | Err(_) => None,
+            },
+            Message::Edit(category) => {
+                let load = || category_service.get(category).cloned().unwrap_or_default();
+                // Categories have no quantities, so the unit system is unused.
+                self.editor.toggle_edit(category, load, UnitSystem::Metric);
                 None
             }
-            Message::Save => match self.input.output() {
-                Ok(body) => match self.edit_state {
-                    EditState::Editing(id) => Some(Command::UpdateCategory(Category { id, body })),
-                    EditState::None => Some(Command::AddCategory(body)),
-                },
-                Err(_) => None,
-            },
             Message::Reload => {
-                self.input.clear();
-                self.edit_state = EditState::None;
+                self.editor.reset();
                 self.current_page = self.current_page.min(
                     category_service
                         .category_count()
@@ -312,6 +270,10 @@ impl Categories {
         .into()
     }
 }
+fn editor_msg(msg: EditorMessage<CategoryMessage>) -> application::Message {
+    application::Message::Categories(Message::Editor(msg))
+}
+
 fn category_add_msg(parent: CategoryID, child: CategoryID) -> application::Message {
     application::Message::Categories(Message::AddRelation(parent, child))
 }
@@ -330,11 +292,16 @@ mod tests {
         presentation::screen::test_support::{World, drain},
     };
 
+    const SAVE: Message = Message::Editor(EditorMessage::Save);
+
     fn type_name(screen: &mut Categories, world: &World, name: &str) {
         let input = CategoryMessage::Name(name.to_string());
         assert!(
             screen
-                .update(Message::Input(input), &world.categories)
+                .update(
+                    Message::Editor(EditorMessage::Input(input)),
+                    &world.categories
+                )
                 .is_none()
         );
     }
@@ -353,10 +320,10 @@ mod tests {
     #[test]
     fn saving_a_new_category_adds_it() {
         let mut world = World::new();
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
         type_name(&mut screen, &world, "Gin");
 
-        let command = screen.update(Message::Save, &world.categories);
+        let command = screen.update(SAVE, &world.categories);
         let Some(command @ Command::AddCategory(_)) = command else {
             panic!("expected AddCategory");
         };
@@ -369,19 +336,19 @@ mod tests {
     #[test]
     fn saving_an_empty_form_does_nothing() {
         let world = World::new();
-        let mut screen = Categories::new(&world.config);
-        assert!(screen.update(Message::Save, &world.categories).is_none());
+        let mut screen = Categories::new();
+        assert!(screen.update(SAVE, &world.categories).is_none());
     }
 
     #[test]
     fn editing_updates_the_existing_category() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         screen.update(Message::Edit(gin), &world.categories);
         type_name(&mut screen, &world, "London Dry Gin");
-        let command = screen.update(Message::Save, &world.categories);
+        let command = screen.update(SAVE, &world.categories);
         let Some(command @ Command::UpdateCategory(Category { id, .. })) = command else {
             panic!("expected UpdateCategory");
         };
@@ -396,14 +363,14 @@ mod tests {
     fn editing_the_same_category_again_cancels() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         screen.update(Message::Edit(gin), &world.categories);
         screen.update(Message::Edit(gin), &world.categories);
 
-        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.editor.editing(), None);
         assert!(
-            screen.update(Message::Save, &world.categories).is_none(),
+            screen.update(SAVE, &world.categories).is_none(),
             "cancelling should clear the form"
         );
     }
@@ -434,7 +401,7 @@ mod tests {
         let mut world = World::new();
         let spirit = world.add_category("Spirit");
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         let add = screen.update(Message::AddRelation(spirit, gin), &world.categories);
         assert!(apply(&mut world, add.unwrap()).is_empty());
@@ -487,7 +454,7 @@ mod tests {
     fn deleting_a_category_removes_it() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         let command = screen.update(Message::DeleteCategory(gin), &world.categories);
         assert_reloads(&apply(&mut world, command.unwrap()));
@@ -519,16 +486,16 @@ mod tests {
     fn reload_ends_editing_and_clamps_the_page() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
         screen.update(Message::Edit(gin), &world.categories);
         screen.update(Message::SelectPage(4), &world.categories);
         assert_eq!(screen.current_page, 4);
 
         screen.update(Message::Reload, &world.categories);
 
-        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.editor.editing(), None);
         assert_eq!(screen.current_page, 0);
-        assert!(screen.update(Message::Save, &world.categories).is_none());
+        assert!(screen.update(SAVE, &world.categories).is_none());
     }
 
     #[test]

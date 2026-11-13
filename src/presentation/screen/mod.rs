@@ -137,8 +137,8 @@ impl Screen {
     pub fn settings(current_config: &Config) -> Self {
         Self::Settings(settings::Settings::new(current_config))
     }
-    pub fn categories(config: &Config) -> Self {
-        Self::Categories(categories::Categories::new(config))
+    pub fn categories() -> Self {
+        Self::Categories(categories::Categories::new())
     }
     pub fn recipes(config: &Config, category_service: &CategoryService) -> Self {
         Screen::Recipes(Recipes::new(config, category_service))
@@ -310,7 +310,7 @@ mod tests {
         vec![
             Screen::inventory(&world.config, &world.categories),
             Screen::settings(&world.config),
-            Screen::categories(&world.config),
+            Screen::categories(),
             Screen::recipes(&world.config, &world.categories),
             Screen::serving(&world.config, &world.recipes),
         ]
@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn messages_for_another_screen_are_ignored() {
         let world = World::new();
-        let mut screen = Screen::categories(&world.config);
+        let mut screen = Screen::categories();
         let stale = Message::Inventory(inventory::Message::DeleteItem(ItemID(1)));
         assert!(update(&world, &mut screen, stale).is_none());
     }

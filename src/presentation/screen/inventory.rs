@@ -10,33 +10,26 @@ use crate::{
     models::{Category, CategoryFilter, CategoryID, Config, Item, ItemBody, ItemID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{ItemInput, ItemMessage},
+        input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved},
         widget::{footer::footer, header::header, text_style::title},
     },
 };
 
 #[derive(Debug)]
 pub struct Inventory {
-    input: ItemInput,
+    editor: Editor<ItemInput, ItemID>,
 
     current_page: usize,
     unit_system: UnitSystem,
-
-    edit_state: EditState,
-}
-#[derive(Debug)]
-enum EditState {
-    None,
-    Editing(ItemID),
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Save,
     SwapUnits,
+    /// Starts editing the item, which is in the given category, or cancels
+    /// if it is already being edited.
     BeginEdit(ItemID, Option<Category>),
-    CancelEdit,
-    Input(ItemMessage),
+    Editor(EditorMessage<ItemMessage>),
     DeleteItem(ItemID),
     SelectPage(usize),
 
@@ -101,32 +94,12 @@ impl Inventory {
     pub fn new(config: &Config, category_service: &CategoryService) -> Self {
         let unit_system = config.default_units();
 
+        let form = ItemInput::new(config, category_service.get_all(CategoryFilter {}));
         Self {
-            // Input Handlers
-            input: ItemInput::new(config, category_service.get_all(CategoryFilter {})),
-
-            // Display Managers
+            editor: Editor::new(form, "Item"),
             unit_system,
             current_page: 0,
-
-            // Input State
-            edit_state: EditState::None,
         }
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_item_entry_section(&self) -> Element<'_, application::Message> {
-        let entry_header = match self.edit_state {
-            EditState::None => text("New Item:"),
-            EditState::Editing(_) => text("Edit Item:"),
-        };
-        let save_button = iced::widget::Button::new(text("save"))
-            .on_press(application::Message::Inventory(Message::Save));
-        let input = self
-            .input
-            .view()
-            .map(|msg| application::Message::Inventory(Message::Input(msg)));
-        column![entry_header, row![input, save_button]].into()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -160,29 +133,20 @@ impl Inventory {
                     None => text!("None"),
                 },
             );
-        //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
         let edit_column_width = 70;
         let edit_column = table::column(
             text("Edit").width(edit_column_width).center(),
-            |item: ItemID| match self.edit_state {
-                EditState::None => {
-                    let category = category_service.item_category(item).map(|id_ref| Category {
-                        id: id_ref,
-                        body: category_service.get(id_ref).cloned().unwrap_or_default(),
+            |item: ItemID| {
+                let begin = || {
+                    let category = category_service.item_category(item).map(|id| Category {
+                        id,
+                        body: category_service.get(id).cloned().unwrap_or_default(),
                     });
-                    iced::widget::Button::new(text("Edit").center()).on_press(
-                        application::Message::Inventory(Message::BeginEdit(item, category)),
-                    )
-                }
-                .width(edit_column_width),
-                EditState::Editing(item_id) if item == item_id => {
-                    iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::Inventory(Message::CancelEdit))
-                        .width(edit_column_width)
-                }
-                EditState::Editing(_) => {
-                    iced::widget::Button::new(text("Edit").center()).width(edit_column_width)
-                }
+                    application::Message::Inventory(Message::BeginEdit(item, category))
+                };
+                self.editor
+                    .edit_button(item, begin, editor_msg(EditorMessage::Cancel))
+                    .width(edit_column_width)
             },
         );
         let delete_column_width = 50;
@@ -213,7 +177,7 @@ impl Inventory {
         let title_text = title("Inventory");
         let header = header(title_text);
 
-        let entry_section = self.build_item_entry_section();
+        let entry_section = self.editor.view().map(editor_msg);
 
         let inventory = self.build_inventory_display(item_service, category_service);
 
@@ -257,52 +221,28 @@ impl Inventory {
                 self.unit_system.swap();
                 None
             }
-            Message::CancelEdit => {
-                self.edit_state = EditState::None;
-                None
-            }
-            Message::Input(msg) => {
-                self.input.update(msg);
-                None
-            }
-            Message::BeginEdit(item, category) => match self.edit_state {
-                EditState::None => {
-                    self.edit_state = EditState::Editing(item);
-                    self.input.begin_edit(
-                        &(
-                            item_service.get(item).cloned().unwrap_or_default(),
-                            category,
-                        ),
-                        self.unit_system,
-                    );
-                    None
+            Message::Editor(msg) => match self.editor.update(msg) {
+                Ok(Some(Saved::Add((body, category)))) => {
+                    Some(Command::Add(body, category.map(|category| category.id)))
                 }
-                EditState::Editing(item_id) if item == item_id => {
-                    self.input.clear();
-                    self.edit_state = EditState::None;
-                    None
-                }
-                EditState::Editing(_) => None,
+                Ok(Some(Saved::Update(id, (body, category)))) => Some(Command::Update(
+                    Item { id, body },
+                    category.map(|category| category.id),
+                )),
+                Ok(None) | Err(_) => None,
             },
-            Message::Save => {
-                if let Ok(result) = self.input.output() {
-                    match self.edit_state {
-                        EditState::None => Some(Command::Add(result.0, result.1.map(|cat| cat.id))),
-                        EditState::Editing(item_id) => Some(Command::Update(
-                            Item {
-                                id: item_id,
-                                body: result.0,
-                            },
-                            result.1.map(|cat| cat.id),
-                        )),
-                    }
-                } else {
-                    None
-                }
+            Message::BeginEdit(item, category) => {
+                let load = || {
+                    (
+                        item_service.get(item).cloned().unwrap_or_default(),
+                        category,
+                    )
+                };
+                self.editor.toggle_edit(item, load, self.unit_system);
+                None
             }
             Message::Reload => {
-                self.input.clear();
-                self.edit_state = EditState::None;
+                self.editor.reset();
                 self.current_page = self
                     .current_page
                     .min(item_service.item_count().div_ceil(15).saturating_sub(1));
@@ -317,6 +257,10 @@ impl Inventory {
     }
 }
 
+fn editor_msg(msg: EditorMessage<ItemMessage>) -> application::Message {
+    application::Message::Inventory(Message::Editor(msg))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,8 +271,11 @@ mod tests {
         presentation::screen::test_support::{World, drain},
     };
 
+    const SAVE: Message = Message::Editor(EditorMessage::Save);
+
     fn send(screen: &mut Inventory, world: &World, input: ItemMessage) {
-        assert!(screen.update(&world.items, Message::Input(input)).is_none());
+        let input = Message::Editor(EditorMessage::Input(input));
+        assert!(screen.update(&world.items, input).is_none());
     }
 
     fn fill(screen: &mut Inventory, world: &World, name: &str, quantity: &str) {
@@ -370,7 +317,7 @@ mod tests {
             ItemMessage::Category(category(&world, gin)),
         );
 
-        let command = screen.update(&world.items, Message::Save);
+        let command = screen.update(&world.items, SAVE);
         let Some(command @ Command::Add(_, Some(_))) = command else {
             panic!("expected Add with a category");
         };
@@ -387,7 +334,7 @@ mod tests {
         let world = World::new();
         let mut screen = Inventory::new(&world.config, &world.categories);
         fill(&mut screen, &world, "Tanqueray", "lots");
-        assert!(screen.update(&world.items, Message::Save).is_none());
+        assert!(screen.update(&world.items, SAVE).is_none());
     }
 
     #[test]
@@ -431,7 +378,7 @@ mod tests {
             &world,
             ItemMessage::Category(category(&world, vodka)),
         );
-        let command = screen.update(&world.items, Message::Save);
+        let command = screen.update(&world.items, SAVE);
         let Some(command @ Command::Update(Item { id, .. }, Some(_))) = command else {
             panic!("expected Update with a category");
         };
@@ -467,23 +414,28 @@ mod tests {
 
         screen.update(&world.items, Message::BeginEdit(first, None));
         screen.update(&world.items, Message::BeginEdit(second, None));
-        assert!(matches!(screen.edit_state, EditState::Editing(id) if id == first));
+        assert_eq!(screen.editor.editing(), Some(first));
 
         screen.update(&world.items, Message::BeginEdit(first, None));
-        assert!(matches!(screen.edit_state, EditState::None));
-        assert!(screen.update(&world.items, Message::Save).is_none());
+        assert_eq!(screen.editor.editing(), None);
+        assert!(screen.update(&world.items, SAVE).is_none());
     }
 
     #[test]
-    fn cancel_edit_returns_to_adding() {
+    fn cancel_edit_returns_to_an_empty_form() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
         let mut screen = Inventory::new(&world.config, &world.categories);
         screen.update(&world.items, Message::BeginEdit(item, None));
 
-        screen.update(&world.items, Message::CancelEdit);
+        let cancel = Message::Editor(EditorMessage::Cancel);
+        screen.update(&world.items, cancel);
 
-        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.editor.editing(), None);
+        assert!(
+            screen.update(&world.items, SAVE).is_none(),
+            "saving after a cancel must not add a copy of the item"
+        );
     }
 
     #[test]
@@ -540,7 +492,7 @@ mod tests {
 
         screen.update(&world.items, Message::Reload);
 
-        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.editor.editing(), None);
         assert_eq!(screen.current_page, 1);
     }
 }

@@ -138,7 +138,7 @@ impl Bartend {
         self.screen = match kind {
             ScreenKind::Inventory => Screen::inventory(&self.config, &self.category_service),
             ScreenKind::Settings => Screen::settings(&self.config),
-            ScreenKind::Categories => Screen::categories(&self.config),
+            ScreenKind::Categories => Screen::categories(),
             ScreenKind::Recipes => Screen::recipes(&self.config, &self.category_service),
             ScreenKind::Serving => Screen::serving(&self.config, &self.recipe_service),
         };
