@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
 use iced::Element;
 
 use crate::{
     models::{CategoryBody, Config, UnitSystem},
     presentation::{
-        input_handling::{Field, FormError, Validator},
+        input_handling::{FormError, Validator},
         widget::input::StringField,
     },
 };
@@ -12,6 +14,20 @@ use crate::{
 #[derive(Debug, Clone)]
 pub enum CategoryMessage {
     Name(String),
+}
+
+/// A field of a [`CategoryInput`], as named in its [`FormError`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CategoryField {
+    Name,
+}
+
+impl Display for CategoryField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CategoryField::Name => write!(f, "Name"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -42,10 +58,10 @@ impl CategoryInput {
         }
     }
 
-    pub fn output(&mut self) -> Result<CategoryBody, FormError> {
+    pub fn output(&mut self) -> Result<CategoryBody, FormError<CategoryField>> {
         self.show_errors = true;
         let mut validator = Validator::default();
-        let name = validator.check(Field::Name, self.name_input.value());
+        let name = validator.check(CategoryField::Name, self.name_input.value());
         match name {
             Some(name) => {
                 self.clear();
@@ -81,7 +97,7 @@ mod tests {
         let mut input = CategoryInput::new(&config());
         assert_eq!(
             input.output(),
-            Err(FormError(vec![(Field::Name, Error::StringEmpty)]))
+            Err(FormError(vec![(CategoryField::Name, Error::StringEmpty)]))
         );
     }
 
@@ -96,6 +112,11 @@ mod tests {
             })
         );
         assert!(input.output().is_err(), "form should be empty after a save");
+    }
+
+    #[test]
+    fn fields_display_their_names() {
+        assert_eq!(CategoryField::Name.to_string(), "Name");
     }
 
     #[test]

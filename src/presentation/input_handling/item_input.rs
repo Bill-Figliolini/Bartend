@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
 use iced::{Element, widget::row};
 
 use crate::{
     models::{Category, Config, ItemBody, Quantity, Unit, UnitSystem},
     presentation::{
-        input_handling::{Field, FormError, Validator},
+        input_handling::{FormError, Validator},
         widget::input::{NumberField, OptionalPick, RequiredPick, StringField},
     },
 };
@@ -15,6 +17,26 @@ pub enum ItemMessage {
     Quantity(String),
     Unit(Unit),
     Category(Category),
+}
+
+/// A field of an [`ItemInput`], as named in its [`FormError`]. The category
+/// is optional, so it never fails and has no entry here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemField {
+    Name,
+    Quantity,
+    Unit,
+}
+
+impl Display for ItemField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            ItemField::Name => "Name",
+            ItemField::Quantity => "Quantity",
+            ItemField::Unit => "Unit",
+        };
+        write!(f, "{text}")
+    }
 }
 
 #[derive(Debug)]
@@ -59,12 +81,12 @@ impl ItemInput {
             ItemMessage::Category(category) => self.category.select(category),
         }
     }
-    pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), FormError> {
+    pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), FormError<ItemField>> {
         self.show_errors = true;
         let mut validator = Validator::default();
-        let name = validator.check(Field::Name, self.name.value());
-        let quantity = validator.check(Field::Quantity, self.quantity.value());
-        let unit = validator.check(Field::Unit, self.unit.value());
+        let name = validator.check(ItemField::Name, self.name.value());
+        let quantity = validator.check(ItemField::Quantity, self.quantity.value());
+        let unit = validator.check(ItemField::Unit, self.unit.value());
         let Ok(category) = self.category.value();
         match (name, quantity, unit) {
             (Some(name), Some(quantity), Some(unit)) => {
@@ -118,8 +140,8 @@ mod tests {
         assert_eq!(
             input.output(),
             Err(FormError(vec![
-                (Field::Name, Error::StringEmpty),
-                (Field::Quantity, Error::QuantityInvalid),
+                (ItemField::Name, Error::StringEmpty),
+                (ItemField::Quantity, Error::QuantityInvalid),
             ]))
         );
     }
@@ -140,6 +162,13 @@ mod tests {
             }
         );
         assert_eq!(chosen, Some(category(1, "Gin")));
+    }
+
+    #[test]
+    fn fields_display_their_names() {
+        assert_eq!(ItemField::Name.to_string(), "Name");
+        assert_eq!(ItemField::Quantity.to_string(), "Quantity");
+        assert_eq!(ItemField::Unit.to_string(), "Unit");
     }
 
     #[test]

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use iced::{
     Element,
     widget::{column, row, text},
@@ -7,9 +9,7 @@ use crate::{
     logic::{CategoryService, ItemService, RecipeService},
     models::{CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, UnitSystem},
     presentation::{
-        input_handling::{
-            Field, FormError, IngredientField, RowKey, Rows, Validator, discard_stale_row,
-        },
+        input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
         widget::input::RequiredPick,
     },
 };
@@ -20,6 +20,24 @@ pub enum ServingMessage {
     /// Choosing a recipe replaces every ingredient row.
     Recipe(Recipe),
     Item(RowKey, Item),
+}
+
+/// A field of a [`ServingInput`], as named in its [`FormError`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServingField {
+    Recipe,
+    /// The item chosen for an ingredient row.
+    Item(RowKey),
+}
+
+/// Rows are named without a position; see `RecipeField`'s `Display`.
+impl Display for ServingField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ServingField::Recipe => write!(f, "Recipe"),
+            ServingField::Item(_) => write!(f, "Ingredient Item"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -78,17 +96,16 @@ impl ServingInput {
         }
     }
 
-    pub fn output(&mut self) -> Result<Vec<ItemUse>, FormError> {
+    pub fn output(&mut self) -> Result<Vec<ItemUse>, FormError<ServingField>> {
         self.show_errors = true;
         let mut validator = Validator::default();
-        let recipe = validator.check(Field::Recipe, self.recipe.value());
+        let recipe = validator.check(ServingField::Recipe, self.recipe.value());
         // Collect into a Vec first so every row is validated, rather than
         // stopping at the first invalid one.
         let used_items: Vec<Option<ItemUse>> = self
             .ingredients
-            .values()
-            .enumerate()
-            .map(|(index, ingredient)| ingredient.output(index, &mut validator))
+            .iter()
+            .map(|(key, ingredient)| ingredient.output(key, &mut validator))
             .collect();
         let used_items: Option<Vec<ItemUse>> = used_items.into_iter().collect();
         match (recipe, used_items) {
@@ -163,12 +180,8 @@ impl IngredientUseInput {
         let picker = self.ingredient.view(|item| item, show_error);
         row![category, quantity, picker].spacing(20).into()
     }
-    fn output(&self, index: usize, validator: &mut Validator) -> Option<ItemUse> {
-        let field = Field::Ingredient {
-            index,
-            field: IngredientField::Item,
-        };
-        let selected_item = validator.check(field, self.ingredient.value())?;
+    fn output(&self, key: RowKey, validator: &mut Validator<ServingField>) -> Option<ItemUse> {
+        let selected_item = validator.check(ServingField::Item(key), self.ingredient.value())?;
         Some(ItemUse {
             id: selected_item.id,
             quantity: self.quantity,
@@ -243,7 +256,10 @@ mod tests {
         };
         assert_eq!(
             input.output().map(|uses| uses.len()),
-            Err(FormError(vec![(Field::Recipe, Error::MustChooseValue)]))
+            Err(FormError(vec![(
+                ServingField::Recipe,
+                Error::MustChooseValue
+            )]))
         );
     }
 
@@ -254,16 +270,17 @@ mod tests {
         input.update(ServingMessage::Recipe(recipe()), &items, &categories);
 
         assert_eq!(input.ingredients.len(), 1);
+        let row = ServingField::Item(input.row_key(0));
         assert_eq!(
             input.output().map(|uses| uses.len()),
-            Err(FormError(vec![(
-                Field::Ingredient {
-                    index: 0,
-                    field: IngredientField::Item,
-                },
-                Error::MustChooseValue,
-            )]))
+            Err(FormError(vec![(row, Error::MustChooseValue)]))
         );
+    }
+
+    #[test]
+    fn fields_display_their_names() {
+        assert_eq!(ServingField::Recipe.to_string(), "Recipe");
+        assert_eq!(ServingField::Item(RowKey(0)).to_string(), "Ingredient Item");
     }
 
     #[test]
@@ -331,10 +348,8 @@ mod tests {
 
         assert_eq!(input.ingredients.len(), 1);
         // The picker's options are only visible through its Debug output.
-        let options = format!(
-            "{:?}",
-            input.ingredients.values().next().unwrap().ingredient
-        );
+        let (_, row) = input.ingredients.iter().next().unwrap();
+        let options = format!("{:?}", row.ingredient);
         assert!(options.contains("Full bottle"), "{options}");
         assert!(!options.contains("Nearly empty"), "{options}");
     }

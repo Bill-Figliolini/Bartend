@@ -58,10 +58,6 @@ impl<T> Rows<T> {
         self.rows.iter().map(|(key, row)| (*key, row))
     }
 
-    fn values(&self) -> impl Iterator<Item = &T> {
-        self.rows.iter().map(|(_, row)| row)
-    }
-
     #[cfg(test)]
     fn len(&self) -> usize {
         self.rows.len()
@@ -86,75 +82,30 @@ fn discard_stale_row(key: RowKey, msg: &dyn std::fmt::Debug) {
     let _ = (key, msg);
 }
 
-/// A field of one of the input forms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Field {
-    Name,
-    Quantity,
-    Unit,
-    Recipe,
-    Ingredient {
-        index: usize,
-        field: IngredientField,
-    },
-}
-
-/// A field within one ingredient row of a recipe or serving form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IngredientField {
-    Category,
-    Quantity,
-    Unit,
-    Item,
-}
-
-/// Every field that failed validation when a form was submitted.
+/// Every field that failed validation when a form was submitted, keyed by
+/// that form's own field type `F` (e.g. `ItemField`).
 ///
 /// The same errors are also shown inline next to each field; this value lets
 /// callers know *which* fields failed rather than only that something did.
+/// Repeated fields carry their row's [`RowKey`], so each one is told apart.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FormError(Vec<(Field, Error)>);
+pub struct FormError<F>(Vec<(F, Error)>);
 
-/// Collects field results while a form is validated, so that every field is
-/// checked (and shows its error) instead of stopping at the first failure.
-#[derive(Debug, Default)]
-struct Validator(Vec<(Field, Error)>);
-
-impl Validator {
-    fn check<T>(&mut self, field: Field, result: Result<T, Error>) -> Option<T> {
-        result.map_err(|error| self.0.push((field, error))).ok()
-    }
-
-    fn into_error(self) -> FormError {
-        FormError(self.0)
-    }
-}
-
-impl Display for Field {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Field::Name => write!(f, "Name"),
-            Field::Quantity => write!(f, "Quantity"),
-            Field::Unit => write!(f, "Unit"),
-            Field::Recipe => write!(f, "Recipe"),
-            Field::Ingredient { index, field } => write!(f, "Ingredient {} {field}", index + 1),
-        }
+impl<F: PartialEq> FormError<F> {
+    /// Why `field` failed, if it did.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "no screen reports field errors yet")
+    )]
+    pub fn error_for(&self, field: &F) -> Option<Error> {
+        self.0
+            .iter()
+            .find(|(failed, _)| failed == field)
+            .map(|(_, error)| *error)
     }
 }
 
-impl Display for IngredientField {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let text = match self {
-            IngredientField::Category => "Category",
-            IngredientField::Quantity => "Quantity",
-            IngredientField::Unit => "Unit",
-            IngredientField::Item => "Item",
-        };
-        write!(f, "{text}")
-    }
-}
-
-impl Display for FormError {
+impl<F: Display> Display for FormError<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (i, (field, error)) in self.0.iter().enumerate() {
             if i > 0 {
@@ -166,7 +117,28 @@ impl Display for FormError {
     }
 }
 
-impl std::error::Error for FormError {}
+impl<F: std::fmt::Debug + Display> std::error::Error for FormError<F> {}
+
+/// Collects field results while a form is validated, so that every field is
+/// checked instead of stopping at the first failure.
+#[derive(Debug)]
+struct Validator<F>(Vec<(F, Error)>);
+
+impl<F> Default for Validator<F> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<F> Validator<F> {
+    fn check<T>(&mut self, field: F, result: Result<T, Error>) -> Option<T> {
+        result.map_err(|error| self.0.push((field, error))).ok()
+    }
+
+    fn into_error(self) -> FormError<F> {
+        FormError(self.0)
+    }
+}
 
 pub use {
     category_input::{CategoryInput, CategoryMessage},
@@ -198,7 +170,6 @@ mod tests {
         assert!(rows.remove(a));
         assert!(!rows.remove(a), "a second remove finds nothing");
         assert_eq!(rows.iter().collect::<Vec<_>>(), vec![(b, &"b")]);
-        assert_eq!(rows.values().collect::<Vec<_>>(), vec![&"b"]);
         assert_eq!(rows.len(), 1);
         assert_eq!(rows.key(0), b);
     }
@@ -210,36 +181,24 @@ mod tests {
         discard_stale_row(key, &"Gin");
     }
 
-    #[test]
-    fn fields_display_human_names() {
-        assert_eq!(Field::Name.to_string(), "Name");
-        assert_eq!(Field::Quantity.to_string(), "Quantity");
-        assert_eq!(Field::Unit.to_string(), "Unit");
-        assert_eq!(Field::Recipe.to_string(), "Recipe");
-        let ingredient = |field| Field::Ingredient { index: 0, field };
-        assert_eq!(
-            ingredient(IngredientField::Category).to_string(),
-            "Ingredient 1 Category"
-        );
-        assert_eq!(
-            ingredient(IngredientField::Quantity).to_string(),
-            "Ingredient 1 Quantity"
-        );
-        assert_eq!(
-            ingredient(IngredientField::Unit).to_string(),
-            "Ingredient 1 Unit"
-        );
-        assert_eq!(
-            ingredient(IngredientField::Item).to_string(),
-            "Ingredient 1 Item"
-        );
+    #[derive(Debug, PartialEq)]
+    enum TestField {
+        Name,
+        Quantity,
+        Row(RowKey),
+    }
+
+    impl Display for TestField {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{self:?}")
+        }
     }
 
     #[test]
     fn form_errors_list_every_failure() {
         let error = FormError(vec![
-            (Field::Name, Error::StringEmpty),
-            (Field::Quantity, Error::QuantityInvalid),
+            (TestField::Name, Error::StringEmpty),
+            (TestField::Quantity, Error::QuantityInvalid),
         ]);
         assert_eq!(
             error.to_string(),
@@ -248,6 +207,24 @@ mod tests {
                 Error::StringEmpty,
                 Error::QuantityInvalid
             )
+        );
+    }
+
+    #[test]
+    fn error_for_finds_only_the_failed_field() {
+        let mut rows = Rows::default();
+        let (a, b) = (rows.push(()), rows.push(()));
+        let mut validator = Validator::default();
+        validator.check(TestField::Name, Ok::<_, Error>(()));
+        validator.check(TestField::Row(a), Ok::<_, Error>(()));
+        validator.check(TestField::Row(b), Err::<(), _>(Error::QuantityInvalid));
+        let error = validator.into_error();
+
+        assert_eq!(error.error_for(&TestField::Name), None);
+        assert_eq!(error.error_for(&TestField::Row(a)), None);
+        assert_eq!(
+            error.error_for(&TestField::Row(b)),
+            Some(Error::QuantityInvalid)
         );
     }
 }
