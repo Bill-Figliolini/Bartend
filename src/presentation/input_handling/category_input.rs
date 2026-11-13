@@ -5,7 +5,7 @@ use iced::Element;
 use crate::{
     models::{CategoryBody, Config, UnitSystem},
     presentation::{
-        input_handling::{FormError, Validator},
+        input_handling::{Form, FormError, Validator},
         widget::input::StringField,
     },
 };
@@ -46,37 +46,67 @@ impl CategoryInput {
         }
     }
 
+    /// Shows errors once [`output`](Self::output) has been tried.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> Element<'_, CategoryMessage> {
-        self.name_input
-            .view(CategoryMessage::Name, self.show_errors)
+        Form::view(self, self.show_errors)
     }
 
     pub fn update(&mut self, msg: CategoryMessage) {
+        Form::update(self, msg);
+    }
+
+    /// Validates, shows errors from now on, and clears the form on success.
+    pub fn output(&mut self) -> Result<CategoryBody, FormError<CategoryField>> {
+        self.show_errors = true;
+        let body = Form::validate(self)?;
+        self.clear();
+        Ok(body)
+    }
+
+    pub fn clear(&mut self) {
+        Form::clear(self);
+        self.show_errors = false;
+    }
+
+    pub fn begin_edit(&mut self, edit: &CategoryBody, unit_system: UnitSystem) {
+        self.clear();
+        self.fill(edit, unit_system);
+    }
+}
+
+impl Form for CategoryInput {
+    type Message = CategoryMessage;
+    type Field = CategoryField;
+    type Output = CategoryBody;
+    type Value = CategoryBody;
+
+    fn update(&mut self, msg: CategoryMessage) {
         match msg {
             CategoryMessage::Name(text) => self.name_input.set(text),
         }
     }
 
-    pub fn output(&mut self) -> Result<CategoryBody, FormError<CategoryField>> {
-        self.show_errors = true;
+    fn validate(&self) -> Result<CategoryBody, FormError<CategoryField>> {
         let mut validator = Validator::default();
         let name = validator.check(CategoryField::Name, self.name_input.value());
         match name {
-            Some(name) => {
-                self.clear();
-                Ok(CategoryBody { name })
-            }
+            Some(name) => Ok(CategoryBody { name }),
             None => Err(validator.into_error()),
         }
     }
-    pub fn clear(&mut self) {
+
+    fn clear(&mut self) {
         self.name_input.clear();
-        self.show_errors = false;
     }
-    pub fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
-        self.clear();
-        self.name_input.set(edit.name.clone());
+
+    fn fill(&mut self, value: &CategoryBody, _units: UnitSystem) {
+        self.name_input.set(value.name.clone());
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn view(&self, show_errors: bool) -> Element<'_, CategoryMessage> {
+        self.name_input.view(CategoryMessage::Name, show_errors)
     }
 }
 

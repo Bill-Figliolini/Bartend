@@ -31,13 +31,45 @@
 //! `output`.
 
 mod category_input;
+#[expect(dead_code, reason = "screens move to Editor in the next phase")]
+mod editor;
 mod item_input;
 mod recipe_input;
 mod serving_input;
 
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
-use crate::presentation::widget::input::Error;
+use iced::Element;
+
+use crate::{models::UnitSystem, presentation::widget::input::Error};
+
+/// A form that adds or edits one value, driven by an
+/// [`Editor`](editor::Editor).
+///
+/// A form only holds what the user entered and checks it. When errors are
+/// shown, when the form is cleared, and whether a save adds or updates are
+/// all up to the editor that owns it.
+pub trait Form {
+    /// An edit to one of the form's fields.
+    type Message: Clone + Debug + 'static;
+    /// Names a field in a [`FormError`].
+    type Field;
+    /// What a successful save produces.
+    type Output;
+    /// What an edit fills the form from.
+    type Value;
+
+    fn update(&mut self, msg: Self::Message);
+    /// Checks every field. Reading it changes nothing.
+    fn validate(&self) -> Result<Self::Output, FormError<Self::Field>>;
+    /// Empties the fields. A form may keep a choice that is handy to carry
+    /// over to the next entry, such as a unit.
+    fn clear(&mut self);
+    /// Fills a cleared form from `value`, showing quantities in `units`.
+    fn fill(&mut self, value: &Self::Value, units: UnitSystem);
+    /// With `show_errors`, each field's current error is shown under it.
+    fn view(&self, show_errors: bool) -> Element<'_, Self::Message>;
+}
 
 /// Identifies one row of a [`Rows`] for as long as it exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,7 +143,7 @@ impl<T> Rows<T> {
 
 /// Drops a message for a row that has since been removed; see [`Rows`].
 /// Such messages are harmless. Builds with the `devtools` feature log them.
-fn discard_stale_row(key: RowKey, msg: &dyn std::fmt::Debug) {
+fn discard_stale_row(key: RowKey, msg: &dyn Debug) {
     #[cfg(feature = "devtools")]
     eprintln!("Message for a removed row {key:?}: {msg:?}");
     #[cfg(not(feature = "devtools"))]
@@ -154,7 +186,7 @@ impl<F: Display> Display for FormError<F> {
     }
 }
 
-impl<F: std::fmt::Debug + Display> std::error::Error for FormError<F> {}
+impl<F: Debug + Display> std::error::Error for FormError<F> {}
 
 /// Collects field results while a form is validated, so that every field is
 /// checked instead of stopping at the first failure.

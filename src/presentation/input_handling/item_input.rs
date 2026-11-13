@@ -5,7 +5,7 @@ use iced::{Element, widget::row};
 use crate::{
     models::{Category, Config, ItemBody, Quantity, Unit, UnitSystem},
     presentation::{
-        input_handling::{FormError, Validator},
+        input_handling::{Form, FormError, Validator},
         widget::input::{NumberField, OptionalPick, RequiredPick, StringField},
     },
 };
@@ -66,18 +66,46 @@ impl ItemInput {
             show_errors: false,
         }
     }
+    /// Shows errors once [`output`](Self::output) has been tried.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> Element<'_, ItemMessage> {
-        let show = self.show_errors;
-        row![
-            self.name.view(ItemMessage::Name, show),
-            self.quantity.view(ItemMessage::Quantity, show),
-            self.unit.view(ItemMessage::Unit, show),
-            self.category.view(ItemMessage::Category, show),
-        ]
-        .into()
+        Form::view(self, self.show_errors)
     }
+
     pub fn update(&mut self, msg: ItemMessage) {
+        Form::update(self, msg);
+    }
+
+    /// The item, and the category chosen for it if any. Validates, shows
+    /// errors from now on, and clears the form on success.
+    pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), FormError<ItemField>> {
+        self.show_errors = true;
+        let output = Form::validate(self)?;
+        self.clear();
+        Ok(output)
+    }
+
+    /// Keeps the chosen unit; see [`Form::clear`].
+    pub fn clear(&mut self) {
+        Form::clear(self);
+        self.show_errors = false;
+    }
+
+    /// Fills the form from `edit`, showing its quantity in `unit_system`.
+    pub fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
+        self.clear();
+        self.fill(edit, unit_system);
+    }
+}
+
+impl Form for ItemInput {
+    type Message = ItemMessage;
+    type Field = ItemField;
+    /// The item, and the category chosen for it if any.
+    type Output = (ItemBody, Option<Category>);
+    type Value = (ItemBody, Option<Category>);
+
+    fn update(&mut self, msg: ItemMessage) {
         match msg {
             ItemMessage::Name(text) => self.name.set(text),
             ItemMessage::Quantity(text) => self.quantity.set(text),
@@ -85,9 +113,8 @@ impl ItemInput {
             ItemMessage::Category(category) => self.category.select(category),
         }
     }
-    /// The item, and the category chosen for it if any.
-    pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), FormError<ItemField>> {
-        self.show_errors = true;
+
+    fn validate(&self) -> Result<(ItemBody, Option<Category>), FormError<ItemField>> {
         let mut validator = Validator::default();
         let name = validator.check(ItemField::Name, self.name.value());
         let quantity = validator.check(ItemField::Quantity, self.quantity.value());
@@ -96,7 +123,6 @@ impl ItemInput {
         match (name, quantity, unit) {
             (Some(name), Some(quantity), Some(unit)) => {
                 let quantity = Quantity::new(quantity, unit);
-                self.clear();
                 Ok((ItemBody { name, quantity }, category))
             }
             _ => Err(validator.into_error()),
@@ -105,23 +131,31 @@ impl ItemInput {
 
     /// Keeps the chosen unit, so entering several items in the same unit
     /// does not mean picking it every time.
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.name.clear();
         self.quantity.clear();
         self.category.clear();
-        self.show_errors = false;
     }
-    /// Fills the form from `edit`, showing its quantity in `unit_system`.
-    pub fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
-        self.clear();
-        if let Some(ref category) = edit.1 {
+
+    /// Shows the item's quantity in `units`.
+    fn fill(&mut self, (item, category): &(ItemBody, Option<Category>), units: UnitSystem) {
+        if let Some(category) = category {
             self.category.select(category.clone());
         }
-        self.name.set(edit.0.name.clone());
-        let quantity = edit.0.quantity.value(unit_system);
-        let units = edit.0.quantity.unit(unit_system);
-        self.quantity.set(quantity.to_string());
-        self.unit.select(units);
+        self.name.set(item.name.clone());
+        self.quantity.set(item.quantity.value(units).to_string());
+        self.unit.select(item.quantity.unit(units));
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn view(&self, show_errors: bool) -> Element<'_, ItemMessage> {
+        row![
+            self.name.view(ItemMessage::Name, show_errors),
+            self.quantity.view(ItemMessage::Quantity, show_errors),
+            self.unit.view(ItemMessage::Unit, show_errors),
+            self.category.view(ItemMessage::Category, show_errors),
+        ]
+        .into()
     }
 }
 

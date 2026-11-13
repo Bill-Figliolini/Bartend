@@ -8,7 +8,7 @@ use iced::{
 use crate::{
     models::{Category, Config, Ingredient, Quantity, RecipeBody, Unit, UnitSystem},
     presentation::{
-        input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
+        input_handling::{Form, FormError, RowKey, Rows, Validator, discard_stale_row},
         widget::input::{NumberField, RequiredPick, StringField},
     },
 };
@@ -137,21 +137,50 @@ impl RecipeInput {
         }
     }
 
+    /// Shows errors once [`output`](Self::output) has been tried.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> Element<'_, RecipeMessage> {
-        let name = self.name_input.view(RecipeMessage::Name, self.show_errors);
-        let ingredients = column(self.ingredient_inputs.iter().map(|(key, ingredient)| {
-            row![
-                ingredient
-                    .view(self.show_errors)
-                    .map(move |msg| RecipeMessage::Row(key, msg)),
-                button("X").on_press(RecipeMessage::RemoveRow(key))
-            ]
-            .into()
-        }));
-        column![name, ingredients].into()
+        Form::view(self, self.show_errors)
     }
+
     pub fn update(&mut self, msg: RecipeMessage) {
+        Form::update(self, msg);
+    }
+
+    /// Validates, shows errors from now on, and clears the form on success.
+    pub fn output(&mut self) -> Result<RecipeBody, FormError<RecipeField>> {
+        self.show_errors = true;
+        let body = Form::validate(self)?;
+        self.clear();
+        Ok(body)
+    }
+
+    pub fn clear(&mut self) {
+        Form::clear(self);
+        self.show_errors = false;
+    }
+
+    /// Fills the form from `recipe`, one row per ingredient, showing
+    /// quantities in `unit_system`.
+    pub fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
+        self.clear();
+        self.fill(recipe, unit_system);
+    }
+
+    /// The key of the `index`th ingredient row.
+    #[cfg(test)]
+    pub fn row_key(&self, index: usize) -> RowKey {
+        self.ingredient_inputs.key(index)
+    }
+}
+
+impl Form for RecipeInput {
+    type Message = RecipeMessage;
+    type Field = RecipeField;
+    type Output = RecipeBody;
+    type Value = RecipeBody;
+
+    fn update(&mut self, msg: RecipeMessage) {
         match msg {
             RecipeMessage::Name(text) => self.name_input.set(text),
             RecipeMessage::Row(key, msg) => match self.ingredient_inputs.get_mut(key) {
@@ -174,8 +203,7 @@ impl RecipeInput {
 
     /// A recipe with no ingredients is valid, so a partly written recipe can
     /// be saved and finished later.
-    pub fn output(&mut self) -> Result<RecipeBody, FormError<RecipeField>> {
-        self.show_errors = true;
+    fn validate(&self) -> Result<RecipeBody, FormError<RecipeField>> {
         let mut validator = Validator::default();
         let name = validator.check(RecipeField::Name, self.name_input.value());
         // Collect into a Vec first so every row is validated, rather than
@@ -187,24 +215,18 @@ impl RecipeInput {
             .collect();
         let ingredients: Option<Vec<Ingredient>> = ingredients.into_iter().collect();
         match (name, ingredients) {
-            (Some(name), Some(ingredients)) => {
-                self.clear();
-                Ok(RecipeBody { name, ingredients })
-            }
+            (Some(name), Some(ingredients)) => Ok(RecipeBody { name, ingredients }),
             _ => Err(validator.into_error()),
         }
     }
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.name_input.clear();
         self.ingredient_inputs.clear();
-        self.show_errors = false;
     }
 
-    /// Fills the form from `recipe`, one row per ingredient, showing
-    /// quantities in `unit_system`.
-    pub fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
-        self.clear();
+    /// One row per ingredient, with quantities shown in `units`.
+    fn fill(&mut self, recipe: &RecipeBody, units: UnitSystem) {
         self.name_input.set(recipe.name.clone());
         for ingredient in &recipe.ingredients {
             let mut input = IngredientInput::new(self.categories.clone(), self.unit_system);
@@ -219,16 +241,28 @@ impl RecipeInput {
             }
             input
                 .quantity
-                .set(ingredient.quantity.value(unit_system).to_string());
-            input.unit.select(ingredient.quantity.unit(unit_system));
+                .set(ingredient.quantity.value(units).to_string());
+            input.unit.select(ingredient.quantity.unit(units));
             self.ingredient_inputs.push(input);
         }
     }
 
-    /// The key of the `index`th ingredient row.
-    #[cfg(test)]
-    pub fn row_key(&self, index: usize) -> RowKey {
-        self.ingredient_inputs.key(index)
+    /// The name, one line per ingredient with a button to remove it, then a
+    /// button to add another.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn view(&self, show_errors: bool) -> Element<'_, RecipeMessage> {
+        let name = self.name_input.view(RecipeMessage::Name, show_errors);
+        let ingredients = column(self.ingredient_inputs.iter().map(|(key, ingredient)| {
+            row![
+                ingredient
+                    .view(show_errors)
+                    .map(move |msg| RecipeMessage::Row(key, msg)),
+                button("X").on_press(RecipeMessage::RemoveRow(key))
+            ]
+            .into()
+        }));
+        let add_row = button("Add Ingredient").on_press(RecipeMessage::AddRow);
+        column![name, ingredients, add_row].into()
     }
 }
 

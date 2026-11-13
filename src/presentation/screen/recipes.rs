@@ -86,9 +86,7 @@ impl Recipes {
         let input = self.input.view().map(input_msg);
         let save_button = button("Save").on_press(application::Message::Recipes(Message::Save));
         let input_row = row![input, save_button];
-        let add_ingredient_button =
-            button("Add Ingredient").on_press(input_msg(RecipeMessage::AddRow));
-        column![header, input_row, add_ingredient_button].into()
+        column![header, input_row].into()
     }
     fn save(&mut self, body: RecipeBody) -> Command {
         match self.edit_state {
