@@ -1,15 +1,20 @@
-mod pick_input;
-mod text_input;
-use std::fmt::Display;
+//! Form fields. Each field holds only what the user entered; validation is a
+//! pure read (`value`), and the owning form decides when errors are shown by
+//! passing `show_error` to `view`.
 
-use iced::widget::Id;
+mod pick_field;
+mod text_field;
+use std::{convert::Infallible, fmt::Display};
 
-pub use {
-    pick_input::optional::OptionalPickInput, pick_input::required::RequiredPickInput,
-    text_input::number_input::NumberInput, text_input::string_input::StringInput,
+use iced::{
+    Element,
+    widget::{column, row, text},
 };
 
-use crate::presentation::Viewable;
+pub use {
+    pick_field::{OptionalPick, RequiredPick},
+    text_field::{NumberField, StringField},
+};
 
 /// Why a single input field failed validation.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -19,22 +24,25 @@ pub enum Error {
     MustChooseValue,
 }
 
-pub trait Input<InternalType, Message>: Viewable<Message>
-where
-    InternalType: Clone,
-    Message: Clone,
-{
-    fn update(&mut self, input: InternalType);
-    fn clear(&mut self) {}
-    fn id(&self) -> &Id;
+impl From<Infallible> for Error {
+    fn from(never: Infallible) -> Self {
+        match never {}
+    }
 }
 
-/// An input whose contents can fail validation.
+/// A field with its error (if any) shown underneath.
 ///
-/// `get_output` validates the current contents, records the resulting error
-/// (if any) on the widget so it is shown inline, and returns it.
-pub trait InputContents<T> {
-    fn get_output(&mut self) -> Result<T, Error>;
+/// The error sits in a row that is always present, even when empty, so the
+/// widget tree keeps the same shape as errors come and go; otherwise iced
+/// would rebuild the field's state and the text box would lose focus while
+/// the user is typing.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn with_error<'a, M: 'a>(field: Element<'a, M>, error: Option<Error>) -> Element<'a, M> {
+    column![
+        field,
+        row(error.map(|error| text(error.to_string()).into()))
+    ]
+    .into()
 }
 
 impl Display for Error {

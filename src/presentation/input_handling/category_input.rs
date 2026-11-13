@@ -1,38 +1,42 @@
 use crate::{
     models::{CategoryBody, Config, UnitSystem},
     presentation::{
-        Viewable,
         application::Message,
-        input_handling::{Field, FormError, InputMessage, UnknownTarget, Validator},
-        widget::input::{Input, InputContents, StringInput},
+        input_handling::{Field, FormError, InputMessage, UnknownTarget, Validator, route},
+        widget::input::StringField,
     },
 };
 
 #[derive(Debug)]
 pub struct CategoryInput {
-    name_input: StringInput<Message>,
+    name_input: StringField,
+    msg: fn(InputMessage) -> Message,
+    /// Set once a save has been attempted, so errors are not shown on a form
+    /// the user has not finished yet.
+    show_errors: bool,
 }
 
 impl CategoryInput {
     pub fn new(_config: &Config, msg: fn(InputMessage) -> Message) -> Self {
         Self {
-            name_input: StringInput::new(
-                move |id, str| msg(InputMessage::String(id, str)),
-                "Name".to_string(),
-                String::new(),
-            ),
+            name_input: StringField::new("Name"),
+            msg,
+            show_errors: false,
         }
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> iced::Element<'_, Message> {
-        self.name_input.view()
+        self.name_input.view(
+            route(self.msg, self.name_input.id(), InputMessage::String),
+            self.show_errors,
+        )
     }
 
     pub fn update(&mut self, msg: InputMessage) -> Result<(), UnknownTarget> {
         match msg {
             InputMessage::String(id, new_text) if self.name_input.id() == &id => {
-                self.name_input.update(new_text);
+                self.name_input.set(new_text);
                 Ok(())
             }
             msg => Err(UnknownTarget(msg)),
@@ -40,8 +44,9 @@ impl CategoryInput {
     }
 
     pub fn output(&mut self) -> Result<CategoryBody, FormError> {
+        self.show_errors = true;
         let mut validator = Validator::default();
-        let name = validator.check(Field::Name, self.name_input.get_output());
+        let name = validator.check(Field::Name, self.name_input.value());
         match name {
             Some(name) => {
                 self.clear();
@@ -52,10 +57,11 @@ impl CategoryInput {
     }
     pub fn clear(&mut self) {
         self.name_input.clear();
+        self.show_errors = false;
     }
     pub fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
         self.clear();
-        self.name_input.update(edit.name.clone());
+        self.name_input.set(edit.name.clone());
     }
     #[cfg(test)]
     pub fn name_id(&self) -> iced::widget::Id {
@@ -103,6 +109,25 @@ mod tests {
             })
         );
         assert!(input.output().is_err(), "form should be empty after a save");
+    }
+
+    #[test]
+    fn errors_are_shown_only_after_a_save_attempt() {
+        let mut input = CategoryInput::new(&config(), msg);
+        assert!(!input.show_errors);
+        input.output().unwrap_err();
+        assert!(input.show_errors);
+        input.clear();
+        assert!(!input.show_errors);
+    }
+
+    #[test]
+    fn successful_save_hides_errors() {
+        let mut input = CategoryInput::new(&config(), msg);
+        input.output().unwrap_err();
+        set_name(&mut input, "Gin");
+        input.output().unwrap();
+        assert!(!input.show_errors);
     }
 
     #[test]

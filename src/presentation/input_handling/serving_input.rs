@@ -4,34 +4,29 @@ use crate::{
     logic::{CategoryService, ItemService, RecipeService},
     models::{CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, UnitSystem},
     presentation::{
-        Viewable,
         application::Message,
         input_handling::{
-            Field, FormError, IngredientField, InputMessage, UnknownTarget, Validator,
+            Field, FormError, IngredientField, InputMessage, UnknownTarget, Validator, route,
         },
-        widget::input::{Input, InputContents, RequiredPickInput},
+        widget::input::RequiredPick,
     },
 };
 
 #[derive(Debug)]
 pub struct ServingInput {
-    recipe: RequiredPickInput<Recipe, Message>,
+    recipe: RequiredPick<Recipe>,
     ingredients: Vec<IngredientUseInput>,
     msg: fn(InputMessage) -> Message,
+    /// Set once a save has been attempted; see `CategoryInput::show_errors`.
+    show_errors: bool,
 }
 impl ServingInput {
     pub fn new(msg: fn(InputMessage) -> Message, recipe_service: &RecipeService) -> Self {
-        let recipe = RequiredPickInput::new(
-            move |id, recipe| msg(InputMessage::Recipe(id, recipe)),
-            recipe_service.get_all(),
-            None,
-            "Recipe".to_string(),
-        );
-        let ingredients = Vec::new();
         Self {
-            recipe,
-            ingredients,
+            recipe: RequiredPick::new(recipe_service.get_all(), None, "Recipe"),
+            ingredients: Vec::new(),
             msg,
+            show_errors: false,
         }
     }
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -40,12 +35,13 @@ impl ServingInput {
         category_service: &CategoryService,
         unit_system: UnitSystem,
     ) -> iced::Element<'_, Message> {
-        let recipe_selector = self.recipe.view();
-        let ingredient_use_selectors = column(
-            self.ingredients
-                .iter()
-                .map(|ingredient| ingredient.view(category_service, unit_system)),
+        let recipe_selector = self.recipe.view(
+            route(self.msg, self.recipe.id(), InputMessage::Recipe),
+            self.show_errors,
         );
+        let ingredient_use_selectors = column(self.ingredients.iter().map(|ingredient| {
+            ingredient.view(category_service, unit_system, self.msg, self.show_errors)
+        }));
         column![recipe_selector, ingredient_use_selectors].into()
     }
     pub fn update(
@@ -56,12 +52,11 @@ impl ServingInput {
     ) -> Result<(), UnknownTarget> {
         match msg {
             InputMessage::Recipe(id, selected_recipe) if id == *self.recipe.id() => {
-                self.recipe.update(selected_recipe.clone());
+                self.recipe.select(selected_recipe.clone());
                 self.ingredients.clear();
                 let ingredients = selected_recipe.body.ingredients.clone();
                 for ingredient in ingredients {
                     self.ingredients.push(IngredientUseInput::new(
-                        self.msg,
                         &ingredient,
                         item_service,
                         category_service,
@@ -75,7 +70,7 @@ impl ServingInput {
                 .find(|ingredient_input| *ingredient_input.ingredient.id() == id)
             {
                 Some(input) => {
-                    input.ingredient.update(selected_item);
+                    input.ingredient.select(selected_item);
                     Ok(())
                 }
                 None => Err(UnknownTarget(InputMessage::Item(id, selected_item))),
@@ -85,13 +80,14 @@ impl ServingInput {
     }
 
     pub fn output(&mut self) -> Result<Vec<ItemUse>, FormError> {
+        self.show_errors = true;
         let mut validator = Validator::default();
-        let recipe = validator.check(Field::Recipe, self.recipe.get_output());
+        let recipe = validator.check(Field::Recipe, self.recipe.value());
         // Collect into a Vec first so every row is validated, rather than
         // stopping at the first invalid one.
         let used_items: Vec<Option<ItemUse>> = self
             .ingredients
-            .iter_mut()
+            .iter()
             .enumerate()
             .map(|(index, ingredient)| ingredient.output(index, &mut validator))
             .collect();
@@ -108,6 +104,7 @@ impl ServingInput {
     pub fn clear(&mut self) {
         self.recipe.clear();
         self.ingredients.clear();
+        self.show_errors = false;
     }
     #[cfg(test)]
     pub fn recipe_id(&self) -> iced::widget::Id {
@@ -123,11 +120,10 @@ impl ServingInput {
 struct IngredientUseInput {
     category: CategoryID,
     quantity: Quantity,
-    ingredient: RequiredPickInput<Item, Message>,
+    ingredient: RequiredPick<Item>,
 }
 impl IngredientUseInput {
     pub fn new(
-        msg: fn(InputMessage) -> Message,
         ingredient: &Ingredient,
         item_service: &ItemService,
         category_service: &CategoryService,
@@ -147,12 +143,7 @@ impl IngredientUseInput {
         Self {
             category: ingredient.category,
             quantity: ingredient.quantity,
-            ingredient: RequiredPickInput::new(
-                move |id, item| msg(InputMessage::Item(id, item)),
-                valid_ingredients,
-                None,
-                "Ingredient".to_string(),
-            ),
+            ingredient: RequiredPick::new(valid_ingredients, None, "Ingredient"),
         }
     }
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -160,6 +151,8 @@ impl IngredientUseInput {
         &self,
         category_service: &CategoryService,
         unit_system: UnitSystem,
+        msg: fn(InputMessage) -> Message,
+        show_error: bool,
     ) -> iced::Element<'_, Message> {
         let category = text!(
             "{}: ID: {}",
@@ -171,16 +164,18 @@ impl IngredientUseInput {
             self.category.0
         );
         let quantity = text(self.quantity.readable(unit_system));
-        row![category, quantity, self.ingredient.view()]
-            .spacing(20)
-            .into()
+        let picker = self.ingredient.view(
+            route(msg, self.ingredient.id(), InputMessage::Item),
+            show_error,
+        );
+        row![category, quantity, picker].spacing(20).into()
     }
-    fn output(&mut self, index: usize, validator: &mut Validator) -> Option<ItemUse> {
+    fn output(&self, index: usize, validator: &mut Validator) -> Option<ItemUse> {
         let field = Field::Ingredient {
             index,
             field: IngredientField::Item,
         };
-        let selected_item = validator.check(field, self.ingredient.get_output())?;
+        let selected_item = validator.check(field, self.ingredient.value())?;
         Some(ItemUse {
             id: selected_item.id,
             quantity: self.quantity,
@@ -236,23 +231,14 @@ mod tests {
     /// offers `gin`.
     fn serving_input() -> ServingInput {
         ServingInput {
-            recipe: RequiredPickInput::new(
-                move |id, recipe| msg(InputMessage::Recipe(id, recipe)),
-                vec![recipe()],
-                None,
-                "Recipe".to_string(),
-            ),
+            recipe: RequiredPick::new(vec![recipe()], None, "Recipe"),
             ingredients: vec![IngredientUseInput {
                 category: CategoryID(1),
                 quantity: Quantity::new(50.0, Unit::Milliliter),
-                ingredient: RequiredPickInput::new(
-                    move |id, item| msg(InputMessage::Item(id, item)),
-                    vec![gin()],
-                    None,
-                    "Ingredient".to_string(),
-                ),
+                ingredient: RequiredPick::new(vec![gin()], None, "Ingredient"),
             }],
             msg,
+            show_errors: false,
         }
     }
 
@@ -298,7 +284,7 @@ mod tests {
     fn complete_serving_returns_item_uses() {
         let (items, categories) = services();
         let mut input = serving_input();
-        input.recipe.update(recipe());
+        input.recipe.select(recipe());
         let item_id = input.ingredients[0].ingredient.id().clone();
         input
             .update(InputMessage::Item(item_id, gin()), &items, &categories)

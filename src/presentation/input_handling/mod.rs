@@ -9,7 +9,7 @@ use iced::widget::Id;
 
 use crate::{
     models::{Category, Item, Recipe, Unit},
-    presentation::widget::input::Error,
+    presentation::{application::Message, widget::input::Error},
 };
 
 #[derive(Clone, Debug)]
@@ -31,6 +31,18 @@ impl InputMessage {
             | InputMessage::Item(id, _) => id.clone(),
         }
     }
+}
+
+/// A widget callback that tags each value with the widget's `id`, as
+/// `variant`, and wraps it in the screen's message.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn route<T: 'static>(
+    msg: fn(InputMessage) -> Message,
+    id: &Id,
+    variant: fn(Id, T) -> InputMessage,
+) -> impl Fn(T) -> Message + 'static {
+    let id = id.clone();
+    move |value| msg(variant(id.clone(), value))
 }
 
 /// An input message sent to a form that has no field with its id (or whose
