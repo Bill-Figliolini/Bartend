@@ -5,7 +5,7 @@ repository = "https://github.com/Bill-Figliolini/Bartend"
 license = "MIT"
 version = "1.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.100"
 
 [dependencies]
 dirs = "6.0.0"
