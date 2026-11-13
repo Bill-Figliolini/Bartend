@@ -102,7 +102,7 @@ impl IngredientInput {
         }
     }
     /// Validates every field of this row, recording failures under `key`.
-    fn output(&self, key: RowKey, validator: &mut Validator<RecipeField>) -> Option<Ingredient> {
+    fn validate(&self, key: RowKey, validator: &mut Validator<RecipeField>) -> Option<Ingredient> {
         let field = |field| RecipeField::Ingredient(key, field);
         let category = validator.check(field(IngredientField::Category), self.category.value());
         let quantity = validator.check(field(IngredientField::Quantity), self.quantity.value());
@@ -178,7 +178,7 @@ impl Form for RecipeInput {
         let ingredients: Vec<Option<Ingredient>> = self
             .ingredient_inputs
             .iter()
-            .map(|(key, ingredient)| ingredient.output(key, &mut validator))
+            .map(|(key, ingredient)| ingredient.validate(key, &mut validator))
             .collect();
         let ingredients: Option<Vec<Ingredient>> = ingredients.into_iter().collect();
         match (name, ingredients) {
