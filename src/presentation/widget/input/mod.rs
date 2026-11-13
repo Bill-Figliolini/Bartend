@@ -1,6 +1,11 @@
-//! Form fields. Each field holds only what the user entered; validation is a
-//! pure read (`value`), and the owning form decides when errors are shown by
-//! passing `show_error` to `view`.
+//! Form fields: [`StringField`] and [`NumberField`] for typed text, and
+//! [`RequiredPick`] and [`OptionalPick`] for choosing from a list.
+//!
+//! Each field holds only what the user entered. Validation is a pure read
+//! (`value`), and the form that owns the field decides when errors are shown
+//! by passing `show_error` to `view`. The fields know nothing about the
+//! app's messages: `view` takes the function that builds one. See
+//! [`input_handling`](crate::presentation::input_handling) for the forms.
 
 mod pick_field;
 mod text_field;

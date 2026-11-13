@@ -30,11 +30,11 @@ impl Display for CategoryField {
     }
 }
 
+/// The form for adding a category or renaming one.
 #[derive(Debug)]
 pub struct CategoryInput {
     name_input: StringField,
-    /// Set once a save has been attempted, so errors are not shown on a form
-    /// the user has not finished yet.
+    /// Whether fields show their errors; see the [module docs](super).
     show_errors: bool,
 }
 

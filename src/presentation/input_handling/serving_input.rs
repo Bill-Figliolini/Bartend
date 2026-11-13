@@ -40,14 +40,17 @@ impl Display for ServingField {
     }
 }
 
+/// The form for serving a recipe: choose the recipe, then which item in
+/// stock to use for each of its ingredients.
 #[derive(Debug)]
 pub struct ServingInput {
     recipe: RequiredPick<Recipe>,
     ingredients: Rows<IngredientUseInput>,
-    /// Set once a save has been attempted; see `CategoryInput::show_errors`.
+    /// Whether fields show their errors; see the [module docs](super).
     show_errors: bool,
 }
 impl ServingInput {
+    /// Offers every recipe in `recipe_service`.
     pub fn new(recipe_service: &RecipeService) -> Self {
         Self {
             recipe: RequiredPick::new(recipe_service.get_all(), None, "Recipe"),
@@ -96,6 +99,7 @@ impl ServingInput {
         }
     }
 
+    /// How much of each chosen item the serving uses up.
     pub fn output(&mut self) -> Result<Vec<ItemUse>, FormError<ServingField>> {
         self.show_errors = true;
         let mut validator = Validator::default();
@@ -130,6 +134,7 @@ impl ServingInput {
     }
 }
 
+/// One ingredient of the chosen recipe, and the item picked to supply it.
 #[derive(Debug)]
 struct IngredientUseInput {
     category: CategoryID,
@@ -137,6 +142,8 @@ struct IngredientUseInput {
     ingredient: RequiredPick<Item>,
 }
 impl IngredientUseInput {
+    /// Offers the items that satisfy the ingredient's category and have at
+    /// least the quantity it calls for.
     fn new(
         ingredient: &Ingredient,
         item_service: &ItemService,

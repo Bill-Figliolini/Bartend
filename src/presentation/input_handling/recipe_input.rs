@@ -67,6 +67,8 @@ impl Display for IngredientField {
     }
 }
 
+/// The form for adding or editing a recipe: a name and any number of
+/// ingredient rows, each a category and a quantity of it.
 #[derive(Debug)]
 pub struct RecipeInput {
     name_input: StringField,
@@ -75,9 +77,10 @@ pub struct RecipeInput {
     categories: Vec<Category>,
 
     unit_system: UnitSystem,
-    /// Set once a save has been attempted; see `CategoryInput::show_errors`.
+    /// Whether fields show their errors; see the [module docs](super).
     show_errors: bool,
 }
+/// One ingredient row of a [`RecipeInput`].
 #[derive(Debug)]
 struct IngredientInput {
     category: RequiredPick<Category>,
@@ -122,6 +125,8 @@ impl IngredientInput {
     }
 }
 impl RecipeInput {
+    /// New rows start in the configured unit system's default unit;
+    /// `categories` are the ones each row offers.
     pub fn new(config: &Config, categories: Vec<Category>) -> Self {
         RecipeInput {
             name_input: StringField::new("Name"),
@@ -196,6 +201,8 @@ impl RecipeInput {
         self.show_errors = false;
     }
 
+    /// Fills the form from `recipe`, one row per ingredient, showing
+    /// quantities in `unit_system`.
     pub fn begin_edit(&mut self, recipe: &RecipeBody, unit_system: UnitSystem) {
         self.clear();
         self.name_input.set(recipe.name.clone());

@@ -39,16 +39,20 @@ impl Display for ItemField {
     }
 }
 
+/// The form for adding or editing an inventory item, along with the
+/// category it belongs to, if any.
 #[derive(Debug)]
 pub struct ItemInput {
     name: StringField,
     quantity: NumberField,
     unit: RequiredPick<Unit>,
     category: OptionalPick<Category>,
-    /// Set once a save has been attempted; see `CategoryInput::show_errors`.
+    /// Whether fields show their errors; see the [module docs](super).
     show_errors: bool,
 }
 impl ItemInput {
+    /// The unit starts as the configured unit system's volume unit (ml or
+    /// fl oz); `categories` are the ones offered for the item.
     pub fn new(config: &Config, categories: Vec<Category>) -> Self {
         let units = match config.default_units() {
             UnitSystem::Metric => Unit::Milliliter,
@@ -81,6 +85,7 @@ impl ItemInput {
             ItemMessage::Category(category) => self.category.select(category),
         }
     }
+    /// The item, and the category chosen for it if any.
     pub fn output(&mut self) -> Result<(ItemBody, Option<Category>), FormError<ItemField>> {
         self.show_errors = true;
         let mut validator = Validator::default();
@@ -106,6 +111,7 @@ impl ItemInput {
         self.category.clear();
         self.show_errors = false;
     }
+    /// Fills the form from `edit`, showing its quantity in `unit_system`.
     pub fn begin_edit(&mut self, edit: &(ItemBody, Option<Category>), unit_system: UnitSystem) {
         self.clear();
         if let Some(ref category) = edit.1 {

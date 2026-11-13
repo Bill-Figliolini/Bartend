@@ -10,11 +10,16 @@ use crate::presentation::widget::input::{Error, with_error};
 
 /// Whether a [`PickField`] must have a selection, and how picking behaves.
 pub trait Requirement<T> {
+    /// What [`PickField::value`] gives back.
     type Output;
+    /// [`Infallible`] when no choice is needed, so the value can be read
+    /// with an irrefutable `let Ok(value) = field.value();`.
     type Error: Into<Error>;
     /// Appended to the placeholder.
     const SUFFIX: &'static str;
+    /// Checks the current selection.
     fn apply(selection: Option<&T>) -> Result<Self::Output, Self::Error>;
+    /// Updates the selection when the user picks `picked`.
     fn select(current: &mut Option<T>, picked: T);
 }
 
@@ -69,7 +74,9 @@ pub struct PickField<T, Q> {
     requirement: PhantomData<Q>,
 }
 
+/// A drop-down that must have a value chosen.
 pub type RequiredPick<T> = PickField<T, Required>;
+/// A drop-down that may be left empty.
 pub type OptionalPick<T> = PickField<T, Optional>;
 
 impl<T, Q> PickField<T, Q>
@@ -77,6 +84,7 @@ where
     T: Clone + Display + 'static,
     Q: Requirement<T>,
 {
+    /// `initial` is selected to begin with; it need not be in `options`.
     pub fn new(options: Vec<T>, initial: Option<T>, placeholder: impl Into<String>) -> Self {
         let mut placeholder = placeholder.into();
         placeholder.push_str(Q::SUFFIX);
@@ -88,6 +96,7 @@ where
         }
     }
 
+    /// Applies a pick from the drop-down, as [`Requirement::select`] says.
     pub fn select(&mut self, picked: T) {
         Q::select(&mut self.selection, picked);
     }
@@ -96,10 +105,13 @@ where
         self.selection = None;
     }
 
+    /// The selection, checked against `Q`. Reading it changes nothing.
     pub fn value(&self) -> Result<Q::Output, Q::Error> {
         Q::apply(self.selection.as_ref())
     }
 
+    /// `on_select` builds the message for a pick. With `show_error`, the
+    /// field's current error, if any, is shown under it.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view<'a, M: Clone + 'a>(
         &'a self,

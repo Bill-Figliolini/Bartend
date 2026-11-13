@@ -1,3 +1,35 @@
+//! The forms in each screen's entry area: one per screen, built from the
+//! fields in [`widget::input`](crate::presentation::widget::input).
+//!
+//! Every form follows the same pattern:
+//!
+//! - **Messages.** Each form has its own message enum (e.g. [`ItemMessage`])
+//!   with a variant per field, so an edit can only reach the field it was
+//!   meant for. `view` returns an `Element` of that message; the screen
+//!   wraps it into its own message with `.map(..)` and hands it back to the
+//!   form's `update`, which cannot fail.
+//! - **Rows.** Repeated groups of fields, such as a recipe's ingredients,
+//!   are kept in [`Rows`], and their messages carry the row's [`RowKey`].
+//!   Keys are never reused, so a message for a row that is gone is dropped
+//!   rather than landing on another row.
+//! - **Saving.** `output` checks every field, not just up to the first
+//!   failure. It either returns the finished value and clears the form, or
+//!   returns a [`FormError`] naming each failed field by the form's own field
+//!   enum, e.g. `ItemField::Quantity` or, for a row,
+//!   `RecipeField::Ingredient(key, IngredientField::Quantity)`.
+//! - **Showing errors.** Each form has a `show_errors` flag that `output`
+//!   sets and `clear` resets. Fields show no errors until then, so a form
+//!   the user has only just started is not covered in complaints. After it,
+//!   each error is worked out afresh on every view, so it disappears as soon
+//!   as the field is fixed.
+//! - **Editing.** `begin_edit` clears the form and fills it from an existing
+//!   value.
+//!
+//! To add a field: add it to the form struct, a variant to the message enum
+//! and to `update` (the compiler points out that match), then to `view`;
+//! and if the field can fail, a variant to the field enum and a check in
+//! `output`.
+
 mod category_input;
 mod item_input;
 mod recipe_input;
@@ -33,6 +65,7 @@ impl<T> Default for Rows<T> {
 }
 
 impl<T> Rows<T> {
+    /// Adds `row` at the end, under a fresh key.
     fn push(&mut self, row: T) -> RowKey {
         let key = RowKey(self.next_key);
         self.next_key += 1;
@@ -54,6 +87,7 @@ impl<T> Rows<T> {
             .map(|(_, row)| row)
     }
 
+    /// The rows in display order, with their keys.
     fn iter(&self) -> impl Iterator<Item = (RowKey, &T)> {
         self.rows.iter().map(|(key, row)| (*key, row))
     }
@@ -63,10 +97,12 @@ impl<T> Rows<T> {
         self.rows.len()
     }
 
+    /// Removes every row. Keys keep counting up from where they were.
     fn clear(&mut self) {
         self.rows.clear();
     }
 
+    /// The key of the `index`th row.
     #[cfg(test)]
     fn key(&self, index: usize) -> RowKey {
         self.rows[index].0
@@ -82,12 +118,13 @@ fn discard_stale_row(key: RowKey, msg: &dyn std::fmt::Debug) {
     let _ = (key, msg);
 }
 
-/// Every field that failed validation when a form was submitted, keyed by
-/// that form's own field type `F` (e.g. `ItemField`).
+/// Every field that failed validation when a form was saved, keyed by that
+/// form's own field type `F` (e.g. `ItemField`), in the order the fields
+/// were checked.
 ///
-/// The same errors are also shown inline next to each field; this value lets
+/// The same errors are also shown next to each field; this value lets
 /// callers know *which* fields failed rather than only that something did.
-/// Repeated fields carry their row's [`RowKey`], so each one is told apart.
+/// Fields in a row carry the row's [`RowKey`], so each one is told apart.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormError<F>(Vec<(F, Error)>);
 
@@ -131,6 +168,7 @@ impl<F> Default for Validator<F> {
 }
 
 impl<F> Validator<F> {
+    /// Passes on a field's value, or records its error under `field`.
     fn check<T>(&mut self, field: F, result: Result<T, Error>) -> Option<T> {
         result.map_err(|error| self.0.push((field, error))).ok()
     }

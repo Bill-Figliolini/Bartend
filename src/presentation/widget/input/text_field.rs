@@ -58,7 +58,9 @@ pub struct TextField<R: Rule> {
     rule: PhantomData<R>,
 }
 
+/// A text box that must not be blank.
 pub type StringField = TextField<NonEmpty>;
+/// A text box for a quantity.
 pub type NumberField = TextField<NonNegative>;
 
 impl<R: Rule> TextField<R> {
@@ -70,6 +72,7 @@ impl<R: Rule> TextField<R> {
         }
     }
 
+    /// Replaces the text, as typed or when filling the form for an edit.
     pub fn set(&mut self, text: String) {
         self.text = text;
     }
@@ -78,10 +81,13 @@ impl<R: Rule> TextField<R> {
         self.text.clear();
     }
 
+    /// The text, checked by `R`. Reading it changes nothing.
     pub fn value(&self) -> Result<R::Output, Error> {
         R::apply(&self.text)
     }
 
+    /// `on_input` builds the message for each edit. With `show_error`, the
+    /// field's current error, if any, is shown under it.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view<'a, M: Clone + 'a>(
         &'a self,
