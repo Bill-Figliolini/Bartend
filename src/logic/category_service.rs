@@ -92,16 +92,18 @@ impl CategoryService {
         }
     }
 
+    #[cfg(test)]
     pub fn get_page(&self, page_number: usize, page_size: usize) -> Vec<CategoryID> {
         let page_offset = page_number * page_size;
-        self.get_sorted()
+        self.sorted_ids()
             .into_iter()
             .skip(page_offset)
             .take(page_size)
             .collect()
     }
 
-    fn get_sorted(&self) -> Vec<CategoryID> {
+    /// Every id, ordered by name (case-insensitively), then by id.
+    pub fn sorted_ids(&self) -> Vec<CategoryID> {
         let mut entries: Vec<(String, CategoryID)> = self
             .categories
             .iter()
@@ -249,6 +251,7 @@ impl CategoryService {
             .get_non_cyclic_additions(&category)
             .unwrap_or_default()
     }
+    #[cfg(test)]
     pub fn category_count(&self) -> usize {
         self.categories.len()
     }

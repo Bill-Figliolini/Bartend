@@ -1,10 +1,9 @@
 use std::path::PathBuf;
 
 use iced::{
-    Element,
     Length::Fill,
     Task,
-    widget::{column, row},
+    widget::{button, column, container, pick_list, row, text},
 };
 
 use crate::{
@@ -14,17 +13,41 @@ use crate::{
     presentation::{
         application::{self, Context},
         constants,
-        widget::{footer::footer, header::header, text_style::title},
+        screen::Panels,
+        widget::{
+            footer::footer,
+            master_list::{Entry, master_list},
+        },
     },
 };
 
 #[derive(Debug)]
 pub struct Settings {
     config: EditableConfig,
+    /// The group of settings shown in the detail panel.
+    section: Section,
+}
+
+/// A group of settings, listed in the master panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Section {
+    Database,
+    Units,
+}
+impl Section {
+    const ALL: [Section; 2] = [Section::Database, Section::Units];
+
+    fn label(self) -> &'static str {
+        match self {
+            Section::Database => "Database",
+            Section::Units => "Units",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    SelectSection(Section),
     Save,
     UpdateDBPath(PathBuf),
     UpdateUnitSystem(UnitSystem),
@@ -92,54 +115,64 @@ impl Command {
 impl Settings {
     pub fn new(current_config: &Config) -> Self {
         let config = current_config.editable();
-        Self { config }
+        Self {
+            config,
+            section: Section::Database,
+        }
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> Element<'_, application::Message> {
-        let text_boundary = 500;
+    pub fn view(&self) -> Panels<'_> {
+        let entries = Section::ALL.into_iter().map(|section| Entry {
+            label: section.label().to_string(),
+            selected: self.section == section,
+            on_press: settings_msg(Message::SelectSection(section)),
+        });
+        let master = master_list(None, entries);
 
-        let title_text = title("Settings");
-        let header = header(title_text);
+        let heading = text(self.section.label()).size(24);
+        let contents = match self.section {
+            Section::Database => {
+                let current_db_path = text!("Current DB Path: {}", self.config.db_path.display());
+                let db_button = button("Choose DB File").on_press(
+                    application::Message::OpenDBPicker(self.config.db_path.clone()),
+                );
+                column![current_db_path, db_button].spacing(constants::SPACING)
+            }
+            Section::Units => {
+                let unit_text = text("Default units:");
+                let unit_systems = vec![UnitSystem::Metric, UnitSystem::Imperial];
+                let unit_picker = pick_list(
+                    unit_systems,
+                    Some(self.config.default_unit_system),
+                    |unit_system: UnitSystem| settings_msg(Message::UpdateUnitSystem(unit_system)),
+                );
+                column![
+                    row![unit_text, unit_picker]
+                        .spacing(constants::SPACING)
+                        .align_y(iced::Alignment::Center)
+                ]
+            }
+        };
+        let body = column![heading, contents].spacing(16).height(Fill);
 
-        let current_db_path = iced::widget::text!(
-            "Current DB Path: {}",
-            self.config.db_path.display().to_string()
-        )
-        .width(text_boundary);
-        let db_button = iced::widget::Button::new("Choose DB File").on_press(
-            application::Message::OpenDBPicker(self.config.db_path.clone()),
-        );
-        let db_row = row![current_db_path, db_button];
+        let save_button = button("Save").on_press(settings_msg(Message::Save));
+        let cancel_button = button("Cancel")
+            .style(button::secondary)
+            .on_press(application::Message::ResetSettings);
+        let footer_contents = row![save_button, cancel_button].spacing(constants::SPACING);
+        let footer = footer(container(footer_contents).center_y(Fill));
 
-        let divider = iced::widget::rule::horizontal(constants::DIV_SIZE);
-
-        let unit_text = iced::widget::text("Default units:").width(text_boundary);
-        let unit_systems = vec![UnitSystem::Metric, UnitSystem::Imperial];
-        let unit_picker = iced::widget::pick_list(
-            unit_systems,
-            Some(self.config.default_unit_system),
-            |unit_system: UnitSystem| {
-                application::Message::Settings(Message::UpdateUnitSystem(unit_system))
-            },
-        );
-        let unit_system_row = row![unit_text, unit_picker];
-
-        let body = column![db_row, divider, unit_system_row].height(Fill);
-
-        let save_button =
-            iced::widget::button("Save").on_press(application::Message::Settings(Message::Save));
-        let cancel_button =
-            iced::widget::button("Cancel").on_press(application::Message::ResetSettings);
-        let footer_contents = row![save_button, cancel_button].spacing(20);
-        let footer_container = iced::widget::Container::new(footer_contents).center_x(Fill);
-        let footer = footer(footer_container);
-
-        column![header, body, footer].into()
+        let detail = column![body, footer].into();
+        Panels { master, detail }
     }
 
     pub fn update(&mut self, message: Message) -> Option<Command> {
         match message {
+            Message::SelectSection(section) => {
+                self.section = section;
+                None
+            }
             Message::Save => Some(Command::UpdateConfig(self.config.commit())),
             Message::UpdateDBPath(db_path) => {
                 self.config.db_path = db_path;
@@ -155,6 +188,10 @@ impl Settings {
             }
         }
     }
+}
+
+fn settings_msg(msg: Message) -> application::Message {
+    application::Message::Settings(msg)
 }
 
 #[cfg(test)]
@@ -200,6 +237,31 @@ mod tests {
         assert_eq!(world.config.default_units(), UnitSystem::Imperial);
         let on_disk = Config::load(Some(world.config.path().clone()), None).unwrap();
         assert_eq!(on_disk.default_units(), UnitSystem::Imperial);
+    }
+
+    #[test]
+    fn opens_on_database_and_switches_sections_keeping_edits() {
+        let world = World::new();
+        let mut settings = Settings::new(&world.config);
+        assert_eq!(settings.section, Section::Database);
+        settings.update(Message::UpdateUnitSystem(UnitSystem::Imperial));
+
+        assert!(
+            settings
+                .update(Message::SelectSection(Section::Units))
+                .is_none()
+        );
+        assert_eq!(settings.section, Section::Units);
+
+        settings.update(Message::SelectSection(Section::Database));
+        let config = save(&mut settings);
+        assert_eq!(config.default_units(), UnitSystem::Imperial);
+    }
+
+    #[test]
+    fn sections_have_names() {
+        let labels: Vec<&str> = Section::ALL.iter().map(|section| section.label()).collect();
+        assert_eq!(labels, ["Database", "Units"]);
     }
 
     #[test]

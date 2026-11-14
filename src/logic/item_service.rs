@@ -17,9 +17,10 @@ impl ItemService {
         Ok(ItemService { items })
     }
 
+    #[cfg(test)]
     pub fn get_page(&self, page: usize, page_size: usize) -> Vec<ItemID> {
         let page_start = page_size * page;
-        self.get_sorted()
+        self.sorted_ids()
             .into_iter()
             .skip(page_start)
             .take(page_size)
@@ -33,7 +34,8 @@ impl ItemService {
         }
     }
 
-    fn get_sorted(&self) -> Vec<ItemID> {
+    /// Every id, ordered by name (case-insensitively), then by id.
+    pub fn sorted_ids(&self) -> Vec<ItemID> {
         let mut entries: Vec<(String, ItemID)> = self
             .items
             .iter()
@@ -90,6 +92,7 @@ impl ItemService {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn item_count(&self) -> usize {
         self.items.len()
     }

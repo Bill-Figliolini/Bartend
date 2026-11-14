@@ -5,7 +5,7 @@ use iced::{
     Length::Fill,
     Subscription, Task, Theme, event,
     keyboard::{self, Key, key::Named},
-    widget::{button, column, container, operation, row, text},
+    widget::{button, column, container, operation, row, rule, text},
     window,
 };
 use rfd::AsyncFileDialog;
@@ -15,8 +15,9 @@ use crate::{
     models::{BartendError, Config},
     persistence::Database,
     presentation::{
-        screen::{self, Screen, ScreenKind},
-        widget::sidebar,
+        constants,
+        screen::{self, Panels, Screen, ScreenKind},
+        widget::tab_bar::tab_bar,
     },
 };
 
@@ -25,7 +26,7 @@ pub fn run() -> iced::Result {
         .title("Bartend")
         .theme(Bartend::theme)
         .subscription(Bartend::subscription)
-        .window_size((500.0, 600.0))
+        .window_size((1100.0, 720.0))
         .run()
 }
 
@@ -238,33 +239,34 @@ impl Bartend {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> Element<'_, Message> {
-        let sidebar = sidebar::Sidebar::new()
-            .button("Inventory", || Message::OpenScreen(ScreenKind::Inventory))
-            .button("Categories", || Message::OpenScreen(ScreenKind::Categories))
-            .button("Recipes", || Message::OpenScreen(ScreenKind::Recipes))
-            .button("Serving", || Message::OpenScreen(ScreenKind::Serving))
-            .button("Settings", || Message::OpenScreen(ScreenKind::Settings))
-            .into();
-
-        let mut body = Vec::new();
-        let screen_contents = self.screen.view(
+        let Panels { master, detail } = self.screen.view(
             &self.item_service,
             &self.category_service,
             &self.recipe_service,
         );
-        if let Some(error) = &self.error {
-            let error_text = text(error.to_string());
-            let error_clear_button = button(text("X")).on_press(Message::ClearError);
-            let error_row = row![error_text, error_clear_button];
-            body.push(error_row.into());
-        }
-        body.push(screen_contents);
-        let screen = container(column(body)).width(Fill).height(Fill);
 
-        container(row![sidebar, screen])
-            .height(Fill)
+        let mut detail_contents = column![].spacing(constants::SPACING);
+        if let Some(error) = &self.error {
+            let error_text = text(error.to_string()).width(Fill);
+            let error_clear_button = button(text("X")).on_press(Message::ClearError);
+            let error_row = row![error_text, error_clear_button].spacing(constants::SPACING);
+            detail_contents = detail_contents.push(error_row);
+        }
+        detail_contents = detail_contents.push(detail);
+        let detail = container(detail_contents)
             .width(Fill)
-            .into()
+            .height(Fill)
+            .padding(constants::PADDING);
+
+        let body = row![master, rule::vertical(constants::DIV_SIZE), detail];
+        column![
+            tab_bar(self.screen.kind()),
+            rule::horizontal(constants::DIV_SIZE),
+            body
+        ]
+        .height(Fill)
+        .width(Fill)
+        .into()
     }
 }
 

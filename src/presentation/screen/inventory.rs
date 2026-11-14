@@ -2,7 +2,7 @@ use iced::{
     Element,
     Length::Fill,
     Task,
-    widget::{column, container, row, table, text},
+    widget::{button, column, container, row, space, text},
 };
 
 use crate::{
@@ -10,28 +10,35 @@ use crate::{
     models::{Category, CategoryFilter, CategoryID, Config, Item, ItemBody, ItemID, UnitSystem},
     presentation::{
         application::{self, Context},
+        constants,
         input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved},
-        widget::{footer::footer, header::header, text_style::title},
+        screen::Panels,
+        widget::{
+            footer::footer,
+            master_list::{Entry, master_list},
+        },
     },
 };
 
 #[derive(Debug)]
 pub struct Inventory {
     editor: Editor<ItemInput, ItemID>,
-
-    current_page: usize,
+    /// The item shown in the detail panel; `None` shows the new-item form.
+    selected: Option<ItemID>,
     unit_system: UnitSystem,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     SwapUnits,
+    /// Shows the item in the detail panel, or the new-item form for `None`.
+    /// Any edit in progress is discarded.
+    Select(Option<ItemID>),
     /// Starts editing the item, which is in the given category, or cancels
     /// if it is already being edited.
     BeginEdit(ItemID, Option<Category>),
     Editor(EditorMessage<ItemMessage>),
     DeleteItem(ItemID),
-    SelectPage(usize),
 
     //Variants for Application's use
     Reload,
@@ -97,75 +104,9 @@ impl Inventory {
         let form = ItemInput::new(config, category_service.get_all(CategoryFilter {}));
         Self {
             editor: Editor::new(form, "Item"),
+            selected: None,
             unit_system,
-            current_page: 0,
         }
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_inventory_display(
-        &self,
-        item_service: &ItemService,
-        category_service: &CategoryService,
-    ) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(Fill), |item: ItemID| {
-            text(item_service.get(item).cloned().unwrap_or_default().name)
-        });
-        let quantity_column = table::column(text("Quantity"), |item: ItemID| {
-            let item = item_service.get(item).cloned().unwrap_or_default();
-            text!(
-                "{:.0} {}",
-                item.quantity.value(self.unit_system),
-                item.quantity.unit(self.unit_system).to_string()
-            )
-        });
-        let category_column =
-            table::column(
-                text("Category").width(200),
-                |item: ItemID| match category_service.item_category(item) {
-                    Some(cat_id) => text(
-                        category_service
-                            .get(cat_id)
-                            .cloned()
-                            .unwrap_or_default()
-                            .name,
-                    ),
-                    None => text!("None"),
-                },
-            );
-        let edit_column_width = 70;
-        let edit_column = table::column(
-            text("Edit").width(edit_column_width).center(),
-            |item: ItemID| {
-                let begin = || {
-                    let category = category_service.item_category(item).map(|id| Category {
-                        id,
-                        body: category_service.get(id).cloned().unwrap_or_default(),
-                    });
-                    application::Message::Inventory(Message::BeginEdit(item, category))
-                };
-                self.editor
-                    .edit_button(item, begin, editor_msg(EditorMessage::Cancel))
-                    .width(edit_column_width)
-            },
-        );
-        let delete_column_width = 50;
-        let delete_column = table::column(
-            text("Delete").width(delete_column_width).center(),
-            |item: ItemID| {
-                iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::Inventory(Message::DeleteItem(item)))
-            },
-        );
-        let columns = vec![
-            name_column,
-            quantity_column,
-            category_column,
-            edit_column,
-            delete_column,
-        ];
-        let contents = item_service.get_page(self.current_page, 15);
-        table(columns, contents).into()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -173,52 +114,76 @@ impl Inventory {
         &self,
         item_service: &ItemService,
         category_service: &CategoryService,
+    ) -> Panels<'_> {
+        let entries = item_service.sorted_ids().into_iter().map(|id| Entry {
+            label: item_service.get(id).cloned().unwrap_or_default().name,
+            selected: self.selected == Some(id),
+            on_press: inventory_msg(Message::Select(Some(id))),
+        });
+        let new = (
+            "+ New Item".to_string(),
+            inventory_msg(Message::Select(None)),
+        );
+        let master = master_list(Some(new), entries);
+
+        let detail = match self.selected {
+            Some(item) if self.editor.editing().is_none() => {
+                self.item_details(item, item_service, category_service)
+            }
+            _ => self.editor.view().map(editor_msg),
+        };
+        let unit_swap_button = button(text(self.unit_system.to_string()))
+            .style(button::secondary)
+            .on_press(inventory_msg(Message::SwapUnits));
+        let footer = footer(container(row![space().width(Fill), unit_swap_button]).center_y(Fill));
+        let detail = column![container(detail).height(Fill), footer].into();
+
+        Panels { master, detail }
+    }
+
+    /// The read-only view of `item`, with buttons to edit or delete it.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn item_details(
+        &self,
+        item: ItemID,
+        item_service: &ItemService,
+        category_service: &CategoryService,
     ) -> Element<'_, application::Message> {
-        let title_text = title("Inventory");
-        let header = header(title_text);
+        let body = item_service.get(item).cloned().unwrap_or_default();
+        let category = category_service.item_category(item).map(|id| Category {
+            id,
+            body: category_service.get(id).cloned().unwrap_or_default(),
+        });
+        let category_name = category
+            .as_ref()
+            .map_or_else(|| "None".to_string(), |category| category.body.name.clone());
 
-        let entry_section = self.editor.view().map(editor_msg);
-
-        let inventory = self.build_inventory_display(item_service, category_service);
-
-        let body_contents = column![entry_section, inventory];
-        let body = container(body_contents).align_top(Fill);
-
-        let mut page_controller_contents = Vec::new();
-        if self.current_page != 0 {
-            let previous_page = self.current_page.wrapping_sub(1);
-            let previous_page_button = iced::widget::button("Previous")
-                .on_press(application::Message::Inventory(Message::SelectPage(
-                    previous_page,
-                )))
-                .into();
-            page_controller_contents.push(previous_page_button);
-        }
-        let space = iced::widget::space().width(Fill).into();
-        page_controller_contents.push(space);
-        if (self.current_page + 1) * 15 < item_service.item_count() {
-            let next_page = self.current_page.wrapping_add(1);
-            let next_page_button = iced::widget::button("Next")
-                .on_press(application::Message::Inventory(Message::SelectPage(
-                    next_page,
-                )))
-                .into();
-            page_controller_contents.push(next_page_button);
-        }
-        let page_controller = row(page_controller_contents);
-        let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
-            .on_press(application::Message::Inventory(Message::SwapUnits));
-        let footer_contents = row![unit_swap_button];
-        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
-        let footer = footer(footer_container);
-
-        column![header, body, page_controller, footer].into()
+        let name = text(body.name).size(24);
+        let quantity = text!(
+            "Quantity: {:.0} {}",
+            body.quantity.value(self.unit_system),
+            body.quantity.unit(self.unit_system)
+        );
+        let category_text = text!("Category: {category_name}");
+        let edit = button("Edit").on_press(inventory_msg(Message::BeginEdit(item, category)));
+        let delete = button("Delete")
+            .style(button::danger)
+            .on_press(inventory_msg(Message::DeleteItem(item)));
+        let buttons = row![edit, delete].spacing(constants::SPACING);
+        column![name, quantity, category_text, buttons]
+            .spacing(16)
+            .into()
     }
 
     pub fn update(&mut self, item_service: &ItemService, message: Message) -> Option<Command> {
         match message {
             Message::SwapUnits => {
                 self.unit_system.swap();
+                None
+            }
+            Message::Select(item) => {
+                self.editor.reset();
+                self.selected = item;
                 None
             }
             Message::Editor(msg) => match self.editor.update(msg) {
@@ -243,22 +208,20 @@ impl Inventory {
             }
             Message::Reload => {
                 self.editor.reset();
-                self.current_page = self
-                    .current_page
-                    .min(item_service.item_count().div_ceil(15).saturating_sub(1));
+                self.selected = self.selected.filter(|&item| item_service.get(item).is_ok());
                 None
             }
             Message::DeleteItem(item) => Some(Command::Delete(item)),
-            Message::SelectPage(page) => {
-                self.current_page = page;
-                None
-            }
         }
     }
 }
 
+fn inventory_msg(msg: Message) -> application::Message {
+    application::Message::Inventory(msg)
+}
+
 fn editor_msg(msg: EditorMessage<ItemMessage>) -> application::Message {
-    application::Message::Inventory(Message::Editor(msg))
+    inventory_msg(Message::Editor(msg))
 }
 
 #[cfg(test)]
@@ -480,19 +443,60 @@ mod tests {
     }
 
     #[test]
-    fn reload_ends_editing_and_clamps_to_the_last_page() {
+    fn reload_ends_editing_and_keeps_a_live_selection() {
         let mut world = World::new();
-        for i in 0..16 {
-            world.add_item(&format!("Item {i}"), 1.0);
-        }
-        let first = world.items.get_page(0, 1)[0];
+        let item = world.add_item("Tanqueray", 750.0);
         let mut screen = Inventory::new(&world.config, &world.categories);
-        screen.update(&world.items, Message::BeginEdit(first, None));
-        screen.update(&world.items, Message::SelectPage(5));
+        screen.update(&world.items, Message::Select(Some(item)));
+        screen.update(&world.items, Message::BeginEdit(item, None));
 
         screen.update(&world.items, Message::Reload);
 
         assert_eq!(screen.editor.editing(), None);
-        assert_eq!(screen.current_page, 1);
+        assert_eq!(screen.selected, Some(item));
+    }
+
+    #[test]
+    fn reload_after_a_delete_clears_the_selection() {
+        let mut world = World::new();
+        let item = world.add_item("Tanqueray", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        screen.update(&world.items, Message::Select(Some(item)));
+
+        let command = screen.update(&world.items, Message::DeleteItem(item));
+        apply(&mut world, command.unwrap());
+        screen.update(&world.items, Message::Reload);
+
+        assert_eq!(screen.selected, None);
+    }
+
+    #[test]
+    fn selecting_an_item_discards_an_edit_in_progress() {
+        let mut world = World::new();
+        let first = world.add_item("Tanqueray", 750.0);
+        let second = world.add_item("Beefeater", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        screen.update(&world.items, Message::BeginEdit(first, None));
+
+        screen.update(&world.items, Message::Select(Some(second)));
+
+        assert_eq!(screen.selected, Some(second));
+        assert_eq!(screen.editor.editing(), None);
+        assert!(
+            screen.update(&world.items, SAVE).is_none(),
+            "the discarded edit must not be saved"
+        );
+    }
+
+    #[test]
+    fn selecting_new_clears_the_selection() {
+        let mut world = World::new();
+        let item = world.add_item("Tanqueray", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories);
+        screen.update(&world.items, Message::Select(Some(item)));
+
+        screen.update(&world.items, Message::Select(None));
+
+        assert_eq!(screen.selected, None);
     }
 }

@@ -7,7 +7,9 @@ use iced::{
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, UnitSystem},
+    models::{
+        CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, RecipeID, UnitSystem,
+    },
     presentation::{
         input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
         widget::input::RequiredPick,
@@ -58,19 +60,26 @@ impl ServingInput {
             show_errors: false,
         }
     }
+    /// The chosen recipe's id, if one is chosen.
+    pub fn recipe_id(&self) -> Option<RecipeID> {
+        self.recipe.value().ok().map(|recipe| recipe.id)
+    }
+
+    /// One item picker per ingredient of the chosen recipe. The recipe
+    /// itself is chosen from the screen's master list.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
         category_service: &CategoryService,
         unit_system: UnitSystem,
     ) -> Element<'_, ServingMessage> {
-        let recipe_selector = self.recipe.view(ServingMessage::Recipe, self.show_errors);
-        let ingredient_use_selectors = column(self.ingredients.iter().map(|(key, ingredient)| {
+        column(self.ingredients.iter().map(|(key, ingredient)| {
             ingredient
                 .view(category_service, unit_system, self.show_errors)
                 .map(move |item| ServingMessage::Item(key, item))
-        }));
-        column![recipe_selector, ingredient_use_selectors].into()
+        }))
+        .spacing(10)
+        .into()
     }
     pub fn update(
         &mut self,
@@ -282,6 +291,19 @@ mod tests {
             input.output().map(|uses| uses.len()),
             Err(FormError(vec![(row, Error::MustChooseValue)]))
         );
+    }
+
+    #[test]
+    fn recipe_id_follows_the_chosen_recipe() {
+        let (items, categories) = services();
+        let mut input = serving_input();
+        assert_eq!(input.recipe_id(), None);
+
+        input.update(ServingMessage::Recipe(recipe()), &items, &categories);
+        assert_eq!(input.recipe_id(), Some(recipe().id));
+
+        input.clear();
+        assert_eq!(input.recipe_id(), None);
     }
 
     #[test]

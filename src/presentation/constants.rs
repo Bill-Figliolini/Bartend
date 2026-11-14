@@ -3,3 +3,13 @@
 //! Module for storing constants relevant to the whole of the presentation module
 
 pub(super) const DIV_SIZE: u32 = 3;
+
+/// Width of the master list, and of the brand cell above it, so the two
+/// line up in the top-left corner.
+pub(super) const MASTER_WIDTH: u32 = 220;
+
+/// Gap between neighbouring widgets in a panel.
+pub(super) const SPACING: u32 = 10;
+
+/// Inner padding of the panels.
+pub(super) const PADDING: u16 = 12;

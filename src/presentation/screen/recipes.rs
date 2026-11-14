@@ -3,31 +3,39 @@ use crate::{
     models::{CategoryFilter, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
         application::{self, Context},
+        constants,
         input_handling::{Editor, EditorMessage, RecipeInput, RecipeMessage, Saved},
-        widget::{footer::footer, header::header, text_style::title},
+        screen::Panels,
+        widget::{
+            footer::footer,
+            master_list::{Entry, master_list},
+        },
     },
 };
 use iced::{
     Element,
     Length::Fill,
     Task,
-    widget::{button, column, container, row, table, text},
+    widget::{Column, button, column, container, row, space, text},
 };
 #[derive(Debug)]
 pub struct Recipes {
     editor: Editor<RecipeInput, RecipeID>,
-
-    current_page: usize,
+    /// The recipe shown in the detail panel; `None` shows the new-recipe
+    /// form.
+    selected: Option<RecipeID>,
     unit_system: UnitSystem,
 }
 #[derive(Debug, Clone)]
 pub enum Message {
     Editor(EditorMessage<RecipeMessage>),
     SwapUnits,
+    /// Shows the recipe in the detail panel, or the new-recipe form for
+    /// `None`. Any edit in progress is discarded.
+    Select(Option<RecipeID>),
     /// Starts editing the recipe, or cancels if it is already being edited.
     BeginEdit(Recipe),
     DeleteRecipe(RecipeID),
-    SelectPage(usize),
     Reload,
 }
 
@@ -64,90 +72,81 @@ impl Recipes {
         let form = RecipeInput::new(config, category_service.get_all(CategoryFilter {}));
         Self {
             editor: Editor::new(form, "Recipe"),
-            current_page: 0,
+            selected: None,
             unit_system,
         }
     }
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_display_table(
-        &self,
-        category_service: &CategoryService,
-        recipe_service: &RecipeService,
-    ) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name"), |recipe: RecipeID| {
-            text(recipe_service.get(recipe).unwrap_or_default().name)
-        });
-        let ingredient_column = table::column(text("Ingredients"), |recipe: RecipeID| {
-            column(
-                recipe_service
-                    .get(recipe)
-                    .unwrap_or_default()
-                    .ingredients
-                    .iter()
-                    .map(|ingredient| {
-                        view_ingredient(ingredient, category_service, &self.unit_system)
-                    }),
-            )
-        });
-        let edit_column = table::column(text("Edit"), |recipe: RecipeID| {
-            let begin = || {
-                application::Message::Recipes(Message::BeginEdit(Recipe {
-                    id: recipe,
-                    body: recipe_service.get(recipe).unwrap_or_default(),
-                }))
-            };
-            self.editor
-                .edit_button(recipe, begin, editor_msg(EditorMessage::Cancel))
-        });
-        let delete_column = table::column(text("Delete"), |recipe: RecipeID| {
-            button("X").on_press(application::Message::Recipes(Message::DeleteRecipe(recipe)))
-        });
-        let columns = vec![name_column, ingredient_column, edit_column, delete_column];
-        let contents = recipe_service.get_page(self.current_page, 15);
-        table(columns, contents).into()
-    }
+
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
-    ) -> Element<'_, application::Message> {
-        let header = header(title("Recipes"));
-        let input_row = self.editor.view().map(editor_msg);
-        let recipe_display = self.build_display_table(category_service, recipe_service);
-        let body = container(column![input_row, recipe_display]).align_top(Fill);
+    ) -> Panels<'_> {
+        let entries = recipe_service.sorted_ids().into_iter().map(|id| Entry {
+            label: recipe_service.get(id).unwrap_or_default().name,
+            selected: self.selected == Some(id),
+            on_press: recipes_msg(Message::Select(Some(id))),
+        });
+        let new = (
+            "+ New Recipe".to_string(),
+            recipes_msg(Message::Select(None)),
+        );
+        let master = master_list(Some(new), entries);
 
-        let mut page_controller_contents = Vec::new();
-        if self.current_page != 0 {
-            let previous_page = self.current_page.wrapping_sub(1);
-            let previous_page_button = button("Previous")
-                .on_press(application::Message::Recipes(Message::SelectPage(
-                    previous_page,
-                )))
-                .into();
-            page_controller_contents.push(previous_page_button);
-        }
-        let space = iced::widget::space().width(Fill).into();
-        page_controller_contents.push(space);
-        if (self.current_page + 1) * 15 < recipe_service.recipe_count() {
-            let next_page = self.current_page.wrapping_add(1);
-            let next_page_button = button("Next")
-                .on_press(application::Message::Recipes(Message::SelectPage(
-                    next_page,
-                )))
-                .into();
-            page_controller_contents.push(next_page_button);
-        }
-        let page_controller = row(page_controller_contents);
-        let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
-            .on_press(application::Message::Recipes(Message::SwapUnits));
-        let footer_contents = row![unit_swap_button];
-        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
-        let footer = footer(footer_container);
-        column![header, body, page_controller, footer].into()
+        let detail = match self.selected {
+            Some(recipe) if self.editor.editing().is_none() => {
+                self.recipe_details(recipe, category_service, recipe_service)
+            }
+            _ => self.editor.view().map(editor_msg),
+        };
+        let unit_swap_button = button(text(self.unit_system.to_string()))
+            .style(button::secondary)
+            .on_press(recipes_msg(Message::SwapUnits));
+        let footer = footer(container(row![space().width(Fill), unit_swap_button]).center_y(Fill));
+        let detail = column![container(detail).height(Fill), footer].into();
+
+        Panels { master, detail }
     }
+
+    /// The read-only view of `recipe`: its ingredients, and buttons to edit
+    /// or delete it.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn recipe_details(
+        &self,
+        id: RecipeID,
+        category_service: &CategoryService,
+        recipe_service: &RecipeService,
+    ) -> Element<'_, application::Message> {
+        let body = recipe_service.get(id).unwrap_or_default();
+        let name = text(body.name.clone()).size(24);
+        let ingredients: Element<'_, _> =
+            if body.ingredients.is_empty() {
+                text("No ingredients").into()
+            } else {
+                Column::with_children(body.ingredients.iter().map(|ingredient| {
+                    view_ingredient(ingredient, category_service, &self.unit_system)
+                }))
+                .spacing(constants::SPACING / 2)
+                .into()
+            };
+        let edit = button("Edit").on_press(recipes_msg(Message::BeginEdit(Recipe { id, body })));
+        let delete = button("Delete")
+            .style(button::danger)
+            .on_press(recipes_msg(Message::DeleteRecipe(id)));
+        let buttons = row![edit, delete].spacing(constants::SPACING);
+        column![name, text("Ingredients").size(18), ingredients, buttons]
+            .spacing(16)
+            .into()
+    }
+
     pub fn update(&mut self, message: Message, recipe_service: &RecipeService) -> Option<Command> {
         match message {
+            Message::Select(recipe) => {
+                self.editor.reset();
+                self.selected = recipe;
+                None
+            }
             Message::Editor(msg) => match self.editor.update(msg) {
                 Ok(Some(Saved::Add(body))) => Some(Command::Add(body)),
                 Ok(Some(Saved::Update(id, body))) => Some(Command::Update(Recipe { id, body })),
@@ -163,21 +162,20 @@ impl Recipes {
             }
             Message::Reload => {
                 self.editor.reset();
-                self.current_page = self
-                    .current_page
-                    .min(recipe_service.recipe_count().div_ceil(15).saturating_sub(1));
+                self.selected = self
+                    .selected
+                    .filter(|&recipe| recipe_service.get(recipe).is_ok());
                 None
             }
             Message::DeleteRecipe(recipe) => Some(Command::Delete(recipe)),
-            Message::SelectPage(page) => {
-                self.current_page = page;
-                None
-            }
         }
     }
 }
+fn recipes_msg(msg: Message) -> application::Message {
+    application::Message::Recipes(msg)
+}
 fn editor_msg(msg: EditorMessage<RecipeMessage>) -> application::Message {
-    application::Message::Recipes(Message::Editor(msg))
+    recipes_msg(Message::Editor(msg))
 }
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn view_ingredient<'a>(
@@ -370,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn reload_ends_editing_and_clamps_the_page() {
+    fn reload_ends_editing_and_keeps_a_live_selection() {
         let mut world = World::new();
         let id = world.add_recipe("Draft", &[]);
         let mut screen = Recipes::new(&world.config, &world.categories);
@@ -378,13 +376,48 @@ mod tests {
             id,
             body: world.recipes.get(id).unwrap(),
         };
+        screen.update(Message::Select(Some(id)), &world.recipes);
         screen.update(Message::BeginEdit(recipe), &world.recipes);
-        screen.update(Message::SelectPage(3), &world.recipes);
 
         screen.update(Message::Reload, &world.recipes);
 
         assert_eq!(screen.editor.editing(), None);
-        assert_eq!(screen.current_page, 0);
+        assert_eq!(screen.selected, Some(id));
         assert!(screen.update(SAVE, &world.recipes).is_none());
+    }
+
+    #[test]
+    fn reload_after_a_delete_clears_the_selection() {
+        let mut world = World::new();
+        let id = world.add_recipe("Draft", &[]);
+        let mut screen = Recipes::new(&world.config, &world.categories);
+        screen.update(Message::Select(Some(id)), &world.recipes);
+
+        let command = screen.update(Message::DeleteRecipe(id), &world.recipes);
+        apply(&mut world, command.unwrap());
+        screen.update(Message::Reload, &world.recipes);
+
+        assert_eq!(screen.selected, None);
+    }
+
+    #[test]
+    fn selecting_a_recipe_discards_an_edit_in_progress() {
+        let mut world = World::new();
+        let first = world.add_recipe("Draft", &[]);
+        let second = world.add_recipe("Martini", &[]);
+        let mut screen = Recipes::new(&world.config, &world.categories);
+        let recipe = Recipe {
+            id: first,
+            body: world.recipes.get(first).unwrap(),
+        };
+        screen.update(Message::BeginEdit(recipe), &world.recipes);
+
+        screen.update(Message::Select(Some(second)), &world.recipes);
+
+        assert_eq!(screen.selected, Some(second));
+        assert_eq!(screen.editor.editing(), None);
+
+        screen.update(Message::Select(None), &world.recipes);
+        assert_eq!(screen.selected, None);
     }
 }

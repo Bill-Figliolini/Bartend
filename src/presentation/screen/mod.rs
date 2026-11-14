@@ -35,6 +35,34 @@ pub enum ScreenKind {
     Recipes,
     Serving,
 }
+impl ScreenKind {
+    /// Every screen, in tab order.
+    pub const ALL: [ScreenKind; 5] = [
+        ScreenKind::Inventory,
+        ScreenKind::Categories,
+        ScreenKind::Recipes,
+        ScreenKind::Serving,
+        ScreenKind::Settings,
+    ];
+
+    /// The screen's name, as shown on its tab.
+    pub fn label(self) -> &'static str {
+        match self {
+            ScreenKind::Inventory => "Inventory",
+            ScreenKind::Settings => "Settings",
+            ScreenKind::Categories => "Categories",
+            ScreenKind::Recipes => "Recipes",
+            ScreenKind::Serving => "Serving",
+        }
+    }
+}
+
+/// What a screen draws: the list on the left, and the details of what is
+/// selected in it on the right.
+pub struct Panels<'a> {
+    pub master: Element<'a, Message>,
+    pub detail: Element<'a, Message>,
+}
 
 //Sum of module commands
 pub enum ScreenCommand {
@@ -78,13 +106,13 @@ impl Screen {
         item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
-    ) -> Element<'_, Message> {
+    ) -> Panels<'_> {
         match self {
             Self::Inventory(inventory) => inventory.view(item_service, category_service),
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(category_service),
             Self::Recipes(recipes) => recipes.view(category_service, recipe_service),
-            Self::Serving(serving) => serving.view(category_service),
+            Self::Serving(serving) => serving.view(category_service, recipe_service),
         }
     }
 
@@ -342,6 +370,15 @@ mod tests {
 
     fn update(world: &World, screen: &mut Screen, message: Message) -> Option<ScreenCommand> {
         screen.update(&world.items, &world.categories, &world.recipes, message)
+    }
+
+    #[test]
+    fn tabs_list_every_screen_once_with_its_name() {
+        let labels: Vec<&str> = ScreenKind::ALL.iter().map(|kind| kind.label()).collect();
+        assert_eq!(
+            labels,
+            ["Inventory", "Categories", "Recipes", "Serving", "Settings"]
+        );
     }
 
     #[test]

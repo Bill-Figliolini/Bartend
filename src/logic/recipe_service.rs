@@ -17,16 +17,18 @@ impl RecipeService {
         Ok(RecipeService { recipes })
     }
 
+    #[cfg(test)]
     pub fn get_page(&self, page: usize, page_size: usize) -> Vec<RecipeID> {
         let page_offset = page * page_size;
-        self.get_sorted()
+        self.sorted_ids()
             .into_iter()
             .skip(page_offset)
             .take(page_size)
             .collect()
     }
 
-    fn get_sorted(&self) -> Vec<RecipeID> {
+    /// Every id, ordered by name (case-insensitively), then by id.
+    pub fn sorted_ids(&self) -> Vec<RecipeID> {
         let mut entries: Vec<(String, RecipeID)> = self
             .recipes
             .iter()
@@ -86,6 +88,7 @@ impl RecipeService {
         }
         Ok(())
     }
+    #[cfg(test)]
     pub fn recipe_count(&self) -> usize {
         self.recipes.len()
     }

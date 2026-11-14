@@ -2,7 +2,7 @@
 
 use iced::{
     Element,
-    widget::{Button, button, column, row, text},
+    widget::{button, column, row, text},
 };
 
 use crate::{
@@ -64,7 +64,6 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
     }
 
     /// The id of the value being edited, if any.
-    #[cfg(test)]
     pub fn editing(&self) -> Option<Id> {
         self.editing
     }
@@ -125,33 +124,23 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
     }
 
     /// A header saying whether this is a new value or an edit, then the
-    /// form and its save button.
+    /// form, then its buttons: Save, plus Cancel while editing.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(&self) -> Element<'_, EditorMessage<F::Message>> {
         let header = match self.editing {
-            None => text!("New {}:", self.noun),
-            Some(_) => text!("Edit {}:", self.noun),
-        };
-        let form = self.form.view(self.show_errors).map(EditorMessage::Input);
-        let save = button("Save").on_press(EditorMessage::Save);
-        column![header, row![form, save]].into()
-    }
-
-    /// The edit button for the row showing `id`: "Edit" sending `begin()`,
-    /// "Cancel" sending `cancel` while `id` is being edited, or a disabled
-    /// "Edit" while something else is. `begin` is only called when needed.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn edit_button<'a, M: Clone + 'a>(
-        &self,
-        id: Id,
-        begin: impl FnOnce() -> M,
-        cancel: M,
-    ) -> Button<'a, M> {
-        match self.editing {
-            None => button(text("Edit").center()).on_press(begin()),
-            Some(current) if current == id => button(text("Cancel").center()).on_press(cancel),
-            Some(_) => button(text("Edit").center()),
+            None => text!("New {}", self.noun),
+            Some(_) => text!("Edit {}", self.noun),
         }
+        .size(24);
+        let form = self.form.view(self.show_errors).map(EditorMessage::Input);
+        let mut buttons = row![button("Save").on_press(EditorMessage::Save)].spacing(10);
+        if self.editing.is_some() {
+            let cancel = button("Cancel")
+                .style(button::secondary)
+                .on_press(EditorMessage::Cancel);
+            buttons = buttons.push(cancel);
+        }
+        column![header, form, buttons].spacing(16).into()
     }
 }
 

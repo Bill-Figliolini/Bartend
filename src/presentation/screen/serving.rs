@@ -1,15 +1,21 @@
 use iced::{
+    Length::Fill,
     Task,
-    widget::{Container, button, column, row, text},
+    widget::{button, column, container, row, space, text},
 };
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{Config, ItemUse, UnitSystem},
+    models::{Config, ItemUse, Recipe, UnitSystem},
     presentation::{
         application::{self, Context},
+        constants,
         input_handling::{ServingInput, ServingMessage},
-        widget::footer::footer,
+        screen::Panels,
+        widget::{
+            footer::footer,
+            master_list::{Entry, master_list},
+        },
     },
 };
 
@@ -50,25 +56,50 @@ impl Serving {
         let unit_system = config.default_units();
         Self { input, unit_system }
     }
+    /// The recipes on the left; choosing one fills the right with an item
+    /// picker for each of its ingredients.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
         category_service: &CategoryService,
-    ) -> iced::Element<'_, application::Message> {
-        let save_button = button("Save").on_press(application::Message::Serving(Message::Save));
-        let body = row![
-            self.input
-                .view(category_service, self.unit_system)
-                .map(|msg| application::Message::Serving(Message::Input(msg))),
-            save_button
-        ];
-        let unit_swap_button = button(text(self.unit_system.to_string()))
-            .on_press(application::Message::Serving(Message::SwapUnits));
-        let footer_content = row![unit_swap_button];
-        let footer_container = Container::new(footer_content);
-        let footer = footer(footer_container);
+        recipe_service: &RecipeService,
+    ) -> Panels<'_> {
+        let chosen = self.input.recipe_id();
+        let entries = recipe_service.sorted_ids().into_iter().map(|id| {
+            let recipe = Recipe {
+                id,
+                body: recipe_service.get(id).unwrap_or_default(),
+            };
+            Entry {
+                label: recipe.body.name.clone(),
+                selected: chosen == Some(id),
+                on_press: serving_msg(Message::Input(ServingMessage::Recipe(recipe))),
+            }
+        });
+        let master = master_list(None, entries);
 
-        column![body, footer].into()
+        let unit_swap_button = button(text(self.unit_system.to_string()))
+            .style(button::secondary)
+            .on_press(serving_msg(Message::SwapUnits));
+        let detail = match chosen {
+            None => column![text("Choose a recipe from the list to serve it.")],
+            Some(id) => {
+                let name = text(recipe_service.get(id).unwrap_or_default().name).size(24);
+                let pickers = self
+                    .input
+                    .view(category_service, self.unit_system)
+                    .map(|msg| serving_msg(Message::Input(msg)));
+                let save_button = button("Serve").on_press(serving_msg(Message::Save));
+                column![name, pickers, save_button].spacing(16)
+            }
+        };
+        let footer = footer(
+            container(row![space().width(Fill), unit_swap_button].spacing(constants::SPACING))
+                .center_y(Fill),
+        );
+        let detail = column![container(detail).height(Fill), footer].into();
+
+        Panels { master, detail }
     }
     pub fn update(
         &mut self,
@@ -99,6 +130,10 @@ impl Serving {
             }
         }
     }
+}
+
+fn serving_msg(msg: Message) -> application::Message {
+    application::Message::Serving(msg)
 }
 
 #[cfg(test)]
