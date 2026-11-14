@@ -6,7 +6,10 @@
 //! Quantities allow of ease of conversion between Imperial and Metric, both at creation and later access.
 //! Quantities handle type checking, guaranteeing that inconsistent operations like adding a liquid and a mass do not occur.
 
-use std::{fmt::Display, ops::SubAssign};
+use std::{
+    fmt::Display,
+    ops::{Mul, SubAssign},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +22,9 @@ pub enum Quantity {
 
 const IMPERIAL_CONVERSION_VOLUME: f32 = 29.57;
 const IMPERIAL_CONVERSION_MASS: f32 = 28.35;
+/// Slack allowed by [`Quantity::covers`], in the stored (metric) unit. Scaled
+/// and split pours rarely sum to exactly the stock they draw on.
+const COVER_TOLERANCE: f32 = 1e-3;
 
 impl Quantity {
     #[must_use]
@@ -104,6 +110,69 @@ impl Quantity {
     #[must_use]
     pub fn readable(&self, unit_system: UnitSystem) -> String {
         format!("{} {}", self.value(unit_system), self.unit(unit_system))
+    }
+
+    /// The sum of two quantities, or `None` if they are different kinds,
+    /// such as a volume and a mass.
+    #[must_use]
+    pub fn checked_add(self, rhs: Self) -> Option<Self> {
+        self.same_kind(rhs)
+            .then(|| self.map_amount(|amount| amount + rhs.amount()))
+    }
+
+    /// Whether `self` is at least `needed`, allowing for float rounding, or
+    /// `None` if they are different kinds.
+    #[must_use]
+    pub fn covers(self, needed: Self) -> Option<bool> {
+        self.same_kind(needed)
+            .then(|| self.amount() + COVER_TOLERANCE >= needed.amount())
+    }
+
+    /// The amount in the stored (metric) unit.
+    const fn amount(self) -> f32 {
+        match self {
+            Self::Volume { quantity } | Self::Mass { quantity } | Self::Count { quantity, .. } => {
+                quantity
+            }
+        }
+    }
+
+    /// Whether the two can be added or compared: both volumes, both masses,
+    /// or counts of the same thing.
+    fn same_kind(self, other: Self) -> bool {
+        match (self, other) {
+            (Self::Volume { .. }, Self::Volume { .. }) | (Self::Mass { .. }, Self::Mass { .. }) => {
+                true
+            }
+            (Self::Count { name: l_name, .. }, Self::Count { name: r_name, .. }) => {
+                l_name == r_name
+            }
+            _ => false,
+        }
+    }
+
+    fn map_amount(self, f: impl FnOnce(f32) -> f32) -> Self {
+        match self {
+            Self::Volume { quantity } => Self::Volume {
+                quantity: f(quantity),
+            },
+            Self::Mass { quantity } => Self::Mass {
+                quantity: f(quantity),
+            },
+            Self::Count { quantity, name } => Self::Count {
+                quantity: f(quantity),
+                name,
+            },
+        }
+    }
+}
+
+/// Scales the amount, keeping the kind; used for serving a recipe several
+/// (or a fractional number of) times.
+impl Mul<f32> for Quantity {
+    type Output = Self;
+    fn mul(self, rhs: f32) -> Self {
+        self.map_amount(|amount| amount * rhs)
     }
 }
 
@@ -455,6 +524,53 @@ mod test {
     fn subtracting_mismatched_kinds_panics_in_debug_builds() {
         let mut volume = Quantity::new(50.0, Unit::Milliliter);
         volume -= Quantity::new(20.0, Unit::Gram);
+    }
+
+    #[test]
+    fn same_kinds_add_and_different_kinds_do_not() {
+        let volume = Quantity::new(30.0, Unit::Milliliter);
+        assert_eq!(
+            volume.checked_add(Quantity::new(20.0, Unit::Milliliter)),
+            Some(Quantity::new(50.0, Unit::Milliliter))
+        );
+        assert_eq!(
+            Quantity::new(1.0, Unit::Gram).checked_add(Quantity::new(2.0, Unit::Gram)),
+            Some(Quantity::new(3.0, Unit::Gram))
+        );
+        assert_eq!(
+            Quantity::new(1.0, Unit::Dash).checked_add(Quantity::new(2.0, Unit::Dash)),
+            Some(Quantity::new(3.0, Unit::Dash))
+        );
+        assert_eq!(volume.checked_add(Quantity::new(1.0, Unit::Gram)), None);
+        assert_eq!(volume.checked_add(Quantity::new(1.0, Unit::Dash)), None);
+    }
+
+    #[test]
+    fn multiplying_scales_the_amount_and_keeps_the_kind() {
+        assert_eq!(
+            Quantity::new(30.0, Unit::Milliliter) * 1.5,
+            Quantity::new(45.0, Unit::Milliliter)
+        );
+        assert_eq!(
+            Quantity::new(10.0, Unit::Gram) * 2.0,
+            Quantity::new(20.0, Unit::Gram)
+        );
+        assert_eq!(
+            Quantity::new(2.0, Unit::Dash) * 0.5,
+            Quantity::new(1.0, Unit::Dash)
+        );
+    }
+
+    #[test]
+    fn covers_allows_for_rounding_but_not_shortfall() {
+        let stock = Quantity::new(45.0, Unit::Milliliter);
+        let exact = Quantity::new(45.0, Unit::Milliliter);
+        let rounded_up = Quantity::new(45.0 + COVER_TOLERANCE / 2.0, Unit::Milliliter);
+        let short = Quantity::new(46.0, Unit::Milliliter);
+        assert_eq!(stock.covers(exact), Some(true));
+        assert_eq!(stock.covers(rounded_up), Some(true));
+        assert_eq!(stock.covers(short), Some(false));
+        assert_eq!(stock.covers(Quantity::new(1.0, Unit::Gram)), None);
     }
 
     #[test]
