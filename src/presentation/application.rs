@@ -1,10 +1,12 @@
 use std::{path::PathBuf, process::exit};
 
 use iced::{
-    Element,
+    Element, Event,
     Length::Fill,
-    Task, Theme,
-    widget::{button, column, container, row, text},
+    Subscription, Task, Theme, event,
+    keyboard::{self, Key, key::Named},
+    widget::{button, column, container, operation, row, text},
+    window,
 };
 use rfd::AsyncFileDialog;
 
@@ -22,6 +24,7 @@ pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title("Bartend")
         .theme(Bartend::theme)
+        .subscription(Bartend::subscription)
         .window_size((500.0, 600.0))
         .run()
 }
@@ -49,6 +52,15 @@ pub(in crate::presentation) enum Message {
 
     ResetSettings,
     OpenDBPicker(PathBuf),
+
+    /// Tab: focus the next field.
+    FocusNext,
+    /// Shift+Tab: focus the previous field.
+    FocusPrevious,
+    /// Enter: save the active screen's form.
+    Submit,
+    /// Escape: cancel the active screen's edit.
+    Cancel,
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -121,6 +133,16 @@ impl Bartend {
         self.theme_value.clone()
     }
 
+    /// Keyboard navigation; see [`shortcut`].
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[expect(
+        clippy::unused_self,
+        reason = "iced passes the state; the keys mean the same on every screen"
+    )]
+    fn subscription(&self) -> Subscription<Message> {
+        event::listen_with(shortcut)
+    }
+
     fn context(&mut self) -> Context<'_> {
         Context {
             database: &mut self.database,
@@ -181,6 +203,17 @@ impl Bartend {
                 })
             }),
 
+            Message::FocusNext => operation::focus_next(),
+            Message::FocusPrevious => operation::focus_previous(),
+            Message::Submit => {
+                let submit = self.screen.submit_message();
+                self.update(submit)
+            }
+            Message::Cancel => match self.screen.cancel_message() {
+                Some(cancel) => self.update(cancel),
+                None => Task::none(),
+            },
+
             Message::Inventory(_)
             | Message::Settings(_)
             | Message::Categories(_)
@@ -235,15 +268,51 @@ impl Bartend {
     }
 }
 
+/// Maps a key press to app navigation: Tab and Shift+Tab move focus, Enter
+/// saves the active screen's form, and Escape cancels its edit.
+///
+/// Only keys no widget has used are mapped. So Enter picks an option in an
+/// open drop-down rather than saving, and Escape in a text box only leaves
+/// the box; a second Escape cancels. Held Enter and Escape do not repeat,
+/// so holding Enter saves once instead of then failing on the empty form.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "event::listen_with needs this exact fn signature"
+)]
+fn shortcut(event: Event, status: event::Status, _window: window::Id) -> Option<Message> {
+    if status == event::Status::Captured {
+        return None;
+    }
+    let Event::Keyboard(keyboard::Event::KeyPressed {
+        key: Key::Named(key),
+        modifiers,
+        repeat,
+        ..
+    }) = event
+    else {
+        return None;
+    };
+    match key {
+        Named::Tab if modifiers.shift() => Some(Message::FocusPrevious),
+        Named::Tab => Some(Message::FocusNext),
+        Named::Enter if !repeat => Some(Message::Submit),
+        Named::Escape if !repeat => Some(Message::Cancel),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         logic::LogicError,
         models::{CategoryID, ItemID, UnitSystem},
-        presentation::screen::{
-            categories, inventory, settings,
-            test_support::{World, drain},
+        presentation::{
+            input_handling::{CategoryMessage, EditorMessage, ItemMessage},
+            screen::{
+                categories, inventory, settings,
+                test_support::{World, drain},
+            },
         },
     };
 
@@ -392,6 +461,154 @@ mod tests {
         // that one was created.
         let task = app.update(Message::OpenDBPicker(dir.path().to_path_buf()));
         assert_eq!(task.units(), 1);
+    }
+
+    fn press(key: Key, modifiers: keyboard::Modifiers, repeat: bool) -> Event {
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            modified_key: key.clone(),
+            key,
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers,
+            text: None,
+            repeat,
+        })
+    }
+
+    fn shortcut_for(event: Event, status: event::Status) -> Option<Message> {
+        shortcut(event, status, window::Id::unique())
+    }
+
+    fn named(key: Named) -> Event {
+        press(Key::Named(key), keyboard::Modifiers::default(), false)
+    }
+
+    #[test]
+    fn navigation_keys_map_to_their_messages() {
+        let ignored = event::Status::Ignored;
+        let shift_tab = press(Key::Named(Named::Tab), keyboard::Modifiers::SHIFT, false);
+        assert!(matches!(
+            shortcut_for(named(Named::Tab), ignored),
+            Some(Message::FocusNext)
+        ));
+        assert!(matches!(
+            shortcut_for(shift_tab, ignored),
+            Some(Message::FocusPrevious)
+        ));
+        assert!(matches!(
+            shortcut_for(named(Named::Enter), ignored),
+            Some(Message::Submit)
+        ));
+        assert!(matches!(
+            shortcut_for(named(Named::Escape), ignored),
+            Some(Message::Cancel)
+        ));
+    }
+
+    #[test]
+    fn keys_a_widget_used_are_left_alone() {
+        let captured = event::Status::Captured;
+        for key in [Named::Tab, Named::Enter, Named::Escape] {
+            assert!(shortcut_for(named(key), captured).is_none(), "{key:?}");
+        }
+    }
+
+    #[test]
+    fn held_enter_and_escape_do_not_repeat_but_tab_does() {
+        let ignored = event::Status::Ignored;
+        let held = |key| press(Key::Named(key), keyboard::Modifiers::default(), true);
+        assert!(shortcut_for(held(Named::Enter), ignored).is_none());
+        assert!(shortcut_for(held(Named::Escape), ignored).is_none());
+        assert!(matches!(
+            shortcut_for(held(Named::Tab), ignored),
+            Some(Message::FocusNext)
+        ));
+    }
+
+    #[test]
+    fn other_events_are_not_shortcuts() {
+        let ignored = event::Status::Ignored;
+        let letter = press(
+            Key::Character("a".into()),
+            keyboard::Modifiers::default(),
+            false,
+        );
+        let release = Event::Keyboard(keyboard::Event::KeyReleased {
+            key: Key::Named(Named::Enter),
+            modified_key: Key::Named(Named::Enter),
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::default(),
+        });
+        assert!(shortcut_for(letter, ignored).is_none());
+        assert!(shortcut_for(named(Named::Space), ignored).is_none());
+        assert!(shortcut_for(release, ignored).is_none());
+    }
+
+    #[test]
+    fn focus_messages_return_a_focus_task() {
+        let (mut app, _dir) = app();
+        assert_eq!(app.update(Message::FocusNext).units(), 1);
+        assert_eq!(app.update(Message::FocusPrevious).units(), 1);
+    }
+
+    fn type_item(app: &mut Bartend, message: ItemMessage) {
+        let input = inventory::Message::Editor(EditorMessage::Input(message));
+        run(app, Message::Inventory(input));
+    }
+
+    #[test]
+    fn submit_saves_the_active_form() {
+        let (mut app, _dir) = app();
+        type_item(&mut app, ItemMessage::Name("Tanqueray".to_string()));
+        type_item(&mut app, ItemMessage::Quantity("750".to_string()));
+
+        run(&mut app, Message::Submit);
+
+        assert_eq!(app.item_service.item_count(), 1);
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn submit_with_an_invalid_form_saves_nothing() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::Submit);
+        assert_eq!(app.item_service.item_count(), 0);
+    }
+
+    #[test]
+    fn cancel_discards_the_entry() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Categories));
+        let name = CategoryMessage::Name("Gin".to_string());
+        run(
+            &mut app,
+            Message::Categories(categories::Message::Editor(EditorMessage::Input(name))),
+        );
+
+        run(&mut app, Message::Cancel);
+        run(&mut app, Message::Submit);
+
+        assert_eq!(app.category_service.category_count(), 0);
+    }
+
+    #[test]
+    fn cancel_without_an_editor_does_nothing() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(
+            &mut app,
+            Message::Settings(settings::Message::UpdateUnitSystem(UnitSystem::Imperial)),
+        );
+
+        run(&mut app, Message::Cancel);
+        run(&mut app, Message::Submit);
+
+        assert_eq!(app.config.default_units(), UnitSystem::Imperial);
     }
 
     #[test]

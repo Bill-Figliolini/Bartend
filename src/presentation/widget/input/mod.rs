@@ -7,6 +7,7 @@
 //! app's messages: `view` takes the function that builds one. See
 //! [`input_handling`](crate::presentation::input_handling) for the forms.
 
+mod keyboard_pick;
 mod pick_field;
 mod text_field;
 use std::{convert::Infallible, fmt::Display};

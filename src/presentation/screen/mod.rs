@@ -11,6 +11,7 @@ use crate::{
     models::Config,
     presentation::{
         application::{Context, Message},
+        input_handling::EditorMessage::{Cancel, Save},
         screen::{recipes::Recipes, serving::Serving},
     },
 };
@@ -126,6 +127,29 @@ impl Screen {
             Screen::Categories(_) => Message::Categories(categories::Message::Reload),
             Screen::Recipes(_) => Message::Recipes(recipes::Message::Reload),
             Screen::Serving(_) => Message::Serving(serving::Message::Reload),
+        }
+    }
+
+    /// What Enter does on the active screen: the same message as its Save
+    /// button.
+    pub fn submit_message(&self) -> Message {
+        match self {
+            Screen::Inventory(_) => Message::Inventory(inventory::Message::Editor(Save)),
+            Screen::Settings(_) => Message::Settings(settings::Message::Save),
+            Screen::Categories(_) => Message::Categories(categories::Message::Editor(Save)),
+            Screen::Recipes(_) => Message::Recipes(recipes::Message::Editor(Save)),
+            Screen::Serving(_) => Message::Serving(serving::Message::Save),
+        }
+    }
+
+    /// What Escape does on the active screen: cancels the edit on screens
+    /// with an editor, and nothing elsewhere.
+    pub fn cancel_message(&self) -> Option<Message> {
+        match self {
+            Screen::Inventory(_) => Some(Message::Inventory(inventory::Message::Editor(Cancel))),
+            Screen::Categories(_) => Some(Message::Categories(categories::Message::Editor(Cancel))),
+            Screen::Recipes(_) => Some(Message::Recipes(recipes::Message::Editor(Cancel))),
+            Screen::Settings(_) | Screen::Serving(_) => None,
         }
     }
 
@@ -405,6 +429,56 @@ mod tests {
                 )
             );
             assert!(matches_screen, "{:?} got {reload:?}", screen.kind());
+        }
+    }
+
+    #[test]
+    fn submit_message_is_the_active_screens_save() {
+        let world = World::new();
+        for screen in screens(&world) {
+            let submit = screen.submit_message();
+            let is_save = matches!(
+                (screen.kind(), &submit),
+                (
+                    ScreenKind::Inventory,
+                    Message::Inventory(inventory::Message::Editor(Save))
+                ) | (
+                    ScreenKind::Settings,
+                    Message::Settings(settings::Message::Save)
+                ) | (
+                    ScreenKind::Categories,
+                    Message::Categories(categories::Message::Editor(Save))
+                ) | (
+                    ScreenKind::Recipes,
+                    Message::Recipes(recipes::Message::Editor(Save))
+                ) | (
+                    ScreenKind::Serving,
+                    Message::Serving(serving::Message::Save)
+                )
+            );
+            assert!(is_save, "{:?} got {submit:?}", screen.kind());
+        }
+    }
+
+    #[test]
+    fn cancel_message_cancels_only_editors() {
+        let world = World::new();
+        for screen in screens(&world) {
+            let cancel = screen.cancel_message();
+            let expected = matches!(
+                (screen.kind(), &cancel),
+                (
+                    ScreenKind::Inventory,
+                    Some(Message::Inventory(inventory::Message::Editor(Cancel)))
+                ) | (
+                    ScreenKind::Categories,
+                    Some(Message::Categories(categories::Message::Editor(Cancel)))
+                ) | (
+                    ScreenKind::Recipes,
+                    Some(Message::Recipes(recipes::Message::Editor(Cancel)))
+                ) | (ScreenKind::Settings | ScreenKind::Serving, None)
+            );
+            assert!(expected, "{:?} got {cancel:?}", screen.kind());
         }
     }
 

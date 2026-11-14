@@ -6,7 +6,7 @@ use std::{
 
 use iced::{Element, widget::combo_box};
 
-use crate::presentation::widget::input::{Error, with_error};
+use crate::presentation::widget::input::{Error, keyboard_pick::KeyboardPick, with_error};
 
 /// Whether a [`PickField`] must have a selection, and how picking behaves.
 pub trait Requirement<T> {
@@ -111,7 +111,8 @@ where
     }
 
     /// `on_select` builds the message for a pick. With `show_error`, the
-    /// field's current error, if any, is shown under it.
+    /// field's current error, if any, is shown under it. The drop-down is a
+    /// Tab stop; see [`KeyboardPick`].
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view<'a, M: Clone + 'a>(
         &'a self,
@@ -129,7 +130,7 @@ where
         } else {
             None
         };
-        with_error(picker.into(), error)
+        with_error(KeyboardPick::new(picker).into(), error)
     }
 }
 
