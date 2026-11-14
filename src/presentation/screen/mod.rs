@@ -137,7 +137,7 @@ impl Screen {
                 .update(message, recipe_service)
                 .map(ScreenCommand::Recipes),
             (Self::Serving(service), Message::Serving(message)) => service
-                .update(item_service, category_service, message)
+                .update(item_service, category_service, recipe_service, message)
                 .map(ScreenCommand::Serving),
             //A message meant for a screen that is no longer active (e.g. an async
             //task, like the DB file picker, resolving after the user navigated away).
@@ -195,8 +195,8 @@ impl Screen {
     pub fn recipes(config: &Config, category_service: &CategoryService) -> Self {
         Screen::Recipes(Recipes::new(config, category_service))
     }
-    pub fn serving(config: &Config, recipe_service: &RecipeService) -> Self {
-        Screen::Serving(Serving::new(config, recipe_service))
+    pub fn serving(config: &Config) -> Self {
+        Screen::Serving(Serving::new(config))
     }
 }
 
@@ -364,7 +364,7 @@ mod tests {
             Screen::settings(&world.config),
             Screen::categories(),
             Screen::recipes(&world.config, &world.categories),
-            Screen::serving(&world.config, &world.recipes),
+            Screen::serving(&world.config),
         ]
     }
 

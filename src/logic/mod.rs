@@ -8,7 +8,7 @@ use crate::models::{CategoryID, ItemID, Quantity, RecipeID};
 
 pub use self::{
     category_service::CategoryService, graph::GraphPatch, item_service::ItemService,
-    recipe_service::RecipeService,
+    recipe_service::RecipeService, stock::totals_by_key,
 };
 #[derive(Debug, Clone)]
 pub enum LogicError {

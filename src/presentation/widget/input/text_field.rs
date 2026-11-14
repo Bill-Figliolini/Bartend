@@ -46,6 +46,22 @@ impl Rule for NonNegative {
     }
 }
 
+/// A finite number above zero.
+#[derive(Debug)]
+pub struct Positive;
+
+impl Rule for Positive {
+    type Output = f32;
+
+    fn apply(raw: &str) -> Result<f32, Error> {
+        raw.trim()
+            .parse::<f32>()
+            .ok()
+            .filter(|number| number.is_finite() && *number > 0.0)
+            .ok_or(Error::NumberNotPositive)
+    }
+}
+
 /// A text box whose contents are checked by the rule `R`.
 ///
 /// The field holds only what the user typed. Validation is a pure read
@@ -62,6 +78,9 @@ pub struct TextField<R: Rule> {
 pub type StringField = TextField<NonEmpty>;
 /// A text box for a quantity.
 pub type NumberField = TextField<NonNegative>;
+/// A text box for a number that must be above zero, such as a count of
+/// servings.
+pub type PositiveField = TextField<Positive>;
 
 impl<R: Rule> TextField<R> {
     pub fn new(placeholder: impl Into<String>) -> Self {
@@ -79,6 +98,12 @@ impl<R: Rule> TextField<R> {
 
     pub fn clear(&mut self) {
         self.text.clear();
+    }
+
+    /// The text as typed.
+    #[cfg(test)]
+    pub fn text(&self) -> &str {
+        &self.text
     }
 
     /// The text, checked by `R`. Reading it changes nothing.
@@ -166,6 +191,22 @@ mod tests {
     #[test]
     fn negative_zero_becomes_zero() {
         assert_eq!(number_bits("-0"), Ok(0f32.to_bits()));
+    }
+
+    #[test]
+    fn positive_accepts_numbers_above_zero() {
+        for (text, expected) in [("0.5", 0.5f32), ("1", 1.0), (" 1.5 ", 1.5)] {
+            let value = field::<Positive>(text).value().map(f32::to_bits);
+            assert_eq!(value, Ok(expected.to_bits()), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn positive_rejects_zero_negatives_and_non_numbers() {
+        for text in ["", "abc", "0", "-0", "-1", "NaN", "inf", "-inf"] {
+            let value = field::<Positive>(text).value();
+            assert_eq!(value, Err(Error::NumberNotPositive), "{text:?}");
+        }
     }
 
     #[test]

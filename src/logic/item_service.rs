@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    logic::{LogicError, stock::totals_by_key},
+    logic::{LogicError, totals_by_key},
     models::{BartendError, Item, ItemBody, ItemID, ItemUse, Quantity},
     persistence::repositories::ItemRepository,
 };

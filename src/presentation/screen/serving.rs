@@ -51,8 +51,8 @@ pub(in crate::presentation) struct Serving {
 }
 
 impl Serving {
-    pub fn new(config: &Config, recipe_service: &RecipeService) -> Self {
-        let input = ServingInput::new(recipe_service);
+    pub fn new(config: &Config) -> Self {
+        let input = ServingInput::new();
         let unit_system = config.default_units();
         Self { input, unit_system }
     }
@@ -105,11 +105,14 @@ impl Serving {
         &mut self,
         item_service: &ItemService,
         category_service: &CategoryService,
+        recipe_service: &RecipeService,
         message: Message,
     ) -> Option<Command> {
         match message {
+            // Keeps the form, so the same picks can be served again.
             Message::Reload => {
-                self.input.clear();
+                self.input
+                    .refresh(recipe_service, item_service, category_service);
                 None
             }
             Message::SwapUnits => {
@@ -121,13 +124,7 @@ impl Serving {
                     .update(input_message, item_service, category_service);
                 None
             }
-            Message::Save => {
-                if let Ok(used_items) = self.input.output() {
-                    Some(Command::UseItems(used_items))
-                } else {
-                    None
-                }
-            }
+            Message::Save => self.input.output().ok().map(Command::UseItems),
         }
     }
 }
@@ -155,13 +152,12 @@ mod tests {
         (world, tanqueray, shot)
     }
 
+    fn update(screen: &mut Serving, world: &World, message: Message) -> Option<Command> {
+        screen.update(&world.items, &world.categories, &world.recipes, message)
+    }
+
     fn send(screen: &mut Serving, world: &World, input: ServingMessage) {
-        let message = Message::Input(input);
-        assert!(
-            screen
-                .update(&world.items, &world.categories, message)
-                .is_none()
-        );
+        assert!(update(screen, world, Message::Input(input)).is_none());
     }
 
     fn select_recipe(screen: &mut Serving, world: &World, id: RecipeID) {
@@ -177,18 +173,18 @@ mod tests {
             id,
             body: world.items.get(id).unwrap().clone(),
         };
-        let key = screen.input.row_key(index);
+        let key = screen.input.pour_key(index, 0);
         send(screen, world, ServingMessage::Item(key, item));
     }
 
     fn save(screen: &mut Serving, world: &World) -> Option<Command> {
-        screen.update(&world.items, &world.categories, Message::Save)
+        update(screen, world, Message::Save)
     }
 
     #[test]
     fn serving_a_recipe_uses_up_its_items() {
         let (mut world, tanqueray, shot) = gin_world();
-        let mut screen = Serving::new(&world.config, &world.recipes);
+        let mut screen = Serving::new(&world.config);
         select_recipe(&mut screen, &world, shot);
         select_item(&mut screen, &world, 0, tanqueray);
 
@@ -206,9 +202,13 @@ mod tests {
     }
 
     #[test]
-    fn saving_without_choosing_items_does_nothing() {
-        let (world, _, shot) = gin_world();
-        let mut screen = Serving::new(&world.config, &world.recipes);
+    fn saving_an_incomplete_serving_does_nothing() {
+        let (mut world, tanqueray, shot) = gin_world();
+        // A second gin, so neither is picked automatically.
+        let gin = world.categories.item_category(tanqueray).unwrap();
+        let beefeater = world.add_item("Beefeater", 750.0);
+        world.map_item(beefeater, gin);
+        let mut screen = Serving::new(&world.config);
         assert!(save(&mut screen, &world).is_none());
 
         select_recipe(&mut screen, &world, shot);
@@ -235,22 +235,29 @@ mod tests {
     }
 
     #[test]
-    fn reload_clears_the_form() {
-        let (world, tanqueray, shot) = gin_world();
-        let mut screen = Serving::new(&world.config, &world.recipes);
+    fn after_serving_the_reload_keeps_the_picks_for_another_round() {
+        let (mut world, tanqueray, shot) = gin_world();
+        let mut screen = Serving::new(&world.config);
         select_recipe(&mut screen, &world, shot);
         select_item(&mut screen, &world, 0, tanqueray);
 
-        screen.update(&world.items, &world.categories, Message::Reload);
-
-        assert!(save(&mut screen, &world).is_none());
+        for left in [700.0, 650.0] {
+            let command = save(&mut screen, &world).expect("serving should be complete");
+            drain(command.apply(&mut world.ctx()));
+            assert!(update(&mut screen, &world, Message::Reload).is_none());
+            assert_eq!(
+                world.items.get(tanqueray).unwrap().quantity,
+                Quantity::new(left, Unit::Milliliter)
+            );
+        }
+        assert_eq!(screen.input.recipe_id(), Some(shot));
     }
 
     #[test]
     fn swap_units_toggles_the_unit_system() {
         let world = World::new();
-        let mut screen = Serving::new(&world.config, &world.recipes);
-        screen.update(&world.items, &world.categories, Message::SwapUnits);
+        let mut screen = Serving::new(&world.config);
+        update(&mut screen, &world, Message::SwapUnits);
         assert_eq!(screen.unit_system, UnitSystem::Imperial);
     }
 }

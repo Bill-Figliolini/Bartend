@@ -11,7 +11,7 @@ use crate::{
 /// # Errors
 /// The first key whose quantities are of different kinds (e.g. a volume and
 /// a mass), since those cannot be added.
-pub(super) fn totals_by_key<K: PartialEq>(
+pub fn totals_by_key<K: PartialEq>(
     quantities: impl IntoIterator<Item = (K, Quantity)>,
 ) -> Result<Vec<(K, Quantity)>, K> {
     let mut totals: Vec<(K, Quantity)> = Vec::new();

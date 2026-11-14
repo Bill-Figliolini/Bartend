@@ -40,6 +40,7 @@ impl RecipeService {
         entries.into_iter().map(|(_, id)| id).collect()
     }
 
+    #[cfg(test)]
     pub fn get_all(&self) -> Vec<Recipe> {
         self.recipes.iter().fold(
             Vec::with_capacity(self.recipes.len()),

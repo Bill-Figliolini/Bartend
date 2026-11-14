@@ -120,6 +120,27 @@ impl Quantity {
             .then(|| self.map_amount(|amount| amount + rhs.amount()))
     }
 
+    /// `self` less `rhs`, floored at zero like `-=`, or `None` if they are
+    /// different kinds.
+    #[must_use]
+    pub fn saturating_sub(self, rhs: Self) -> Option<Self> {
+        self.same_kind(rhs)
+            .then(|| self.map_amount(|amount| (amount - rhs.amount()).max(0.0)))
+    }
+
+    /// Whether the two are the same amount of the same kind, allowing for
+    /// float rounding as [`covers`](Self::covers) does.
+    #[must_use]
+    pub fn approx_eq(self, other: Self) -> bool {
+        self.covers(other) == Some(true) && other.covers(self) == Some(true)
+    }
+
+    /// Whether there is nothing left, allowing for float rounding.
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.amount() <= COVER_TOLERANCE
+    }
+
     /// Whether `self` is at least `needed`, allowing for float rounding, or
     /// `None` if they are different kinds.
     #[must_use]
@@ -139,7 +160,8 @@ impl Quantity {
 
     /// Whether the two can be added or compared: both volumes, both masses,
     /// or counts of the same thing.
-    fn same_kind(self, other: Self) -> bool {
+    #[must_use]
+    pub fn same_kind(self, other: Self) -> bool {
         match (self, other) {
             (Self::Volume { .. }, Self::Volume { .. }) | (Self::Mass { .. }, Self::Mass { .. }) => {
                 true
@@ -571,6 +593,45 @@ mod test {
         assert_eq!(stock.covers(rounded_up), Some(true));
         assert_eq!(stock.covers(short), Some(false));
         assert_eq!(stock.covers(Quantity::new(1.0, Unit::Gram)), None);
+    }
+
+    #[test]
+    fn saturating_sub_floors_at_zero_and_needs_the_same_kind() {
+        let volume = Quantity::new(50.0, Unit::Milliliter);
+        assert_eq!(
+            volume.saturating_sub(Quantity::new(20.0, Unit::Milliliter)),
+            Some(Quantity::new(30.0, Unit::Milliliter))
+        );
+        assert_eq!(
+            volume.saturating_sub(Quantity::new(80.0, Unit::Milliliter)),
+            Some(Quantity::new(0.0, Unit::Milliliter))
+        );
+        assert_eq!(volume.saturating_sub(Quantity::new(1.0, Unit::Gram)), None);
+    }
+
+    #[test]
+    fn approx_eq_ignores_rounding_but_not_kind() {
+        let volume = Quantity::new(45.0, Unit::Milliliter);
+        let nudged = Quantity::new(45.0 + COVER_TOLERANCE / 2.0, Unit::Milliliter);
+        assert!(volume.approx_eq(nudged));
+        assert!(nudged.approx_eq(volume));
+        assert!(!volume.approx_eq(Quantity::new(46.0, Unit::Milliliter)));
+        assert!(!volume.approx_eq(Quantity::new(45.0, Unit::Gram)));
+    }
+
+    #[test]
+    fn empty_allows_for_rounding() {
+        assert!(Quantity::new(0.0, Unit::Milliliter).is_empty());
+        assert!(Quantity::new(COVER_TOLERANCE / 2.0, Unit::Milliliter).is_empty());
+        assert!(!Quantity::new(0.5, Unit::Milliliter).is_empty());
+    }
+
+    #[test]
+    fn same_kind_matches_kind_and_count_name() {
+        let volume = Quantity::new(1.0, Unit::Milliliter);
+        assert!(volume.same_kind(Quantity::new(2.0, Unit::FluidOunce)));
+        assert!(!volume.same_kind(Quantity::new(1.0, Unit::Gram)));
+        assert!(Quantity::new(1.0, Unit::Dash).same_kind(Quantity::new(3.0, Unit::Dash)));
     }
 
     #[test]

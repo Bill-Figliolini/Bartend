@@ -19,7 +19,7 @@ use iced::{
 
 pub use {
     pick_field::{OptionalPick, RequiredPick},
-    text_field::{NumberField, StringField},
+    text_field::{NumberField, PositiveField, StringField},
 };
 
 /// Why a single input field failed validation.
@@ -27,7 +27,13 @@ pub use {
 pub enum Error {
     StringEmpty,
     QuantityInvalid,
+    NumberNotPositive,
     MustChooseValue,
+    /// The amounts poured from several items do not add up to what the
+    /// ingredient calls for.
+    PoursDontAddUp,
+    /// The chosen item has less in stock than is being taken from it.
+    NotEnoughStock,
 }
 
 impl From<Infallible> for Error {
@@ -56,7 +62,10 @@ impl Display for Error {
         let text = match self {
             Self::StringEmpty => "String Must Not Be Empty",
             Self::QuantityInvalid => "Must be a number that is zero or above",
+            Self::NumberNotPositive => "Must be a number above zero",
             Self::MustChooseValue => "A value must be selected",
+            Self::PoursDontAddUp => "Amounts must add up to what the recipe calls for",
+            Self::NotEnoughStock => "Not enough in stock",
         };
         write!(f, "{text}")
     }
@@ -77,5 +86,14 @@ mod tests {
             Error::MustChooseValue.to_string(),
             "A value must be selected"
         );
+        assert_eq!(
+            Error::NumberNotPositive.to_string(),
+            "Must be a number above zero"
+        );
+        assert_eq!(
+            Error::PoursDontAddUp.to_string(),
+            "Amounts must add up to what the recipe calls for"
+        );
+        assert_eq!(Error::NotEnoughStock.to_string(), "Not enough in stock");
     }
 }
