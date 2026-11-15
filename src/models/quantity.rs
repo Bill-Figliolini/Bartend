@@ -26,6 +26,28 @@ const IMPERIAL_CONVERSION_MASS: f32 = 28.35;
 /// and split pours rarely sum to exactly the stock they draw on.
 const COVER_TOLERANCE: f32 = 1e-3;
 
+/// Amounts are shown, and filled into fields, to two decimal places: as
+/// whole multiples of `1 / DECIMAL_SCALE`.
+pub const DECIMAL_SCALE: f32 = 100.0;
+
+/// `number` to at most two decimal places, without trailing zeros.
+#[must_use]
+pub fn format_number(number: f32) -> String {
+    round_to_scale(number, f32::round)
+}
+
+/// [`format_number`], but rounded down, for an amount that must not exceed
+/// `number`.
+#[must_use]
+pub fn format_number_down(number: f32) -> String {
+    round_to_scale(number, f32::floor)
+}
+
+fn round_to_scale(number: f32, round: fn(f32) -> f32) -> String {
+    let rounded = round(number * DECIMAL_SCALE) / DECIMAL_SCALE;
+    format!("{rounded}")
+}
+
 impl Quantity {
     #[must_use]
     pub fn new(quantity: f32, unit: Unit) -> Self {
@@ -107,9 +129,22 @@ impl Quantity {
         }
     }
 
+    /// The amount and its unit in `unit_system`, to two decimal places.
     #[must_use]
     pub fn readable(&self, unit_system: UnitSystem) -> String {
-        format!("{} {}", self.value(unit_system), self.unit(unit_system))
+        self.written(unit_system, format_number)
+    }
+
+    /// [`readable`](Self::readable), but rounded down, for stock: so that
+    /// what is shown can always be poured.
+    #[must_use]
+    pub fn readable_down(&self, unit_system: UnitSystem) -> String {
+        self.written(unit_system, format_number_down)
+    }
+
+    fn written(self, unit_system: UnitSystem, format: fn(f32) -> String) -> String {
+        let number = format(self.value(unit_system));
+        format!("{number} {}", self.unit(unit_system))
     }
 
     /// The sum of two quantities, or `None` if they are different kinds,
@@ -526,6 +561,24 @@ mod test {
         assert_eq!(dashes.readable(UnitSystem::Metric), "2 dash");
         let volume = Quantity::new(50.0, Unit::Milliliter);
         assert_eq!(volume.readable(UnitSystem::Metric), "50 ml");
+    }
+
+    #[test]
+    fn numbers_are_shown_to_two_places() {
+        assert_eq!(format_number(2.0), "2");
+        assert_eq!(format_number(1.5), "1.5");
+        assert_eq!(format_number(1.0 / 3.0), "0.33");
+        assert_eq!(format_number(2.0 / 3.0), "0.67");
+        assert_eq!(format_number_down(2.0 / 3.0), "0.66");
+    }
+
+    #[test]
+    fn quantities_are_shown_to_two_places() {
+        let ounce = Quantity::new(1.0, Unit::FluidOunce);
+        assert_eq!(ounce.readable(UnitSystem::Metric), "29.57 ml");
+        let ml = |amount| Quantity::new(amount, Unit::Milliliter);
+        assert_eq!(ml(30.0).readable(UnitSystem::Imperial), "1.01 fl oz");
+        assert_eq!(ml(19.999).readable_down(UnitSystem::Metric), "19.99 ml");
     }
 
     #[test]

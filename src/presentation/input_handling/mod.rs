@@ -229,7 +229,7 @@ pub use {
     editor::{Editor, EditorMessage, Saved},
     item_input::{ItemInput, ItemMessage},
     recipe_input::{RecipeInput, RecipeMessage},
-    serving_input::{ServingInput, ServingMessage, format_number, show_quantity},
+    serving_input::{ServingInput, ServingMessage},
 };
 
 #[cfg(test)]

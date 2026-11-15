@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::models::{category::CategoryID, quantity::Quantity};
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct RecipeID(pub i64);
 
 #[derive(Debug, Clone)]

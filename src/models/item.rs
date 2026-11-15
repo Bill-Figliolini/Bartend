@@ -10,7 +10,7 @@ use std::fmt::Display;
 
 use crate::models::quantity::Quantity;
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct ItemID(pub i64);
 
 #[derive(Debug, Clone)]

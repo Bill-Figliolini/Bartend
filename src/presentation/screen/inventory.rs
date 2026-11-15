@@ -11,10 +11,13 @@ use crate::{
     presentation::{
         application::{self, Context},
         constants,
-        input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved, show_quantity},
+        input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved},
         screen::{
             Panels,
-            shared::{breadcrumb_label, breadcrumb_line, counted, detail_header, form_page},
+            shared::{
+                breadcrumb_label, breadcrumb_line, counted, detail_header, form_page,
+                reload_or_error, report_error,
+            },
         },
         widget::{
             detail::{card, gauge, hint, link_row, stat_tile},
@@ -57,46 +60,35 @@ impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::Add(item_body, category_id) => {
-                let mut tasks = Vec::new();
                 let item_id = match ctx.item_service.add(&ctx.database.item_db(), &item_body) {
-                    Ok(id) => {
-                        tasks.push(Task::done(application::Message::ReloadScreen));
-                        id
-                    }
+                    Ok(id) => id,
                     Err(e) => return Task::done(application::Message::Error(e)),
                 };
-                if let Some(category_id) = category_id
-                    && let Err(e) = ctx.category_service.add_item_mapping(
+                let mapping = category_id.map_or(Ok(()), |category_id| {
+                    ctx.category_service.add_item_mapping(
                         &ctx.database.category_db(),
                         item_id,
                         category_id,
                     )
-                {
-                    tasks.push(Task::done(application::Message::Error(e)));
-                }
-                Task::batch(tasks)
+                });
+                Task::batch([
+                    Task::done(application::Message::ReloadScreen),
+                    report_error(mapping),
+                ])
             }
             Command::Update(item, category_id) => {
-                let mut tasks = Vec::new();
                 let item_id = item.id;
-                if let Err(e) = ctx.item_service.update(&ctx.database.item_db(), item) {
-                    tasks.push(Task::done(application::Message::Error(e)));
-                } else {
-                    tasks.push(Task::done(application::Message::ReloadScreen));
-                }
-                if let Err(e) = ctx.category_service.update_item_mapping(
+                let update = ctx.item_service.update(&ctx.database.item_db(), item);
+                let mapping = ctx.category_service.update_item_mapping(
                     &ctx.database.category_db(),
                     item_id,
                     category_id,
-                ) {
-                    tasks.push(Task::done(application::Message::Error(e)));
-                }
-                Task::batch(tasks)
+                );
+                Task::batch([reload_or_error(update), report_error(mapping)])
             }
-            Command::Delete(id) => match ctx.item_service.delete(&ctx.database.item_db(), id) {
-                Ok(()) => Task::done(application::Message::ReloadScreen),
-                Err(e) => Task::done(application::Message::Error(e)),
-            },
+            Command::Delete(id) => {
+                reload_or_error(ctx.item_service.delete(&ctx.database.item_db(), id))
+            }
         }
     }
 }
@@ -121,7 +113,7 @@ impl Inventory {
         recipe_service: &RecipeService,
     ) -> Panels<'_> {
         let entries = item_service.sorted_ids().into_iter().map(|id| Entry {
-            label: item_service.get(id).cloned().unwrap_or_default().name,
+            label: item_service.name_of(id),
             selected: self.selected == Some(id),
             on_press: inventory_msg(Message::Select(Some(id))),
             dimmed: false,
@@ -206,12 +198,12 @@ impl Inventory {
             .zip(body.full_size);
         let below: Element<'_, _> = match gauge_parts {
             Some(((fraction, level), full_size)) => {
-                let full = hint(format!("of {} full size", show_quantity(full_size, units)));
+                let full = hint(format!("of {} full size", full_size.readable(units)));
                 column![gauge(fraction, level), full].spacing(4).into()
             }
             None => hint("Add a full size to see how full it is").into(),
         };
-        stat_tile("In stock", show_quantity(body.quantity, units), Some(below)).into()
+        stat_tile("In stock", body.quantity.readable(units), Some(below)).into()
     }
 
     /// The recipes the item can go into, each opening on the Recipes
@@ -233,7 +225,7 @@ impl Inventory {
             Column::with_children(uses.iter().map(|usage| {
                 link_row(
                     usage.name.clone(),
-                    show_quantity(usage.amount, self.unit_system),
+                    usage.amount.readable(self.unit_system),
                     application::Message::ShowRecipe(usage.recipe),
                 )
             }))

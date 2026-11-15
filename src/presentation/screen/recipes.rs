@@ -1,13 +1,16 @@
 use crate::{
     logic::{CategoryService, IngredientStatus, ItemService, RecipeService, ingredient_statuses},
-    models::{CategoryFilter, CategoryID, Config, Recipe, RecipeBody, RecipeID, UnitSystem},
+    models::{CategoryFilter, Config, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
         application::{self, Context},
         constants,
-        input_handling::{Editor, EditorMessage, RecipeInput, RecipeMessage, Saved, show_quantity},
+        input_handling::{Editor, EditorMessage, RecipeInput, RecipeMessage, Saved},
         screen::{
             Panels,
-            shared::{Availability, counted, detail_header, form_page_with_cards, volume_figure},
+            shared::{
+                Availability, counted, detail_header, form_page_with_cards, reload_or_error,
+                volume_figure,
+            },
         },
         widget::{
             detail::{Tone, card, hint, stat_tile, status_link_row},
@@ -51,21 +54,14 @@ pub enum Command {
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
-            Command::Add(body) => match ctx.recipe_service.add(&ctx.database.recipe_db(), body) {
-                Ok(_) => Task::done(application::Message::ReloadScreen),
-                Err(e) => Task::done(application::Message::Error(e)),
-            },
+            Command::Add(body) => {
+                reload_or_error(ctx.recipe_service.add(&ctx.database.recipe_db(), body))
+            }
             Command::Update(recipe) => {
-                match ctx.recipe_service.update(&ctx.database.recipe_db(), recipe) {
-                    Ok(()) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
+                reload_or_error(ctx.recipe_service.update(&ctx.database.recipe_db(), recipe))
             }
             Command::Delete(recipe) => {
-                match ctx.recipe_service.delete(&ctx.database.recipe_db(), recipe) {
-                    Ok(()) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
+                reload_or_error(ctx.recipe_service.delete(&ctx.database.recipe_db(), recipe))
             }
         }
     }
@@ -200,8 +196,8 @@ impl Recipes {
             Column::with_children(body.ingredients.iter().zip(statuses).map(
                 |(ingredient, &status)| {
                     status_link_row(
-                        category_name(category_service, ingredient.category),
-                        show_quantity(ingredient.quantity, self.unit_system),
+                        category_service.name_of(ingredient.category),
+                        ingredient.quantity.readable(self.unit_system),
                         status_label(status),
                         application::Message::ShowCategory(ingredient.category),
                     )
@@ -264,10 +260,6 @@ fn status_label(status: IngredientStatus) -> (&'static str, Tone) {
         IngredientStatus::Short => ("Short", Tone::Warning),
         IngredientStatus::NoneInStock => ("None in stock", Tone::Danger),
     }
-}
-
-fn category_name(service: &CategoryService, id: CategoryID) -> String {
-    service.get(id).cloned().unwrap_or_default().name
 }
 
 #[cfg(test)]

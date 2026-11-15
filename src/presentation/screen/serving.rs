@@ -8,11 +8,13 @@ use iced::{
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService, can_make, totals_by_key},
-    models::{CategoryID, Config, ItemUse, Quantity, Recipe, RecipeBody, UnitSystem},
+    models::{
+        CategoryID, Config, ItemUse, Quantity, Recipe, RecipeBody, UnitSystem, format_number,
+    },
     presentation::{
         application::{self, Context},
         constants,
-        input_handling::{ServingInput, ServingMessage, format_number, show_quantity},
+        input_handling::{ServingInput, ServingMessage},
         screen::{
             Panels,
             shared::{Availability, page_header, volume_figure},
@@ -74,12 +76,7 @@ impl Served {
         let used = totals_by_key(by_item)
             .unwrap_or_default()
             .into_iter()
-            .map(|(id, quantity)| {
-                let name = item_service
-                    .get(id)
-                    .map_or_else(|_| String::new(), |item| item.name.clone());
-                (name, quantity)
-            })
+            .map(|(id, quantity)| (item_service.name_of(id), quantity))
             .collect();
         Self {
             recipe: recipe.to_string(),
@@ -98,7 +95,7 @@ impl Served {
         let used: Vec<String> = self
             .used
             .iter()
-            .map(|(name, quantity)| format!("{} {name}", show_quantity(*quantity, units)))
+            .map(|(name, quantity)| format!("{} {name}", quantity.readable(units)))
             .collect();
         if used.is_empty() {
             format!("Served {}{times}", self.recipe)

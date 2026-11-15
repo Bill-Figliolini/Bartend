@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use crate::{
-    logic::{LogicError, graph::DirectedAcyclicGraph},
+    logic::{LogicError, graph::DirectedAcyclicGraph, ids_by_name},
     models::{BartendError, Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
     persistence::repositories::CategoryRepository,
 };
@@ -105,6 +105,14 @@ impl CategoryService {
             Some(body) => Ok(body),
             None => Err(LogicError::InvalidCategory(id))?,
         }
+    }
+
+    /// The category's name, or an empty one if it does not exist, such as
+    /// for an id shown before a reload caught up with a delete.
+    pub fn name_of(&self, id: CategoryID) -> String {
+        self.categories
+            .get(&id)
+            .map_or_default(|body| body.name.clone())
     }
 
     #[cfg(test)]
@@ -294,17 +302,13 @@ impl CategoryService {
 
     /// `ids` ordered by name (case-insensitively), then by id.
     fn by_name(&self, ids: impl IntoIterator<Item = CategoryID>) -> Vec<CategoryID> {
-        let mut entries: Vec<(String, CategoryID)> = ids
-            .into_iter()
-            .map(|id| {
-                let name = self.get(id).map(|body| body.name.to_lowercase());
-                (name.unwrap_or_default(), id)
-            })
-            .collect();
-        entries.sort_unstable_by(|(a_name, a_id), (b_name, b_id)| {
-            a_name.cmp(b_name).then_with(|| a_id.0.cmp(&b_id.0))
-        });
-        entries.into_iter().map(|(_, id)| id).collect()
+        ids_by_name(ids.into_iter().map(|id| {
+            let name = self
+                .categories
+                .get(&id)
+                .map_or("", |body| body.name.as_str());
+            (name, id)
+        }))
     }
 
     /// The longest path from a top-level category down to `category`, with
@@ -868,6 +872,13 @@ mod tests {
             let service = CategoryService::new(&TestDB::new()).unwrap();
             assert_eq!(service.get_all(CategoryFilter {}).len(), 30);
             assert_eq!(service.category_count(), 30);
+        }
+
+        #[test]
+        fn names_are_looked_up_and_unknown_categories_have_none() {
+            let service = CategoryService::new(&TestDB::new()).unwrap();
+            assert_eq!(service.name_of(CategoryID(3)), "category 4");
+            assert_eq!(service.name_of(CategoryID(999)), "");
         }
 
         #[test]

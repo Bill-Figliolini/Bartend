@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    logic::LogicError,
+    logic::{LogicError, ids_by_name},
     models::{BartendError, Recipe, RecipeBody, RecipeID},
     persistence::repositories::RecipeRepository,
 };
@@ -29,15 +29,11 @@ impl RecipeService {
 
     /// Every id, ordered by name (case-insensitively), then by id.
     pub fn sorted_ids(&self) -> Vec<RecipeID> {
-        let mut entries: Vec<(String, RecipeID)> = self
-            .recipes
-            .iter()
-            .map(|(id, body)| (body.name.to_lowercase(), *id))
-            .collect();
-        entries.sort_unstable_by(|(a_name, a_id), (b_name, b_id)| {
-            a_name.cmp(b_name).then_with(|| a_id.0.cmp(&b_id.0))
-        });
-        entries.into_iter().map(|(_, id)| id).collect()
+        ids_by_name(
+            self.recipes
+                .iter()
+                .map(|(id, body)| (body.name.as_str(), *id)),
+        )
     }
 
     #[cfg(test)]

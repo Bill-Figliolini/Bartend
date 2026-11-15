@@ -8,22 +8,40 @@ use iced::{
     Alignment::Center,
     Element,
     Length::Fill,
+    Task,
     widget::{button, column, row, scrollable, space, text},
 };
 
 use crate::{
     logic::{CategoryService, IngredientStatus},
-    models::{CategoryID, UnitSystem, VolumeSummary},
+    models::{BartendError, CategoryID, UnitSystem, VolumeSummary},
     presentation::{
         application::Message,
         constants,
-        input_handling::show_quantity,
         widget::detail::{Tone, card, chip, hint, quiet_danger, toned_chip},
     },
 };
 
 /// Size of the name at the top of a detail panel or form.
 pub(super) const NAME_SIZE: f32 = 28.0;
+
+/// What follows a write to the database: reloading the screen once it
+/// succeeds, or reporting why it failed.
+pub(super) fn reload_or_error<T>(result: Result<T, BartendError>) -> Task<Message> {
+    match result {
+        Ok(_) => Task::done(Message::ReloadScreen),
+        Err(error) => Task::done(Message::Error(error)),
+    }
+}
+
+/// What follows a write to the database that needs no reload: nothing once
+/// it succeeds, or reporting why it failed.
+pub(super) fn report_error<T>(result: Result<T, BartendError>) -> Task<Message> {
+    match result {
+        Ok(_) => Task::none(),
+        Err(error) => Task::done(Message::Error(error)),
+    }
+}
 
 /// A detail panel's header: `name` in large type over a `subtitle` line on
 /// the left, and on the right any `lead` button (such as Serve) followed by
@@ -102,11 +120,11 @@ pub(super) fn volume_figure(
     let others: Vec<String> = summary
         .others
         .iter()
-        .map(|&quantity| show_quantity(quantity, units))
+        .map(|&quantity| quantity.readable(units))
         .collect();
     let plus = (!others.is_empty()).then(|| format!("plus {}", others.join(", ")));
     match summary.volume {
-        Some(volume) => (show_quantity(volume, units), plus),
+        Some(volume) => (volume.readable(units), plus),
         None => (
             "—".to_string(),
             Some(plus.unwrap_or_else(|| "No ingredients measured by volume".to_string())),
@@ -169,7 +187,7 @@ pub(super) fn breadcrumb_label(
     let names: Vec<String> = breadcrumb
         .path
         .iter()
-        .map(|id| category_service.get(*id).cloned().unwrap_or_default().name)
+        .map(|id| category_service.name_of(*id))
         .collect();
     Some((names.join(" › "), breadcrumb.other_paths))
 }

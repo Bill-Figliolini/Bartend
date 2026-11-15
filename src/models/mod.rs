@@ -10,6 +10,8 @@ pub use {
     category::{Category, CategoryBody, CategoryFilter, CategoryID},
     config::{Config, ConfigError, DEFAULT_THEME_NAME, EditableConfig, ThemeChoice},
     item::{Item, ItemBody, ItemID, ItemUse},
-    quantity::{CountName, Quantity, Unit, UnitSystem},
+    quantity::{
+        CountName, DECIMAL_SCALE, Quantity, Unit, UnitSystem, format_number, format_number_down,
+    },
     recipe::{Ingredient, Recipe, RecipeBody, RecipeID, VolumeSummary},
 };

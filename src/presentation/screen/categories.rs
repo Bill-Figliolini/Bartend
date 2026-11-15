@@ -7,7 +7,10 @@ use crate::{
         input_handling::{CategoryInput, CategoryMessage, Editor, EditorMessage, Saved},
         screen::{
             Panels,
-            shared::{breadcrumb_label, breadcrumb_line, counted, detail_header, form_page},
+            shared::{
+                breadcrumb_label, breadcrumb_line, counted, detail_header, form_page,
+                reload_or_error, report_error,
+            },
         },
         widget::{
             detail::{card, hint, link_row, link_row_with_action, row_danger_button, stat_tile},
@@ -55,53 +58,32 @@ pub enum Command {
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
-            Command::AddCategory(body) => {
-                match ctx
-                    .category_service
-                    .insert(&ctx.database.category_db(), &body)
-                {
-                    Ok(_) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
-            }
-            Command::UpdateCategory(category) => {
-                match ctx
-                    .category_service
-                    .update(&ctx.database.category_db(), &category)
-                {
-                    Ok(()) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
-            }
+            Command::AddCategory(body) => reload_or_error(
+                ctx.category_service
+                    .insert(&ctx.database.category_db(), &body),
+            ),
+            Command::UpdateCategory(category) => reload_or_error(
+                ctx.category_service
+                    .update(&ctx.database.category_db(), &category),
+            ),
             Command::AddRelation(parent, child) => {
-                match ctx.category_service.add_category_relation(
+                report_error(ctx.category_service.add_category_relation(
                     &ctx.database.category_db(),
                     parent,
                     child,
-                ) {
-                    Ok(()) => Task::none(),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
+                ))
             }
             Command::RemoveRelation(parent, child) => {
-                match ctx.category_service.remove_category_relation(
+                report_error(ctx.category_service.remove_category_relation(
                     &ctx.database.category_db(),
                     parent,
                     child,
-                ) {
-                    Ok(()) => Task::none(),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
+                ))
             }
-            Command::DeleteCategory(category) => {
-                match ctx
-                    .category_service
-                    .delete(&ctx.database.category_db(), category)
-                {
-                    Ok(()) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
-            }
+            Command::DeleteCategory(category) => reload_or_error(
+                ctx.category_service
+                    .delete(&ctx.database.category_db(), category),
+            ),
         }
     }
 }
@@ -120,7 +102,7 @@ impl Categories {
         recipe_service: &RecipeService,
     ) -> Panels<'_> {
         let entries = category_service.sorted_ids().into_iter().map(|id| Entry {
-            label: category_name(category_service, id),
+            label: category_service.name_of(id),
             selected: self.selected == Some(id),
             on_press: categories_msg(Message::Select(Some(id))),
             dimmed: false,
@@ -177,7 +159,7 @@ impl Categories {
             breadcrumb_label(category, service)
         };
         let header = detail_header(
-            category_name(service, category),
+            service.name_of(category),
             breadcrumb_line(breadcrumb, "Top-level category"),
             None,
             categories_msg(Message::Edit(category)),
@@ -217,7 +199,7 @@ impl Categories {
         } else {
             Column::with_children(children.into_iter().map(|child| {
                 link_row_with_action(
-                    category_name(service, child),
+                    service.name_of(child),
                     "",
                     categories_msg(Message::Select(Some(child))),
                     row_danger_button("Remove", category_remove_msg(category, child)),
@@ -241,7 +223,7 @@ impl Categories {
         } else {
             Column::with_children(parents.iter().map(|&parent| {
                 link_row(
-                    category_name(service, parent),
+                    service.name_of(parent),
                     "",
                     categories_msg(Message::Select(Some(parent))),
                 )
@@ -320,10 +302,6 @@ fn item_split(counts: ItemCounts) -> String {
         (0, _) => "All from subcategories".to_string(),
         (direct, via) => format!("{direct} directly, {via} from subcategories"),
     }
-}
-
-fn category_name(service: &CategoryService, id: CategoryID) -> String {
-    service.get(id).cloned().unwrap_or_default().name
 }
 
 fn categories_msg(msg: Message) -> application::Message {

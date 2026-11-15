@@ -11,7 +11,8 @@ use iced::{
 use crate::{
     logic::{CategoryService, ItemService, RecipeService, StockLevel, totals_by_key},
     models::{
-        CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, RecipeID, UnitSystem,
+        CategoryID, DECIMAL_SCALE, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, RecipeID,
+        UnitSystem, format_number, format_number_down,
     },
     presentation::{
         constants,
@@ -254,9 +255,7 @@ impl ServingInput {
         );
         let errors = self.errors();
         let ingredients = self.ingredients.iter().map(|(key, ingredient)| {
-            let name = category_service
-                .get(ingredient.category)
-                .map_or_else(|_| String::new(), |category| category.name.clone());
+            let name = category_service.name_of(ingredient.category);
             ingredient.view(key, name, self, errors.as_ref())
         });
         column![
@@ -515,35 +514,6 @@ fn overdrawn_items(pours: &[CheckedPour]) -> Vec<ItemID> {
         .collect()
 }
 
-/// How many decimal places amounts are filled in with.
-const DECIMALS: f32 = 100.0;
-
-/// `number` to at most two decimal places, without trailing zeros.
-pub fn format_number(number: f32) -> String {
-    let rounded = (number * DECIMALS).round() / DECIMALS;
-    format!("{rounded}")
-}
-
-/// [`format_number`], but rounded down, for an amount that must not exceed
-/// `number`.
-fn format_number_down(number: f32) -> String {
-    let rounded = (number * DECIMALS).floor() / DECIMALS;
-    format!("{rounded}")
-}
-
-/// `quantity` with its unit, to two decimal places.
-pub fn show_quantity(quantity: Quantity, units: UnitSystem) -> String {
-    let number = format_number(quantity.value(units));
-    format!("{number} {}", quantity.unit(units))
-}
-
-/// [`show_quantity`], but rounded down, for stock: so that what is shown can always
-/// be poured.
-fn show_quantity_down(quantity: Quantity, units: UnitSystem) -> String {
-    let number = format_number_down(quantity.value(units));
-    format!("{number} {}", quantity.unit(units))
-}
-
 /// Whether `total` is `required`, give or take `slack`.
 fn within(total: Quantity, required: Quantity, slack: Quantity) -> bool {
     let over = total.saturating_sub(required);
@@ -562,7 +532,7 @@ struct Offer {
 
 impl Offer {
     fn new(item: Item, units: UnitSystem) -> Self {
-        let stock = show_quantity_down(item.body.quantity, units);
+        let stock = item.body.quantity.readable_down(units);
         let label = format!("{} ({stock})", item.body.name);
         Self { item, label }
     }
@@ -751,7 +721,7 @@ impl IngredientUseInput {
                 validator.check(ServingField::PourAmount(key), amount)
             };
             amounts.push(amount);
-            let rounding = Quantity::new(0.5 / DECIMALS, self.per_serving.unit(pour.units));
+            let rounding = Quantity::new(0.5 / DECIMAL_SCALE, self.per_serving.unit(pour.units));
             slack = slack.checked_add(rounding).unwrap_or(slack);
             if let (Some(offer), Some(quantity)) = (item, amount) {
                 let usage = ItemUse {
@@ -795,7 +765,7 @@ impl IngredientUseInput {
         let error_for = |field| errors.and_then(|errors| errors.error_for(&field));
         let amount = servings.map_or_else(
             || "—".to_string(),
-            |servings| show_quantity(self.required(servings), units),
+            |servings| self.required(servings).readable(units),
         );
         let link = button(text(name))
             .style(button::text)
@@ -881,7 +851,7 @@ impl IngredientUseInput {
         if self.candidates.is_empty() {
             ("None in stock".to_string(), Tone::Danger)
         } else {
-            let stock = show_quantity_down(self.stock(), units);
+            let stock = self.stock().readable_down(units);
             (format!("Only {stock} in stock"), Tone::Warning)
         }
     }
@@ -983,7 +953,7 @@ impl PourInput {
                     .value()
                     .ok()
                     .and_then(|offer| offer.item.body.full_size);
-                let shown = text(show_quantity_down(left, units));
+                let shown = text(left.readable_down(units));
                 match remainder_tone(left, full_size) {
                     Some(tone) => shown
                         .style(move |theme: &Theme| toned_text(theme, tone))
@@ -991,7 +961,7 @@ impl PourInput {
                     None => shown.into(),
                 }
             }
-            Some(Remaining::Short(short)) => text(format!("short {}", show_quantity(short, units)))
+            Some(Remaining::Short(short)) => text(format!("short {}", short.readable(units)))
                 .style(text::danger)
                 .into(),
             None => text("—").into(),
@@ -1270,13 +1240,6 @@ mod tests {
         servings(&mut input, &world, "abc");
         assert!(!input.can_step_down());
         assert_eq!(step(&mut input, Step::Up), Ok(1f32.to_bits()));
-    }
-
-    #[test]
-    fn stepped_servings_are_shown_to_two_places() {
-        assert_eq!(format_number(2.0), "2");
-        assert_eq!(format_number(1.5), "1.5");
-        assert_eq!(format_number(1.0 / 3.0), "0.33");
     }
 
     /// The gin bar with 30 ml served from the dregs, then split onto the
@@ -1705,17 +1668,6 @@ mod tests {
         assert_eq!(
             shown, "Full (25.36 fl oz)",
             "the pick is relabelled, not lost"
-        );
-    }
-
-    #[test]
-    fn quantities_are_shown_to_two_places() {
-        let ounce = Quantity::new(1.0, Unit::FluidOunce);
-        assert_eq!(show_quantity(ounce, UnitSystem::Metric), "29.57 ml");
-        assert_eq!(show_quantity(ml(30.0), UnitSystem::Imperial), "1.01 fl oz");
-        assert_eq!(
-            show_quantity_down(ml(19.999), UnitSystem::Metric),
-            "19.99 ml"
         );
     }
 

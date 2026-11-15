@@ -52,7 +52,7 @@ impl Display for LogicError {
                 f,
                 "not enough of Item {item}: needs {}, has {}",
                 needed.readable(UnitSystem::Metric),
-                available.readable(UnitSystem::Metric)
+                available.readable_down(UnitSystem::Metric)
             ),
             LogicError::IncompatibleUnits(item_id) => {
                 write!(

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    logic::{LogicError, totals_by_key},
+    logic::{LogicError, ids_by_name, totals_by_key},
     models::{BartendError, Item, ItemBody, ItemID, ItemUse, Quantity},
     persistence::repositories::ItemRepository,
 };
@@ -34,17 +34,21 @@ impl ItemService {
         }
     }
 
+    /// The item's name, or an empty one if it does not exist, such as for an
+    /// id shown before a reload caught up with a delete.
+    pub fn name_of(&self, item: ItemID) -> String {
+        self.items
+            .get(&item)
+            .map_or_default(|body| body.name.clone())
+    }
+
     /// Every id, ordered by name (case-insensitively), then by id.
     pub fn sorted_ids(&self) -> Vec<ItemID> {
-        let mut entries: Vec<(String, ItemID)> = self
-            .items
-            .iter()
-            .map(|(id, body)| (body.name.to_lowercase(), *id))
-            .collect();
-        entries.sort_unstable_by(|(a_name, a_id), (b_name, b_id)| {
-            a_name.cmp(b_name).then_with(|| a_id.0.cmp(&b_id.0))
-        });
-        entries.into_iter().map(|(_, id)| id).collect()
+        ids_by_name(
+            self.items
+                .iter()
+                .map(|(id, body)| (body.name.as_str(), *id)),
+        )
     }
 
     fn get_mut(&mut self, item: ItemID) -> Result<&mut ItemBody, BartendError> {
@@ -217,6 +221,12 @@ mod tests {
             vec![ItemID(6), ItemID(7), ItemID(8)]
         );
         assert_eq!(item_service.get_page(10, 3), Vec::new());
+    }
+
+    #[test]
+    fn an_unknown_item_has_no_name() {
+        let item_service = ItemService::new(&TestDB::new()).unwrap();
+        assert_eq!(item_service.name_of(ItemID(99)), "");
     }
 
     #[test]
