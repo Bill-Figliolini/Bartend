@@ -119,17 +119,28 @@ where
         on_select: impl Fn(T) -> M + 'static,
         show_error: bool,
     ) -> Element<'a, M> {
+        let error = if show_error {
+            self.value().err().map(Into::into)
+        } else {
+            None
+        };
+        self.view_with_error(on_select, error)
+    }
+
+    /// Like [`view`](Self::view), but shows `error`, for a form that checks
+    /// more than the field itself can.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn view_with_error<'a, M: Clone + 'a>(
+        &'a self,
+        on_select: impl Fn(T) -> M + 'static,
+        error: Option<Error>,
+    ) -> Element<'a, M> {
         let picker = combo_box(
             &self.options,
             &self.placeholder,
             self.selection.as_ref(),
             on_select,
         );
-        let error = if show_error {
-            self.value().err().map(Into::into)
-        } else {
-            None
-        };
         with_error(KeyboardPick::new(picker).into(), error)
     }
 }

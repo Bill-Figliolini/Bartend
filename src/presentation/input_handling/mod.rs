@@ -115,6 +115,13 @@ impl<T> Rows<T> {
         self.rows.len() != before
     }
 
+    fn get(&self, key: RowKey) -> Option<&T> {
+        self.rows
+            .iter()
+            .find(|(row_key, _)| *row_key == key)
+            .map(|(_, row)| row)
+    }
+
     fn get_mut(&mut self, key: RowKey) -> Option<&mut T> {
         self.rows
             .iter_mut()
@@ -169,10 +176,6 @@ pub struct FormError<F>(Vec<(F, Error)>);
 
 impl<F: PartialEq> FormError<F> {
     /// Why `field` failed, if it did.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "no screen reports field errors yet")
-    )]
     pub fn error_for(&self, field: &F) -> Option<Error> {
         self.0
             .iter()
@@ -222,7 +225,7 @@ pub use {
     editor::{Editor, EditorMessage, Saved},
     item_input::{ItemInput, ItemMessage},
     recipe_input::{RecipeInput, RecipeMessage},
-    serving_input::{ServingInput, ServingMessage},
+    serving_input::{ServingInput, ServingMessage, format_number, show_quantity},
 };
 
 #[cfg(test)]

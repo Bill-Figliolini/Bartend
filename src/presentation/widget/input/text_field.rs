@@ -119,8 +119,19 @@ impl<R: Rule> TextField<R> {
         on_input: impl Fn(String) -> M + 'a,
         show_error: bool,
     ) -> Element<'a, M> {
-        let input = text_input(&self.placeholder, &self.text).on_input(on_input);
         let error = if show_error { self.value().err() } else { None };
+        self.view_with_error(on_input, error)
+    }
+
+    /// Like [`view`](Self::view), but shows `error`, for a form that checks
+    /// more than the field itself can.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn view_with_error<'a, M: Clone + 'a>(
+        &'a self,
+        on_input: impl Fn(String) -> M + 'a,
+        error: Option<Error>,
+    ) -> Element<'a, M> {
+        let input = text_input(&self.placeholder, &self.text).on_input(on_input);
         with_error(input.into(), error)
     }
 }

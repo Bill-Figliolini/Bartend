@@ -1,8 +1,10 @@
 use std::fmt::Display;
 
 use iced::{
+    Alignment::Center,
     Element,
-    widget::{button, column, row, text},
+    Length::FillPortion,
+    widget::{Column, button, column, container, row, space, text},
 };
 
 use crate::{
@@ -11,6 +13,7 @@ use crate::{
         CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, RecipeID, UnitSystem,
     },
     presentation::{
+        constants,
         input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
         widget::input::{Error, PositiveField, RequiredPick},
     },
@@ -40,9 +43,8 @@ pub enum ServingMessage {
     StepServings(Step),
     Item(PourKey, Item),
     Amount(PourKey, String),
-    /// Splits the ingredient across another item. Amounts entered for it
-    /// are in the given unit system.
-    AddPour(RowKey, UnitSystem),
+    /// Splits the ingredient across another item.
+    AddPour(RowKey),
     RemovePour(PourKey),
 }
 
@@ -72,6 +74,14 @@ impl Display for ServingField {
     }
 }
 
+/// What is left of an item once the form's pours are taken from it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Remaining {
+    Left(Quantity),
+    /// The pours need this much more than the item has.
+    Short(Quantity),
+}
+
 /// The form for serving a recipe: how many servings, and which items in
 /// stock supply each of its ingredients.
 ///
@@ -87,24 +97,22 @@ pub struct ServingInput {
     recipe: Option<Recipe>,
     servings: PositiveField,
     ingredients: Rows<IngredientUseInput>,
+    /// What amounts and stock are shown in, and what new split amounts are
+    /// entered in.
+    units: UnitSystem,
     /// Whether fields show their errors; see the [module docs](super).
     show_errors: bool,
 }
 
-impl Default for ServingInput {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ServingInput {
-    pub fn new() -> Self {
+    pub fn new(units: UnitSystem) -> Self {
         let mut servings = PositiveField::new("Servings");
         servings.set("1".to_string());
         Self {
             recipe: None,
             servings,
             ingredients: Rows::default(),
+            units,
             show_errors: false,
         }
     }
@@ -114,36 +122,129 @@ impl ServingInput {
         self.recipe.as_ref().map(|recipe| recipe.id)
     }
 
-    /// Whether stepping servings down would still leave more than zero.
-    pub fn can_step_down(&self) -> bool {
-        self.servings.value().is_ok_and(|servings| servings > 1.0)
+    /// The chosen recipe's name, as of the last refresh.
+    pub fn recipe_name(&self) -> Option<&str> {
+        self.recipe.as_ref().map(|recipe| recipe.body.name.as_str())
     }
 
-    /// The servings stepper, then a row per ingredient with a picker per
-    /// pour. The recipe itself is chosen from the screen's master list.
+    /// The number of servings, if it is valid.
+    pub fn servings(&self) -> Option<f32> {
+        self.servings.value().ok()
+    }
+
+    pub fn units(&self) -> UnitSystem {
+        self.units
+    }
+
+    /// Shows amounts and stock in the other unit system. Amounts already
+    /// typed into split pours keep the units they were typed in.
+    pub fn swap_units(&mut self) {
+        self.units.swap();
+        let units = self.units;
+        for (_, ingredient) in self.ingredients.iter_mut() {
+            ingredient.reoffer(units);
+        }
+    }
+
+    /// Whether stepping servings down would still leave more than zero.
+    pub fn can_step_down(&self) -> bool {
+        self.servings().is_some_and(|servings| servings > 1.0)
+    }
+
+    /// Whether every ingredient has enough in stock, counting all the
+    /// items it could come from. Without valid servings this is unknown,
+    /// and taken as yes so that serving reports the problem.
+    ///
+    /// Each ingredient is checked on its own; two that draw on the same
+    /// bottle can still turn out short when served.
+    pub fn servable(&self) -> bool {
+        let Some(servings) = self.servings() else {
+            return true;
+        };
+        self.ingredients
+            .iter()
+            .all(|(_, ingredient)| ingredient.in_stock(servings))
+    }
+
+    /// What is left of the item picked for `key` once every pour in the
+    /// form that is known in full is taken from it; `None` if this pour has
+    /// no item, or its amount is not known.
+    pub fn remaining(&self, key: PourKey) -> Option<Remaining> {
+        let ingredient = self.ingredients.get(key.ingredient)?;
+        let pour = ingredient.pours.get(key.pour)?;
+        let offer = pour.item.value().ok()?;
+        ingredient.pour_amount(pour, self.servings())?;
+        let used = self
+            .used_by_item()
+            .into_iter()
+            .find(|(id, _)| *id == offer.item.id)
+            .map(|(_, used)| used)?;
+        let stock = offer.item.body.quantity;
+        match stock.covers(used) {
+            Some(false) => used.saturating_sub(stock).map(Remaining::Short),
+            _ => stock.saturating_sub(used).map(Remaining::Left),
+        }
+    }
+
+    /// The servings stepper.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(
-        &self,
-        category_service: &CategoryService,
-        unit_system: UnitSystem,
-    ) -> Element<'_, ServingMessage> {
-        let show = self.show_errors;
+    pub fn servings_view(&self) -> Element<'_, ServingMessage> {
+        let errors = self.errors();
+        let error = errors
+            .as_ref()
+            .and_then(|errors| errors.error_for(&ServingField::Servings));
         let step_down = self
             .can_step_down()
             .then_some(ServingMessage::StepServings(Step::Down));
-        let servings = row![
+        let field = container(
+            self.servings
+                .view_with_error(ServingMessage::Servings, error),
+        )
+        .width(80);
+        row![
             text("Servings"),
-            button("-").on_press_maybe(step_down),
-            self.servings.view(ServingMessage::Servings, show),
-            button("+").on_press(ServingMessage::StepServings(Step::Up)),
+            button(text("-").center())
+                .width(32)
+                .style(button::secondary)
+                .on_press_maybe(step_down),
+            field,
+            button(text("+").center())
+                .width(32)
+                .style(button::secondary)
+                .on_press(ServingMessage::StepServings(Step::Up)),
         ]
-        .spacing(10);
-        let ingredients =
-            column(self.ingredients.iter().map(|(key, ingredient)| {
-                ingredient.view(key, category_service, unit_system, show)
-            }))
-            .spacing(10);
-        column![servings, ingredients].spacing(16).into()
+        .spacing(constants::SPACING / 2)
+        .align_y(Center)
+        .into()
+    }
+
+    /// A row per pour of each ingredient, under a heading: the ingredient,
+    /// the amount it needs for this many servings, the item to pour from,
+    /// and what that item has left afterwards.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn table_view(&self, category_service: &CategoryService) -> Element<'_, ServingMessage> {
+        let heading = |label| text(label).size(14).style(text::secondary).into();
+        let headings = table_row([
+            heading("Ingredient"),
+            heading("Amount"),
+            heading("Use item"),
+            heading("Left after"),
+        ]);
+        let errors = self.errors();
+        let ingredients = self.ingredients.iter().map(|(key, ingredient)| {
+            let name = category_service
+                .get(ingredient.category)
+                .map_or_else(|_| String::new(), |category| category.name.clone());
+            ingredient.view(key, name, self, errors.as_ref())
+        });
+        let divider = iced::widget::rule::horizontal(1);
+        column![
+            headings,
+            divider,
+            Column::with_children(ingredients).spacing(constants::SPACING)
+        ]
+        .spacing(constants::SPACING / 2)
+        .into()
     }
 
     pub fn update(
@@ -162,19 +263,22 @@ impl ServingInput {
             }
             ServingMessage::Servings(text) => self.servings.set(text),
             ServingMessage::StepServings(step) => self.step_servings(step),
-            ServingMessage::Item(key, item) => match self.pour_mut(key) {
-                Some(pour) => pour.item.select(item),
-                None => discard_stale_row(key.pour, &item),
-            },
+            ServingMessage::Item(key, item) => {
+                let units = self.units;
+                match self.pour_mut(key) {
+                    Some(pour) => pour.item.select(Offer::new(item, units)),
+                    None => discard_stale_row(key.pour, &item),
+                }
+            }
             ServingMessage::Amount(key, amount) => match self.pour_mut(key) {
                 Some(pour) => pour.amount.set(amount),
                 None => discard_stale_row(key.pour, &amount),
             },
-            ServingMessage::AddPour(key, units) => {
-                let servings = self.servings.value().ok();
+            ServingMessage::AddPour(key) => {
+                let (servings, units) = (self.servings(), self.units);
                 match self.ingredients.get_mut(key) {
                     Some(ingredient) => ingredient.add_pour(servings, units),
-                    None => discard_stale_row(key, &units),
+                    None => discard_stale_row(key, &key),
                 }
             }
             ServingMessage::RemovePour(key) => {
@@ -213,8 +317,9 @@ impl ServingInput {
             .as_ref()
             .is_some_and(|old| old.body.ingredients == recipe.body.ingredients);
         if unchanged {
+            let units = self.units;
             for (_, ingredient) in self.ingredients.iter_mut() {
-                ingredient.restock(item_service, category_service);
+                ingredient.restock(item_service, category_service, units);
             }
         } else {
             self.ingredients.clear();
@@ -267,6 +372,7 @@ impl ServingInput {
         result
     }
 
+    /// Empties the form, keeping its units.
     pub fn clear(&mut self) {
         // The rows are cleared rather than replaced, so their keys keep
         // counting up and are never reused.
@@ -274,8 +380,30 @@ impl ServingInput {
         let ingredients = std::mem::take(&mut self.ingredients);
         *self = Self {
             ingredients,
-            ..Self::new()
+            ..Self::new(self.units)
         };
+    }
+
+    /// The errors to show, if they are being shown.
+    fn errors(&self) -> Option<FormError<ServingField>> {
+        if self.show_errors {
+            self.validate().err()
+        } else {
+            None
+        }
+    }
+
+    /// How much of each item the pours known in full use, in total.
+    fn used_by_item(&self) -> Vec<(ItemID, Quantity)> {
+        let servings = self.servings();
+        let uses = self.ingredients.iter().flat_map(|(_, ingredient)| {
+            ingredient.pours.iter().filter_map(move |(_, pour)| {
+                let item = pour.item.value().ok()?.item.id;
+                Some((item, ingredient.pour_amount(pour, servings)?))
+            })
+        });
+        // See `overdrawn_items` for why the kinds always match.
+        totals_by_key(uses).unwrap_or_default()
     }
 
     fn build_rows(
@@ -285,16 +413,17 @@ impl ServingInput {
         category_service: &CategoryService,
     ) {
         for ingredient in &recipe.body.ingredients {
-            let row = IngredientUseInput::new(ingredient, item_service, category_service);
+            let row =
+                IngredientUseInput::new(ingredient, item_service, category_service, self.units);
             self.ingredients.push(row);
         }
     }
 
     fn step_servings(&mut self, step: Step) {
-        let next = match (step, self.servings.value()) {
-            (Step::Up, Ok(servings)) => servings + 1.0,
-            (Step::Up, Err(_)) => 1.0,
-            (Step::Down, Ok(servings)) if servings > 1.0 => servings - 1.0,
+        let next = match (step, self.servings()) {
+            (Step::Up, Some(servings)) => servings + 1.0,
+            (Step::Up, None) => 1.0,
+            (Step::Down, Some(servings)) if servings > 1.0 => servings - 1.0,
             (Step::Down, _) => return,
         };
         self.servings.set(format_number(next));
@@ -316,6 +445,21 @@ impl ServingInput {
             pour: row.pours.key(pour),
         }
     }
+}
+
+/// The four cells of a [`ServingInput::table_view`] row, in proportional
+/// columns so that every row lines up.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn table_row(cells: [Element<'_, ServingMessage>; 4]) -> Element<'_, ServingMessage> {
+    const PORTIONS: [u16; 4] = [3, 2, 6, 2];
+    let cells = cells
+        .into_iter()
+        .zip(PORTIONS)
+        .map(|(cell, portion)| container(cell).width(FillPortion(portion)).into());
+    iced::widget::Row::with_children(cells)
+        .spacing(constants::SPACING)
+        .align_y(Center)
+        .into()
 }
 
 /// A validated pour: what it uses, and the stock of its item when the
@@ -354,7 +498,7 @@ fn overdrawn_items(pours: &[CheckedPour]) -> Vec<ItemID> {
 const DECIMALS: f32 = 100.0;
 
 /// `number` to at most two decimal places, without trailing zeros.
-fn format_number(number: f32) -> String {
+pub fn format_number(number: f32) -> String {
     let rounded = (number * DECIMALS).round() / DECIMALS;
     format!("{rounded}")
 }
@@ -366,6 +510,19 @@ fn format_number_down(number: f32) -> String {
     format!("{rounded}")
 }
 
+/// `quantity` with its unit, to two decimal places.
+pub fn show_quantity(quantity: Quantity, units: UnitSystem) -> String {
+    let number = format_number(quantity.value(units));
+    format!("{number} {}", quantity.unit(units))
+}
+
+/// [`show_quantity`], but rounded down, for stock: so that what is shown can always
+/// be poured.
+fn show_quantity_down(quantity: Quantity, units: UnitSystem) -> String {
+    let number = format_number_down(quantity.value(units));
+    format!("{number} {}", quantity.unit(units))
+}
+
 /// Whether `total` is `required`, give or take `slack`.
 fn within(total: Quantity, required: Quantity, slack: Quantity) -> bool {
     let over = total.saturating_sub(required);
@@ -373,6 +530,27 @@ fn within(total: Quantity, required: Quantity, slack: Quantity) -> bool {
     [over, under]
         .into_iter()
         .all(|gap| gap.is_some_and(|gap| slack.covers(gap) == Some(true)))
+}
+
+/// An item on offer for a pour, labelled with its stock.
+#[derive(Debug, Clone)]
+struct Offer {
+    item: Item,
+    label: String,
+}
+
+impl Offer {
+    fn new(item: Item, units: UnitSystem) -> Self {
+        let stock = show_quantity_down(item.body.quantity, units);
+        let label = format!("{} ({stock})", item.body.name);
+        Self { item, label }
+    }
+}
+
+impl Display for Offer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label)
+    }
 }
 
 /// One ingredient of the chosen recipe, and the pours that supply it.
@@ -394,14 +572,11 @@ impl IngredientUseInput {
         ingredient: &Ingredient,
         item_service: &ItemService,
         category_service: &CategoryService,
+        units: UnitSystem,
     ) -> Self {
         let candidates = candidates(ingredient, item_service, category_service);
         let mut pours = Rows::default();
-        pours.push(PourInput::new(
-            &candidates,
-            only(&candidates),
-            UnitSystem::Metric,
-        ));
+        pours.push(PourInput::new(&candidates, only(&candidates), units));
         Self {
             category: ingredient.category,
             per_serving: ingredient.quantity,
@@ -411,16 +586,74 @@ impl IngredientUseInput {
     }
 
     /// Refreshes the items offered. Picks that are still in stock are kept,
-    /// with their new stock level; others are cleared.
-    fn restock(&mut self, item_service: &ItemService, category_service: &CategoryService) {
+    /// with their new stock level. A split pour whose item has run out is
+    /// dropped, leaving the rest of the ingredient to the others (and all of
+    /// it, once one pour is left); the last pour is only cleared.
+    fn restock(
+        &mut self,
+        item_service: &ItemService,
+        category_service: &CategoryService,
+        units: UnitSystem,
+    ) {
         let ingredient = Ingredient {
             category: self.category,
             quantity: self.per_serving,
         };
         self.candidates = candidates(&ingredient, item_service, category_service);
-        let single = self.pours.len() == 1;
+        let ran_out: Vec<RowKey> = self
+            .pours
+            .iter()
+            .filter(|(_, pour)| {
+                pour.item.value().is_ok_and(|offer| {
+                    !self
+                        .candidates
+                        .iter()
+                        .any(|candidate| candidate.id == offer.item.id)
+                })
+            })
+            .map(|(key, _)| key)
+            .collect();
+        for key in ran_out {
+            self.remove_pour(key);
+        }
+        self.reoffer(units);
+    }
+
+    /// Offers the candidates again, labelled in `units`.
+    fn reoffer(&mut self, units: UnitSystem) {
+        let lone = self.pours.len() == 1;
         for (_, pour) in self.pours.iter_mut() {
-            pour.restock(&self.candidates, single);
+            pour.reoffer(&self.candidates, units, lone);
+        }
+    }
+
+    /// What `servings` of the ingredient need.
+    fn required(&self, servings: f32) -> Quantity {
+        self.per_serving * servings
+    }
+
+    /// Whether its candidates hold enough, between them, for `servings`.
+    fn in_stock(&self, servings: f32) -> bool {
+        self.stock().covers(self.required(servings)) == Some(true)
+    }
+
+    /// The candidates' stock, in total.
+    fn stock(&self) -> Quantity {
+        self.candidates
+            .iter()
+            .map(|item| item.body.quantity)
+            .fold(self.per_serving * 0.0, |total, stock| {
+                total.checked_add(stock).unwrap_or(total)
+            })
+    }
+
+    /// What `pour` takes, if known: everything needed for `servings` when
+    /// it is the only pour, or the amount entered for it otherwise.
+    fn pour_amount(&self, pour: &PourInput, servings: Option<f32>) -> Option<Quantity> {
+        if self.pours.len() == 1 {
+            servings.map(|servings| self.required(servings))
+        } else {
+            pour.amount(self.per_serving).ok()
         }
     }
 
@@ -429,12 +662,16 @@ impl IngredientUseInput {
     /// that pour is given an amount first: all its item can supply, up to
     /// what is needed.
     fn add_pour(&mut self, servings: Option<f32>, units: UnitSystem) {
-        let required = servings.map(|servings| self.per_serving * servings);
+        let required = servings.map(|servings| self.required(servings));
         let mut pour = PourInput::new(&self.candidates, None, units);
         if let Some(required) = required {
             let single = self.pours.len() == 1;
             if let Some((_, first)) = self.pours.iter_mut().next().filter(|_| single) {
-                let stock = first.item.value().ok().map(|item| item.body.quantity);
+                let stock = first
+                    .item
+                    .value()
+                    .ok()
+                    .map(|offer| offer.item.body.quantity);
                 // Rounded down when finishing the item, so as not to ask
                 // for a hair more than it holds.
                 let amount = match stock {
@@ -475,7 +712,7 @@ impl IngredientUseInput {
         servings: Option<f32>,
         validator: &mut Validator<ServingField>,
     ) -> Option<Vec<CheckedPour>> {
-        let required = servings.map(|servings| self.per_serving * servings);
+        let required = servings.map(|servings| self.required(servings));
         let single = self.pours.len() == 1;
         let mut pours = Vec::new();
         let mut amounts = Vec::new();
@@ -495,12 +732,12 @@ impl IngredientUseInput {
             amounts.push(amount);
             let rounding = Quantity::new(0.5 / DECIMALS, self.per_serving.unit(pour.units));
             slack = slack.checked_add(rounding).unwrap_or(slack);
-            if let (Some(item), Some(quantity)) = (item, amount) {
+            if let (Some(offer), Some(quantity)) = (item, amount) {
                 let usage = ItemUse {
-                    id: item.id,
+                    id: offer.item.id,
                     quantity,
                 };
-                let stock = item.body.quantity;
+                let stock = offer.item.body.quantity;
                 pours.push(CheckedPour { key, usage, stock });
             }
         }
@@ -520,45 +757,113 @@ impl IngredientUseInput {
         (pours.len() == self.pours.len() && required.is_some()).then_some(pours)
     }
 
+    /// The ingredient's rows of the table: one per pour, then a button to
+    /// split it across another item, and any error for the ingredient as a
+    /// whole. If its items cannot supply enough between them, a single row
+    /// says so instead.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn view(
-        &self,
+    fn view<'a>(
+        &'a self,
         key: RowKey,
-        category_service: &CategoryService,
-        unit_system: UnitSystem,
-        show: bool,
-    ) -> Element<'_, ServingMessage> {
-        let category = category_service
-            .get(self.category)
-            .map_or_else(|_| String::new(), |category| category.name.clone());
-        let header = row![text(category), text(self.per_serving.readable(unit_system))].spacing(20);
+        name: String,
+        form: &'a ServingInput,
+        errors: Option<&FormError<ServingField>>,
+    ) -> Element<'a, ServingMessage> {
+        let units = form.units;
+        let servings = form.servings();
+        let error_for = |field| errors.and_then(|errors| errors.error_for(&field));
+        let amount = servings.map_or_else(
+            || "—".to_string(),
+            |servings| show_quantity(self.required(servings), units),
+        );
+        if servings.is_some_and(|servings| !self.in_stock(servings)) {
+            let explanation = if self.candidates.is_empty() {
+                format!("No {name} in stock")
+            } else {
+                format!(
+                    "Only {} of {name} in stock",
+                    show_quantity_down(self.stock(), units)
+                )
+            };
+            return table_row([
+                text(name).into(),
+                text(amount).into(),
+                text(explanation).style(text::danger).into(),
+                text("—").into(),
+            ]);
+        }
+
         let split = self.pours.len() > 1;
-        let pours = column(self.pours.iter().map(|(pour_key, pour)| {
-            let key = PourKey {
+        let mut rows = Column::new().spacing(constants::SPACING / 2);
+        let mut labels = Some((name, amount));
+        for (pour_key, pour) in self.pours.iter() {
+            let pour_key = PourKey {
                 ingredient: key,
                 pour: pour_key,
             };
-            let picker = pour
-                .item
-                .view(move |item| ServingMessage::Item(key, item), show);
-            if split {
+            let picker = pour.item.view_with_error(
+                move |offer: Offer| ServingMessage::Item(pour_key, offer.item),
+                error_for(ServingField::PourItem(pour_key)),
+            );
+            let item_cell: Element<'_, _> = if split {
+                let amount = pour.amount.view_with_error(
+                    move |amount| ServingMessage::Amount(pour_key, amount),
+                    error_for(ServingField::PourAmount(pour_key)),
+                );
                 let unit = self.per_serving.unit(pour.units).to_string();
                 row![
-                    picker,
-                    pour.amount
-                        .view(move |amount| ServingMessage::Amount(key, amount), show),
+                    container(picker).width(FillPortion(3)),
+                    container(amount).width(FillPortion(1)),
                     text(unit),
-                    button("Remove").on_press(ServingMessage::RemovePour(key)),
+                    button(text("✕").center())
+                        .style(button::text)
+                        .on_press(ServingMessage::RemovePour(pour_key)),
                 ]
-                .spacing(10)
+                .spacing(constants::SPACING / 2)
+                .align_y(Center)
                 .into()
             } else {
                 picker
-            }
-        }))
-        .spacing(5);
-        let add = button("+ Add bottle").on_press(ServingMessage::AddPour(key, unit_system));
-        column![header, pours, add].spacing(5).into()
+            };
+            let left = match form.remaining(pour_key) {
+                Some(Remaining::Left(left)) => text(show_quantity_down(left, units)),
+                Some(Remaining::Short(short)) => {
+                    text(format!("short {}", show_quantity(short, units))).style(text::danger)
+                }
+                None => text("—"),
+            };
+            let (name, amount) = labels.take().unwrap_or_default();
+            rows = rows.push(table_row([
+                text(name).into(),
+                text(amount).into(),
+                item_cell,
+                left.into(),
+            ]));
+        }
+
+        // Another bottle only helps while some candidate is not yet poured.
+        let add = (self.candidates.len() > self.pours.len()).then(|| {
+            button(text("+ Add bottle").size(14))
+                .style(button::text)
+                .padding(0)
+                .on_press(ServingMessage::AddPour(key))
+        });
+        let error = error_for(ServingField::Ingredient(key))
+            .map(|error| text(error.to_string()).size(14).style(text::danger));
+        if add.is_some() || error.is_some() {
+            let notes = row![]
+                .push(add)
+                .push(space().width(constants::SPACING))
+                .push(error)
+                .align_y(Center);
+            rows = rows.push(table_row([
+                space().into(),
+                space().into(),
+                notes.into(),
+                space().into(),
+            ]));
+        }
+        rows.into()
     }
 }
 
@@ -595,7 +900,7 @@ fn only(candidates: &[Item]) -> Option<Item> {
 /// One item supplying (part of) an ingredient.
 #[derive(Debug)]
 struct PourInput {
-    item: RequiredPick<Item>,
+    item: RequiredPick<Offer>,
     /// Only read once the ingredient has several pours; a single pour
     /// takes all the ingredient needs.
     amount: PositiveField,
@@ -607,20 +912,20 @@ struct PourInput {
 impl PourInput {
     fn new(candidates: &[Item], initial: Option<Item>, units: UnitSystem) -> Self {
         Self {
-            item: RequiredPick::new(candidates.to_vec(), initial, "Item"),
+            item: offers(candidates, initial, units),
             amount: PositiveField::new("Amount"),
             units,
         }
     }
 
-    /// Offers `candidates` instead. The pick is kept, with its new stock
-    /// level, if it is still among them. A lone pour with nothing picked
-    /// takes the only candidate, as a new row would.
-    fn restock(&mut self, candidates: &[Item], lone: bool) {
+    /// Offers `candidates`, labelled in `units`. The pick is kept, with its
+    /// new stock level, if it is still among them. A `lone` pour with
+    /// nothing picked takes the only candidate, as a new row would.
+    fn reoffer(&mut self, candidates: &[Item], units: UnitSystem, lone: bool) {
         let kept = self.item.value().ok().and_then(|picked| {
             candidates
                 .iter()
-                .find(|candidate| candidate.id == picked.id)
+                .find(|candidate| candidate.id == picked.item.id)
                 .cloned()
         });
         let picked = match kept {
@@ -628,7 +933,7 @@ impl PourInput {
             None if lone => only(candidates),
             None => None,
         };
-        self.item = RequiredPick::new(candidates.to_vec(), picked, "Item");
+        self.item = offers(candidates, picked, units);
     }
 
     /// The amount entered, as the same kind of quantity as `like`.
@@ -638,6 +943,17 @@ impl PourInput {
             .value()
             .map(|amount| Quantity::new(amount, unit))
     }
+}
+
+/// A picker offering `candidates`, labelled in `units`, with `picked`
+/// chosen.
+fn offers(candidates: &[Item], picked: Option<Item>, units: UnitSystem) -> RequiredPick<Offer> {
+    let offers = candidates
+        .iter()
+        .map(|item| Offer::new(item.clone(), units))
+        .collect();
+    let picked = picked.map(|item| Offer::new(item, units));
+    RequiredPick::new(offers, picked, "Choose an item")
 }
 
 #[cfg(test)]
@@ -703,7 +1019,7 @@ mod tests {
             .iter()
             .find(|(pour, _)| *pour == key.pour)
             .unwrap();
-        pour.item.value().ok()
+        pour.item.value().ok().map(|offer| offer.item)
     }
 
     fn uses(input: &ServingInput) -> Vec<(ItemID, Quantity)> {
@@ -764,7 +1080,7 @@ mod tests {
             .unwrap();
         world.map_item(jelly, gin);
         let shot = world.add_recipe("Gin Shot", &[(gin, 50.0)]);
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
 
         choose(&mut input, &world, shot);
 
@@ -783,7 +1099,7 @@ mod tests {
             world.map_item(id, campari);
         }
         let recipe = world.add_recipe("Half Negroni", &[(gin, 30.0), (campari, 30.0)]);
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
 
         choose(&mut input, &world, recipe);
 
@@ -796,7 +1112,7 @@ mod tests {
 
     #[test]
     fn no_recipe_chosen_is_rejected() {
-        let input = ServingInput::new();
+        let input = ServingInput::new(UnitSystem::Metric);
         assert_eq!(
             errors(&input),
             vec![(ServingField::Recipe, Error::MustChooseValue)]
@@ -806,7 +1122,7 @@ mod tests {
     #[test]
     fn each_pour_needs_an_item() {
         let GinBar { world, shot, .. } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
 
         let pour = input.pour_key(0, 0);
@@ -821,7 +1137,7 @@ mod tests {
         let GinBar {
             world, full, shot, ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let key = input.pour_key(0, 0);
         pick(&mut input, &world, key, full);
@@ -835,7 +1151,7 @@ mod tests {
         let GinBar {
             world, full, shot, ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let key = input.pour_key(0, 0);
         pick(&mut input, &world, key, full);
@@ -850,7 +1166,7 @@ mod tests {
         let GinBar {
             world, full, shot, ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let pour = input.pour_key(0, 0);
         pick(&mut input, &world, pour, full);
@@ -870,7 +1186,7 @@ mod tests {
     #[test]
     fn stepping_servings_never_reaches_zero() {
         let world = World::new();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         let step = |input: &mut ServingInput, step| {
             send(input, &world, ServingMessage::StepServings(step));
             input.servings.value().map(f32::to_bits)
@@ -904,16 +1220,12 @@ mod tests {
     /// full bottle.
     fn split_shot() -> (GinBar, ServingInput) {
         let bar = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &bar.world, bar.shot);
         let key = input.pour_key(0, 0);
         pick(&mut input, &bar.world, key, bar.dregs);
         let row = input.pour_key(0, 0).ingredient;
-        send(
-            &mut input,
-            &bar.world,
-            ServingMessage::AddPour(row, UnitSystem::Metric),
-        );
+        send(&mut input, &bar.world, ServingMessage::AddPour(row));
         let key = input.pour_key(0, 1);
         pick(&mut input, &bar.world, key, bar.full);
         (bar, input)
@@ -985,14 +1297,11 @@ mod tests {
             ..
         } = gin_bar();
         let ounce = world.add_recipe("Ounce of Gin", &[(gin, 29.57)]);
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, ounce);
         let row = input.pour_key(0, 0).ingredient;
-        send(
-            &mut input,
-            &world,
-            ServingMessage::AddPour(row, UnitSystem::Imperial),
-        );
+        input.swap_units();
+        send(&mut input, &world, ServingMessage::AddPour(row));
         let (first, second) = (input.pour_key(0, 0), input.pour_key(0, 1));
         pick(&mut input, &world, first, full);
         pick(&mut input, &world, second, full);
@@ -1021,18 +1330,15 @@ mod tests {
             shot,
             ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let key = input.pour_key(0, 0);
         pick(&mut input, &world, key, dregs);
         let row = input.pour_key(0, 0).ingredient;
         // 30 ml is 1.0145 fl oz and the 20 ml left is 0.6764 fl oz; filled
         // in to two places, neither split adds up exactly.
-        send(
-            &mut input,
-            &world,
-            ServingMessage::AddPour(row, UnitSystem::Imperial),
-        );
+        input.swap_units();
+        send(&mut input, &world, ServingMessage::AddPour(row));
         let key = input.pour_key(0, 1);
         pick(&mut input, &world, key, full);
 
@@ -1071,7 +1377,7 @@ mod tests {
         let bottle = world.add_item("Tanqueray", 100.0);
         world.map_item(bottle, gin);
         let double = world.add_recipe("Double Gin", &[(gin, 60.0), (gin, 60.0)]);
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, double);
         let (first, second) = (input.pour_key(0, 0), input.pour_key(1, 0));
 
@@ -1092,7 +1398,7 @@ mod tests {
         let GinBar {
             world, full, shot, ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
 
         input.output().unwrap_err();
@@ -1114,7 +1420,7 @@ mod tests {
             shot,
             ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let pour = input.pour_key(0, 0);
         pick(&mut input, &world, pour, full);
@@ -1150,7 +1456,7 @@ mod tests {
             shot,
             ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let pour = input.pour_key(0, 0);
         pick(&mut input, &world, pour, dregs);
@@ -1171,6 +1477,26 @@ mod tests {
     }
 
     #[test]
+    fn refreshing_drops_a_split_pour_whose_item_ran_out() {
+        let (mut bar, mut input) = split_shot();
+        let served = input.validate().unwrap();
+        bar.world
+            .items
+            .use_items(&bar.world.database.item_db(), served)
+            .unwrap();
+
+        refresh(&mut input, &bar.world);
+
+        let (_, row) = input.ingredients.iter().next().unwrap();
+        assert_eq!(row.pours.len(), 1, "the dregs are finished");
+        assert_eq!(
+            uses(&input),
+            vec![(bar.full, ml(30.0))],
+            "all from the full one"
+        );
+    }
+
+    #[test]
     fn refreshing_rebuilds_rows_when_the_recipe_changed() {
         let GinBar {
             mut world,
@@ -1178,7 +1504,7 @@ mod tests {
             shot,
             ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let old_pour = input.pour_key(0, 0);
         pick(&mut input, &world, old_pour, full);
@@ -1208,7 +1534,7 @@ mod tests {
         let GinBar {
             mut world, shot, ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let pour = input.pour_key(0, 0);
 
@@ -1229,7 +1555,7 @@ mod tests {
         let GinBar {
             mut world, shot, ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         refresh(&mut input, &world);
         assert_eq!(input.recipe_id(), None);
 
@@ -1251,7 +1577,7 @@ mod tests {
         let GinBar {
             world, full, shot, ..
         } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, shot);
         let old = input.pour_key(0, 0);
         choose(&mut input, &world, shot);
@@ -1262,11 +1588,7 @@ mod tests {
             &world,
             ServingMessage::Amount(old, "5".to_string()),
         );
-        send(
-            &mut input,
-            &world,
-            ServingMessage::AddPour(old.ingredient, UnitSystem::Metric),
-        );
+        send(&mut input, &world, ServingMessage::AddPour(old.ingredient));
         send(&mut input, &world, ServingMessage::RemovePour(old));
 
         let new = input.pour_key(0, 0);
@@ -1280,10 +1602,122 @@ mod tests {
     #[test]
     fn choosing_a_recipe_resets_servings() {
         let GinBar { world, shot, .. } = gin_bar();
-        let mut input = ServingInput::new();
+        let mut input = ServingInput::new(UnitSystem::Metric);
         servings(&mut input, &world, "4");
         choose(&mut input, &world, shot);
         assert_eq!(input.servings.value().map(f32::to_bits), Ok(1f32.to_bits()));
+    }
+
+    /// The labels the `ingredient`th row's first pour offers.
+    fn labels(input: &ServingInput, ingredient: usize) -> Vec<String> {
+        let (_, row) = input.ingredients.iter().nth(ingredient).unwrap();
+        row.candidates
+            .iter()
+            .map(|item| Offer::new(item.clone(), input.units()).to_string())
+            .collect()
+    }
+
+    #[test]
+    fn items_are_labelled_with_their_stock_rounded_down_in_the_current_units() {
+        let GinBar {
+            world, full, shot, ..
+        } = gin_bar();
+        let mut input = ServingInput::new(UnitSystem::Metric);
+        choose(&mut input, &world, shot);
+        let pour = input.pour_key(0, 0);
+        pick(&mut input, &world, pour, full);
+        assert_eq!(labels(&input, 0), vec!["Dregs (20 ml)", "Full (750 ml)"]);
+
+        input.swap_units();
+
+        // 750 ml is 25.3635 fl oz.
+        assert_eq!(input.units(), UnitSystem::Imperial);
+        assert_eq!(
+            labels(&input, 0),
+            vec!["Dregs (0.67 fl oz)", "Full (25.36 fl oz)"]
+        );
+        let (_, row) = input.ingredients.iter().next().unwrap();
+        let (_, first) = row.pours.iter().next().unwrap();
+        let shown = first.item.value().unwrap().to_string();
+        assert_eq!(
+            shown, "Full (25.36 fl oz)",
+            "the pick is relabelled, not lost"
+        );
+    }
+
+    #[test]
+    fn quantities_are_shown_to_two_places() {
+        let ounce = Quantity::new(1.0, Unit::FluidOunce);
+        assert_eq!(show_quantity(ounce, UnitSystem::Metric), "29.57 ml");
+        assert_eq!(show_quantity(ml(30.0), UnitSystem::Imperial), "1.01 fl oz");
+        assert_eq!(
+            show_quantity_down(ml(19.999), UnitSystem::Metric),
+            "19.99 ml"
+        );
+    }
+
+    #[test]
+    fn servable_only_while_each_ingredient_has_enough_in_stock() {
+        let GinBar {
+            mut world,
+            gin,
+            shot,
+            ..
+        } = gin_bar();
+        let mut input = ServingInput::new(UnitSystem::Metric);
+        choose(&mut input, &world, shot);
+        assert!(input.servable(), "770 ml for 30 ml");
+
+        servings(&mut input, &world, "26");
+        assert!(!input.servable(), "770 ml for 780 ml");
+
+        servings(&mut input, &world, "abc");
+        assert!(input.servable(), "left to serving to report");
+
+        let vermouth = world.add_category("Vermouth");
+        let martini = world.add_recipe("Martini", &[(gin, 60.0), (vermouth, 10.0)]);
+        choose(&mut input, &world, martini);
+        assert!(!input.servable(), "no vermouth at all");
+    }
+
+    #[test]
+    fn remaining_counts_every_pour_from_the_same_item() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let bottle = world.add_item("Tanqueray", 100.0);
+        world.map_item(bottle, gin);
+        let double = world.add_recipe("Double Gin", &[(gin, 40.0), (gin, 40.0)]);
+        let mut input = ServingInput::new(UnitSystem::Metric);
+        choose(&mut input, &world, double);
+        let (first, second) = (input.pour_key(0, 0), input.pour_key(1, 0));
+
+        assert_eq!(input.remaining(first), Some(Remaining::Left(ml(20.0))));
+        assert_eq!(input.remaining(second), Some(Remaining::Left(ml(20.0))));
+
+        servings(&mut input, &world, "1.5");
+        assert_eq!(input.remaining(first), Some(Remaining::Short(ml(20.0))));
+
+        servings(&mut input, &world, "abc");
+        assert_eq!(input.remaining(first), None, "amount unknown");
+    }
+
+    #[test]
+    fn remaining_is_unknown_without_an_item_or_amount() {
+        let (bar, mut input) = split_shot();
+        let (first, second) = (input.pour_key(0, 0), input.pour_key(0, 1));
+        assert_eq!(input.remaining(first), Some(Remaining::Left(ml(0.0))));
+        assert_eq!(input.remaining(second), Some(Remaining::Left(ml(740.0))));
+
+        send(
+            &mut input,
+            &bar.world,
+            ServingMessage::Amount(second, String::new()),
+        );
+        assert_eq!(input.remaining(second), None);
+
+        choose(&mut input, &bar.world, bar.shot);
+        assert_eq!(input.remaining(input.pour_key(0, 0)), None, "no item");
+        assert_eq!(input.recipe_name(), Some("Gin Shot"));
     }
 
     #[test]

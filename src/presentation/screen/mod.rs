@@ -530,13 +530,24 @@ mod tests {
             ScreenCommand::Inventory(inventory::Command::Delete(item)),
             ScreenCommand::Categories(categories::Command::DeleteCategory(category)),
             ScreenCommand::Recipes(recipes::Command::Delete(recipe)),
-            ScreenCommand::Serving(serving::Command::UseItems(Vec::new())),
+            ScreenCommand::Serving(serving::Command::UseItems {
+                uses: Vec::new(),
+                served: serving::Served::default(),
+            }),
             ScreenCommand::Settings(settings::Command::UpdateConfig(config)),
         ];
         for command in commands {
             let messages = drain(command.apply(&mut world.ctx()));
+            // Serving reports what it used before reloading.
             assert!(
-                matches!(messages.as_slice(), [Message::ReloadScreen]),
+                matches!(
+                    messages.as_slice(),
+                    [Message::ReloadScreen]
+                        | [
+                            Message::Serving(serving::Message::Served(_)),
+                            Message::ReloadScreen
+                        ]
+                ),
                 "{messages:?}"
             );
         }
