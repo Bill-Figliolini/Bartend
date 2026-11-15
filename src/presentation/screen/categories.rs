@@ -113,6 +113,7 @@ impl Categories {
             label: category_name(category_service, id),
             selected: self.selected == Some(id),
             on_press: categories_msg(Message::Select(Some(id))),
+            dimmed: false,
         });
         let new = (
             "+ New Category".to_string(),

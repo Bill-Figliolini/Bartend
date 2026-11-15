@@ -87,6 +87,7 @@ impl Recipes {
             label: recipe_service.get(id).unwrap_or_default().name,
             selected: self.selected == Some(id),
             on_press: recipes_msg(Message::Select(Some(id))),
+            dimmed: false,
         });
         let new = (
             "+ New Recipe".to_string(),

@@ -127,6 +127,7 @@ impl Settings {
             label: section.label().to_string(),
             selected: self.section == section,
             on_press: settings_msg(Message::SelectSection(section)),
+            dimmed: false,
         });
         let master = master_list(None, entries);
 

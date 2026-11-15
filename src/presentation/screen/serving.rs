@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    logic::{CategoryService, ItemService, RecipeService, totals_by_key},
+    logic::{CategoryService, ItemService, RecipeService, can_make, totals_by_key},
     models::{Config, ItemUse, Quantity, Recipe, UnitSystem},
     presentation::{
         application::{self, Context},
@@ -116,12 +116,13 @@ impl Serving {
             notice: None,
         }
     }
-    /// The recipes on the left; choosing one fills the right with the
-    /// number of servings, and a table of its ingredients with an item
-    /// picker for each.
+    /// The recipes on the left, faded if there is not enough in stock to
+    /// make one; choosing one fills the right with the number of servings,
+    /// and a table of its ingredients with an item picker for each.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> Panels<'_> {
@@ -134,6 +135,7 @@ impl Serving {
             Entry {
                 label: recipe.body.name.clone(),
                 selected: chosen == Some(id),
+                dimmed: !can_make(&recipe.body, item_service, category_service),
                 on_press: serving_msg(Message::Input(ServingMessage::Recipe(recipe))),
             }
         });

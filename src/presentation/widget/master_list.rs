@@ -4,6 +4,7 @@
 use iced::{
     Element,
     Length::Fill,
+    Theme,
     widget::{Column, button, column, container, scrollable, text},
 };
 
@@ -16,7 +17,14 @@ pub struct Entry {
     /// Whether the detail panel is showing this entry.
     pub selected: bool,
     pub on_press: Message,
+    /// Shows the label faded, e.g. for a recipe that cannot be made right
+    /// now. The entry can still be chosen. A selected entry is never faded,
+    /// so that its label stays readable on the highlight.
+    pub dimmed: bool,
 }
+
+/// How much of the text colour a dimmed entry keeps.
+const DIMMED_ALPHA: f32 = 0.45;
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn master_list<'a>(
@@ -29,7 +37,15 @@ pub fn master_list<'a>(
         } else {
             button::text
         };
-        button(text(entry.label))
+        let label = text(entry.label);
+        let label = if entry.dimmed && !entry.selected {
+            label.style(|theme: &Theme| text::Style {
+                color: Some(theme.palette().text.scale_alpha(DIMMED_ALPHA)),
+            })
+        } else {
+            label
+        };
+        button(label)
             .width(Fill)
             .style(style)
             .on_press(entry.on_press)

@@ -34,10 +34,6 @@ pub fn totals_by_key<K: PartialEq>(
 /// (such as Gin and its child London Dry Gin) can both count the same
 /// bottle. Items stocked in a different kind of quantity than the
 /// ingredient (e.g. by mass rather than volume) never count towards it.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "used by the serving screen's recipe list")
-)]
 pub fn can_make(
     recipe: &RecipeBody,
     item_service: &ItemService,

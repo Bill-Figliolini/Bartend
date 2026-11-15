@@ -119,6 +119,7 @@ impl Inventory {
             label: item_service.get(id).cloned().unwrap_or_default().name,
             selected: self.selected == Some(id),
             on_press: inventory_msg(Message::Select(Some(id))),
+            dimmed: false,
         });
         let new = (
             "+ New Item".to_string(),
