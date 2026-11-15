@@ -3,23 +3,29 @@ use std::{path::PathBuf, process::exit};
 use iced::{
     Element, Event,
     Length::Fill,
-    Subscription, Task, Theme, event,
+    Subscription, Task, Theme,
+    alignment::Vertical::Center,
+    event,
     keyboard::{self, Key, key::Named},
-    widget::{button, column, container, operation, row, rule, text},
+    widget::{button, column, container, operation, row, text},
     window,
 };
 use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, CategoryID, Config, Recipe, RecipeID},
+    models::{BartendError, CategoryID, Config, Recipe, RecipeID, UnitSystem},
     persistence::Database,
     presentation::{
         constants,
         input_handling::ServingMessage,
         screen::{self, Panels, Screen, ScreenKind},
         theme::Themes,
-        widget::tab_bar::tab_bar,
+        widget::{
+            detail::{Tone, toned_card},
+            frame,
+            tab_bar::tab_bar,
+        },
     },
 };
 
@@ -45,6 +51,9 @@ struct Bartend {
     /// A theme picked in Settings but not yet saved. Shown in place of the
     /// saved theme until the edit is saved or discarded.
     preview_theme: Option<Theme>,
+    /// The unit system amounts are shown in on every screen, picked in the
+    /// top bar. Starts as, and follows changes to, the saved default.
+    units: UnitSystem,
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +63,8 @@ pub(in crate::presentation) enum Message {
     ClearError,
 
     OpenScreen(ScreenKind),
+    /// Shows amounts in the given unit system on every screen.
+    SetUnits(UnitSystem),
     /// Opens the Recipes screen on the given recipe.
     ShowRecipe(RecipeID),
     /// Opens the Categories screen on the given category.
@@ -134,6 +145,7 @@ impl Bartend {
         let screen = Screen::start(&config, &category_service);
         let themes = Themes::new();
         let error = theme_notice(&config, &themes);
+        let units = config.default_units();
 
         Self {
             screen,
@@ -145,6 +157,7 @@ impl Bartend {
             error,
             themes,
             preview_theme: None,
+            units,
         }
     }
     fn theme(&self) -> Theme {
@@ -181,12 +194,26 @@ impl Bartend {
         // Leaving Settings discards its unsaved edits, including a previewed theme.
         self.preview_theme = None;
         self.screen = match kind {
-            ScreenKind::Inventory => Screen::inventory(&self.config, &self.category_service),
+            ScreenKind::Inventory => {
+                Screen::inventory(&self.config, &self.category_service, self.units)
+            }
             ScreenKind::Settings => Screen::settings(&self.config, &self.themes),
             ScreenKind::Categories => Screen::categories(),
-            ScreenKind::Recipes => Screen::recipes(&self.config, &self.category_service),
-            ScreenKind::Serving => Screen::serving(&self.config),
+            ScreenKind::Recipes => {
+                Screen::recipes(&self.config, &self.category_service, self.units)
+            }
+            ScreenKind::Serving => Screen::serving(self.units),
         };
+    }
+
+    /// Switches every screen to `units`: the active one now, and the
+    /// others as they are opened.
+    fn set_units(&mut self, units: UnitSystem) -> Task<Message> {
+        self.units = units;
+        match self.screen.units_message(units) {
+            Some(message) => self.update(message),
+            None => Task::none(),
+        }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -207,6 +234,7 @@ impl Bartend {
                 self.open_screen(kind);
                 Task::none()
             }
+            Message::SetUnits(units) => self.set_units(units),
             Message::ShowRecipe(recipe) => {
                 self.open_screen(ScreenKind::Recipes);
                 self.update(Message::Recipes(screen::recipes::Message::Select(Some(
@@ -274,22 +302,30 @@ impl Bartend {
             | Message::Settings(_)
             | Message::Categories(_)
             | Message::Recipes(_)
-            | Message::Serving(_) => {
-                let command = self.screen.update(
-                    &self.item_service,
-                    &self.category_service,
-                    &self.recipe_service,
-                    message,
-                );
-                match command {
-                    Some(command) => {
-                        self.error = None;
-                        command.apply(&mut self.context())
-                    }
-                    None => Task::none(),
-                }
-            }
+            | Message::Serving(_) => self.update_screen(message),
         }
+    }
+
+    /// Passes `message` to the active screen, and applies any command it
+    /// returns.
+    fn update_screen(&mut self, message: Message) -> Task<Message> {
+        let command = self.screen.update(
+            &self.item_service,
+            &self.category_service,
+            &self.recipe_service,
+            message,
+        );
+        let Some(command) = command else {
+            return Task::none();
+        };
+        self.error = None;
+        let default_units = self.config.default_units();
+        let task = command.apply(&mut self.context());
+        // Saving a new default in Settings switches to it.
+        if self.config.default_units() != default_units {
+            self.units = self.config.default_units();
+        }
+        task
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -302,10 +338,13 @@ impl Bartend {
 
         let mut detail_contents = column![].spacing(constants::SPACING);
         if let Some(error) = &self.error {
-            let error_text = text(error.to_string()).width(Fill);
-            let error_clear_button = button(text("X")).on_press(Message::ClearError);
-            let error_row = row![error_text, error_clear_button].spacing(constants::SPACING);
-            detail_contents = detail_contents.push(error_row);
+            let dismiss = button("Dismiss")
+                .style(button::secondary)
+                .on_press(Message::ClearError);
+            let banner = row![text(error.to_string()).width(Fill), dismiss]
+                .spacing(constants::SPACING)
+                .align_y(Center);
+            detail_contents = detail_contents.push(toned_card(Tone::Danger, banner));
         }
         detail_contents = detail_contents.push(detail);
         let detail = container(detail_contents)
@@ -313,10 +352,10 @@ impl Bartend {
             .height(Fill)
             .padding(constants::PADDING);
 
-        let body = row![master, rule::vertical(constants::DIV_SIZE), detail];
+        let body = row![master, frame::hairline_down(), detail];
         column![
-            tab_bar(self.screen.kind()),
-            rule::horizontal(constants::DIV_SIZE),
+            tab_bar(self.screen.kind(), self.units),
+            frame::hairline_across(),
             body
         ]
         .height(Fill)
@@ -403,6 +442,7 @@ mod tests {
             error: None,
             themes: Themes::new(),
             preview_theme: None,
+            units: UnitSystem::Metric,
         };
         (app, dir)
     }
@@ -535,6 +575,47 @@ mod tests {
     }
 
     #[test]
+    fn units_carry_over_to_screens_opened_later() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::SetUnits(UnitSystem::Imperial));
+        let Screen::Inventory(inventory) = &app.screen else {
+            panic!("expected Inventory, got {:?}", app.screen.kind());
+        };
+        assert_eq!(inventory.units(), UnitSystem::Imperial);
+
+        // Categories shows no amounts, so the choice just waits.
+        run(&mut app, Message::OpenScreen(ScreenKind::Categories));
+        run(&mut app, Message::SetUnits(UnitSystem::Metric));
+        run(&mut app, Message::SetUnits(UnitSystem::Imperial));
+        run(&mut app, Message::OpenScreen(ScreenKind::Recipes));
+
+        let Screen::Recipes(recipes) = &app.screen else {
+            panic!("expected Recipes, got {:?}", app.screen.kind());
+        };
+        assert_eq!(recipes.units(), UnitSystem::Imperial);
+        assert_eq!(app.units, UnitSystem::Imperial);
+        // Only the saved default changes the config.
+        assert_eq!(app.config.default_units(), UnitSystem::Metric);
+    }
+
+    #[test]
+    fn saving_a_new_default_unit_system_switches_to_it() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(
+            &mut app,
+            Message::Settings(settings::Message::UpdateUnitSystem(UnitSystem::Imperial)),
+        );
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.units, UnitSystem::Imperial);
+
+        // Saving anything else keeps the units picked in the top bar.
+        run(&mut app, Message::SetUnits(UnitSystem::Metric));
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.units, UnitSystem::Metric);
+    }
+
+    #[test]
     fn errors_are_shown_until_cleared() {
         let (mut app, _dir) = app();
         run(&mut app, Message::Error(logic_error()));
@@ -579,7 +660,10 @@ mod tests {
         let (mut app, _dir) = app();
         run(&mut app, Message::Error(logic_error()));
 
-        run(&mut app, Message::Inventory(inventory::Message::SwapUnits));
+        run(
+            &mut app,
+            Message::Inventory(inventory::Message::SetUnits(UnitSystem::Imperial)),
+        );
         run(&mut app, Message::NoOp);
         run(&mut app, Message::ReloadScreen);
 

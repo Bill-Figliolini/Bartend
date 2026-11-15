@@ -14,7 +14,6 @@ use crate::{
         },
         widget::{
             detail::{Tone, card, hint, stat_tile, status_link_row},
-            footer::footer,
             master_list::{Entry, master_list},
         },
     },
@@ -23,7 +22,7 @@ use iced::{
     Element,
     Length::{Fill, Shrink},
     Task,
-    widget::{Column, button, column, container, row, scrollable, space, text},
+    widget::{Column, button, column, row, scrollable},
 };
 #[derive(Debug)]
 pub struct Recipes {
@@ -36,7 +35,8 @@ pub struct Recipes {
 #[derive(Debug, Clone)]
 pub enum Message {
     Editor(EditorMessage<RecipeMessage>),
-    SwapUnits,
+    /// Shows amounts in the given unit system, as picked in the top bar.
+    SetUnits(UnitSystem),
     /// Shows the recipe in the detail panel, or the new-recipe form for
     /// `None`. Any edit in progress is discarded.
     Select(Option<RecipeID>),
@@ -67,13 +67,18 @@ impl Command {
     }
 }
 impl Recipes {
-    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
-        let unit_system = config.default_units();
+    /// The unit system amounts are shown in.
+    #[cfg(test)]
+    pub fn units(&self) -> UnitSystem {
+        self.unit_system
+    }
+
+    pub fn new(config: &Config, category_service: &CategoryService, units: UnitSystem) -> Self {
         let form = RecipeInput::new(config, category_service.get_all(CategoryFilter {}));
         Self {
             editor: Editor::new(form, "Recipe"),
             selected: None,
-            unit_system,
+            unit_system: units,
         }
     }
 
@@ -94,7 +99,7 @@ impl Recipes {
             "+ New Recipe".to_string(),
             recipes_msg(Message::Select(None)),
         );
-        let master = master_list(Some(new), entries);
+        let master = master_list(Some(new), entries, "No recipes yet");
 
         let detail = match self.selected {
             Some(recipe) if self.editor.editing().is_none() => {
@@ -102,12 +107,6 @@ impl Recipes {
             }
             _ => self.form_view(),
         };
-        let unit_swap_button = button(text(self.unit_system.to_string()))
-            .style(button::secondary)
-            .on_press(recipes_msg(Message::SwapUnits));
-        let footer = footer(container(row![space().width(Fill), unit_swap_button]).center_y(Fill));
-        let detail = column![container(detail).height(Fill), footer].into();
-
         Panels { master, detail }
     }
 
@@ -224,8 +223,8 @@ impl Recipes {
                 self.editor.toggle_edit(id, || body, self.unit_system);
                 None
             }
-            Message::SwapUnits => {
-                self.unit_system.swap();
+            Message::SetUnits(units) => {
+                self.unit_system = units;
                 None
             }
             Message::Reload => {
@@ -297,7 +296,7 @@ mod tests {
     #[test]
     fn saving_a_named_recipe_adds_it() {
         let mut world = World::new();
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
         type_name(&mut screen, &world, "Draft");
 
         let command = screen.update(SAVE, &world.recipes);
@@ -316,7 +315,7 @@ mod tests {
     #[test]
     fn an_incomplete_ingredient_blocks_saving_until_removed() {
         let world = World::new();
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
         type_name(&mut screen, &world, "Draft");
 
         let add = input(RecipeMessage::AddRow);
@@ -336,7 +335,7 @@ mod tests {
         let mut world = World::new();
         let gin = world.add_category("Gin");
         let id = world.add_recipe("Gin Shot", &[(gin, 50.0)]);
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
 
         let recipe = Recipe {
             id,
@@ -361,7 +360,7 @@ mod tests {
     fn cancelling_an_edit_empties_the_form() {
         let mut world = World::new();
         let id = world.add_recipe("Draft", &[]);
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
         let recipe = Recipe {
             id,
             body: world.recipes.get(id).unwrap(),
@@ -419,7 +418,7 @@ mod tests {
     fn deleting_a_recipe_removes_it() {
         let mut world = World::new();
         let id = world.add_recipe("Draft", &[]);
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
 
         let command = screen.update(Message::DeleteRecipe(id), &world.recipes);
         assert_reloads(&apply(&mut world, command.unwrap()));
@@ -428,10 +427,10 @@ mod tests {
     }
 
     #[test]
-    fn swap_units_toggles_the_unit_system() {
+    fn set_units_changes_the_unit_system() {
         let world = World::new();
-        let mut screen = Recipes::new(&world.config, &world.categories);
-        screen.update(Message::SwapUnits, &world.recipes);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
+        screen.update(Message::SetUnits(UnitSystem::Imperial), &world.recipes);
         assert_eq!(screen.unit_system, UnitSystem::Imperial);
     }
 
@@ -439,7 +438,7 @@ mod tests {
     fn reload_ends_editing_and_keeps_a_live_selection() {
         let mut world = World::new();
         let id = world.add_recipe("Draft", &[]);
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
         let recipe = Recipe {
             id,
             body: world.recipes.get(id).unwrap(),
@@ -458,7 +457,7 @@ mod tests {
     fn reload_after_a_delete_clears_the_selection() {
         let mut world = World::new();
         let id = world.add_recipe("Draft", &[]);
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
         screen.update(Message::Select(Some(id)), &world.recipes);
 
         let command = screen.update(Message::DeleteRecipe(id), &world.recipes);
@@ -473,7 +472,7 @@ mod tests {
         let mut world = World::new();
         let first = world.add_recipe("Draft", &[]);
         let second = world.add_recipe("Martini", &[]);
-        let mut screen = Recipes::new(&world.config, &world.categories);
+        let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
         let recipe = Recipe {
             id: first,
             body: world.recipes.get(first).unwrap(),

@@ -111,7 +111,7 @@ impl Categories {
             "+ New Category".to_string(),
             categories_msg(Message::Select(None)),
         );
-        let master = master_list(Some(new), entries);
+        let master = master_list(Some(new), entries, "No categories yet");
 
         let detail = match self.selected {
             Some(category) if self.editor.editing().is_none() => {

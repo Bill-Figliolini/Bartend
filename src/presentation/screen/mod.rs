@@ -9,7 +9,7 @@ use iced::{Element, Task};
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::Config,
+    models::{Config, UnitSystem},
     presentation::{
         application::{Context, Message},
         input_handling::EditorMessage::{Cancel, Save},
@@ -88,8 +88,7 @@ impl ScreenCommand {
 
 impl Screen {
     pub fn start(config: &Config, categories: &CategoryService) -> Self {
-        let inventory = inventory::Inventory::new(config, categories);
-        Self::Inventory(Box::new(inventory))
+        Self::inventory(config, categories, config.default_units())
     }
 
     pub fn kind(&self) -> ScreenKind {
@@ -162,6 +161,17 @@ impl Screen {
         }
     }
 
+    /// The message that switches the active screen to `units`, for screens
+    /// that show amounts.
+    pub fn units_message(&self, units: UnitSystem) -> Option<Message> {
+        match self {
+            Screen::Inventory(_) => Some(Message::Inventory(inventory::Message::SetUnits(units))),
+            Screen::Recipes(_) => Some(Message::Recipes(recipes::Message::SetUnits(units))),
+            Screen::Serving(_) => Some(Message::Serving(serving::Message::SetUnits(units))),
+            Screen::Settings(_) | Screen::Categories(_) => None,
+        }
+    }
+
     /// What Enter does on the active screen: the same message as its Save
     /// button.
     pub fn submit_message(&self) -> Message {
@@ -185,8 +195,12 @@ impl Screen {
         }
     }
 
-    pub fn inventory(config: &Config, category_service: &CategoryService) -> Self {
-        let inventory = inventory::Inventory::new(config, category_service);
+    pub fn inventory(
+        config: &Config,
+        category_service: &CategoryService,
+        units: UnitSystem,
+    ) -> Self {
+        let inventory = inventory::Inventory::new(config, category_service, units);
         Self::Inventory(Box::new(inventory))
     }
 
@@ -196,11 +210,11 @@ impl Screen {
     pub fn categories() -> Self {
         Self::Categories(categories::Categories::new())
     }
-    pub fn recipes(config: &Config, category_service: &CategoryService) -> Self {
-        Screen::Recipes(Recipes::new(config, category_service))
+    pub fn recipes(config: &Config, category_service: &CategoryService, units: UnitSystem) -> Self {
+        Screen::Recipes(Recipes::new(config, category_service, units))
     }
-    pub fn serving(config: &Config) -> Self {
-        Screen::Serving(Serving::new(config))
+    pub fn serving(units: UnitSystem) -> Self {
+        Screen::Serving(Serving::new(units))
     }
 }
 
@@ -372,11 +386,11 @@ mod tests {
 
     fn screens(world: &World) -> Vec<Screen> {
         vec![
-            Screen::inventory(&world.config, &world.categories),
+            Screen::inventory(&world.config, &world.categories, UnitSystem::Metric),
             Screen::settings(&world.config, &Themes::new()),
             Screen::categories(),
-            Screen::recipes(&world.config, &world.categories),
-            Screen::serving(&world.config),
+            Screen::recipes(&world.config, &world.categories, UnitSystem::Metric),
+            Screen::serving(UnitSystem::Metric),
         ]
     }
 
@@ -441,8 +455,8 @@ mod tests {
         }
         // An empty serving form produces no command, but still routes.
         let serving = &mut screens[4];
-        let swap = Message::Serving(serving::Message::SwapUnits);
-        assert!(update(&world, serving, swap).is_none());
+        let units = Message::Serving(serving::Message::SetUnits(UnitSystem::Imperial));
+        assert!(update(&world, serving, units).is_none());
     }
 
     #[test]
@@ -506,6 +520,34 @@ mod tests {
                 )
             );
             assert!(is_save, "{:?} got {submit:?}", screen.kind());
+        }
+    }
+
+    #[test]
+    fn units_message_reaches_only_screens_that_show_amounts() {
+        let world = World::new();
+        for screen in screens(&world) {
+            let message = screen.units_message(UnitSystem::Imperial);
+            let expected = matches!(
+                (screen.kind(), &message),
+                (
+                    ScreenKind::Inventory,
+                    Some(Message::Inventory(inventory::Message::SetUnits(
+                        UnitSystem::Imperial
+                    )))
+                ) | (
+                    ScreenKind::Recipes,
+                    Some(Message::Recipes(recipes::Message::SetUnits(
+                        UnitSystem::Imperial
+                    )))
+                ) | (
+                    ScreenKind::Serving,
+                    Some(Message::Serving(serving::Message::SetUnits(
+                        UnitSystem::Imperial
+                    )))
+                ) | (ScreenKind::Settings | ScreenKind::Categories, None)
+            );
+            assert!(expected, "{:?} got {message:?}", screen.kind());
         }
     }
 

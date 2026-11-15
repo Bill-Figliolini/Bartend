@@ -2,8 +2,6 @@
 //! ## Description
 //! Module for storing constants relevant to the whole of the presentation module
 
-pub(super) const DIV_SIZE: u32 = 3;
-
 /// Width of the master list, and of the brand cell above it, so the two
 /// line up in the top-left corner.
 pub(super) const MASTER_WIDTH: u32 = 220;

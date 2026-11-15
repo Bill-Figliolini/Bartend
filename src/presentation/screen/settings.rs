@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 
 use iced::{
+    Alignment::Center,
+    Element,
     Length::Fill,
     Task, Theme,
-    widget::{button, column, container, pick_list, row, text},
+    widget::{button, pick_list, row, space, text},
 };
 
 use crate::{
@@ -13,10 +15,10 @@ use crate::{
     presentation::{
         application::{self, Context},
         constants,
-        screen::Panels,
+        screen::{Panels, shared::form_page},
         theme::{Themes, choice_for},
         widget::{
-            footer::footer,
+            detail::labeled,
             master_list::{Entry, master_list},
         },
     },
@@ -45,6 +47,17 @@ impl Section {
             Section::Database => "Database",
             Section::Units => "Units",
             Section::Appearance => "Appearance",
+        }
+    }
+
+    /// The line under the section's name, saying what its settings do.
+    fn note(self) -> &'static str {
+        match self {
+            Section::Database => "Where your inventory and recipes are kept.",
+            Section::Units => {
+                "What amounts are shown in when Bartend opens. Switch any time from the top bar."
+            }
+            Section::Appearance => "Themes preview as you pick them. Save to keep one.",
         }
     }
 }
@@ -137,55 +150,54 @@ impl Settings {
             on_press: settings_msg(Message::SelectSection(section)),
             dimmed: false,
         });
-        let master = master_list(None, entries);
+        let master = master_list(None, entries, "");
 
-        let heading = text(self.section.label()).size(24);
-        let contents = match self.section {
+        let fields: Element<'_, application::Message> = match self.section {
             Section::Database => {
-                let current_db_path = text!("Current DB Path: {}", self.config.db_path.display());
-                let db_button = button("Choose DB File").on_press(
+                let path = text(self.config.db_path.display().to_string());
+                let choose = button("Choose file…").style(button::secondary).on_press(
                     application::Message::OpenDBPicker(self.config.db_path.clone()),
                 );
-                column![current_db_path, db_button].spacing(constants::SPACING)
+                labeled(
+                    "Database file",
+                    row![path, space().width(Fill), choose]
+                        .spacing(constants::SPACING)
+                        .align_y(Center),
+                )
             }
             Section::Units => {
-                let unit_text = text("Default units:");
                 let unit_systems = vec![UnitSystem::Metric, UnitSystem::Imperial];
                 let unit_picker = pick_list(
                     unit_systems,
                     Some(self.config.default_unit_system),
                     |unit_system: UnitSystem| settings_msg(Message::UpdateUnitSystem(unit_system)),
-                );
-                column![
-                    row![unit_text, unit_picker]
-                        .spacing(constants::SPACING)
-                        .align_y(iced::Alignment::Center)
-                ]
+                )
+                .width(Fill);
+                labeled("Default units", unit_picker)
             }
             Section::Appearance => {
-                let theme_text = text("Theme:");
                 let theme_picker = pick_list(
                     self.themes.options(),
                     Some(self.themes.resolve(&self.config.theme)),
                     application::Message::PreviewTheme,
-                );
-                column![
-                    row![theme_text, theme_picker]
-                        .spacing(constants::SPACING)
-                        .align_y(iced::Alignment::Center)
-                ]
+                )
+                .width(Fill);
+                labeled("Theme", theme_picker)
             }
         };
-        let body = column![heading, contents].spacing(16).height(Fill);
 
         let save_button = button("Save").on_press(settings_msg(Message::Save));
         let cancel_button = button("Cancel")
             .style(button::secondary)
             .on_press(application::Message::ResetSettings);
-        let footer_contents = row![save_button, cancel_button].spacing(constants::SPACING);
-        let footer = footer(container(footer_contents).center_y(Fill));
+        let buttons = row![save_button, cancel_button].spacing(constants::SPACING);
 
-        let detail = column![body, footer].into();
+        let detail = form_page(
+            self.section.label().to_string(),
+            self.section.note(),
+            buttons.into(),
+            fields,
+        );
         Panels { master, detail }
     }
 

@@ -3,14 +3,12 @@ use iced::{
     Element,
     Length::{Fill, Shrink},
     Task,
-    widget::{button, column, container, row, scrollable, space, text},
+    widget::{button, column, row, scrollable, space, text},
 };
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService, can_make, totals_by_key},
-    models::{
-        CategoryID, Config, ItemUse, Quantity, Recipe, RecipeBody, UnitSystem, format_number,
-    },
+    models::{CategoryID, ItemUse, Quantity, Recipe, RecipeBody, UnitSystem, format_number},
     presentation::{
         application::{self, Context},
         constants,
@@ -21,7 +19,6 @@ use crate::{
         },
         widget::{
             detail::{Tone, card, control_tile, hint, stat_tile, toned_card},
-            footer::footer,
             master_list::{Entry, master_list},
         },
     },
@@ -30,7 +27,8 @@ use crate::{
 #[derive(Debug, Clone)]
 pub(in crate::presentation) enum Message {
     Reload,
-    SwapUnits,
+    /// Shows amounts in the given unit system, as picked in the top bar.
+    SetUnits(UnitSystem),
     Input(ServingMessage),
     Save,
     /// A serving has been taken out of stock.
@@ -114,9 +112,9 @@ pub(in crate::presentation) struct Serving {
 }
 
 impl Serving {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(units: UnitSystem) -> Self {
         Self {
-            input: ServingInput::new(config.default_units()),
+            input: ServingInput::new(units),
             notice: None,
         }
     }
@@ -145,21 +143,12 @@ impl Serving {
                 on_press: serving_msg(Message::Input(ServingMessage::Recipe(recipe))),
             }
         });
-        let master = master_list(None, entries);
+        let master = master_list(None, entries, "No recipes yet. Add one on Recipes.");
 
         let detail = match self.input.recipe() {
             None => Self::empty_view(),
             Some(recipe) => self.recipe_view(recipe, category_service),
         };
-
-        let unit_swap_button = button(text(self.input.units().to_string()))
-            .style(button::secondary)
-            .on_press(serving_msg(Message::SwapUnits));
-        let footer = footer(
-            container(row![space().width(Fill), unit_swap_button].spacing(constants::SPACING))
-                .center_y(Fill),
-        );
-        let detail = column![container(detail).height(Fill), footer].into();
 
         Panels { master, detail }
     }
@@ -253,8 +242,8 @@ impl Serving {
                     .refresh(recipe_service, item_service, category_service);
                 None
             }
-            Message::SwapUnits => {
-                self.input.swap_units();
+            Message::SetUnits(units) => {
+                self.input.set_units(units);
                 None
             }
             Message::Input(ServingMessage::ShowCategory(id)) => Some(Command::ShowCategory(id)),
@@ -415,7 +404,7 @@ mod tests {
     #[test]
     fn serving_a_recipe_uses_up_its_items_then_reports_it() {
         let (mut world, tanqueray, shot) = gin_world();
-        let mut screen = Serving::new(&world.config);
+        let mut screen = Serving::new(UnitSystem::Metric);
         select_recipe(&mut screen, &world, shot);
 
         let command = save(&mut screen, &world).expect("the only gin is picked for you");
@@ -442,7 +431,7 @@ mod tests {
         let gin = world.categories.item_category(tanqueray).unwrap();
         let beefeater = world.add_item("Beefeater", 750.0);
         world.map_item(beefeater, gin);
-        let mut screen = Serving::new(&world.config);
+        let mut screen = Serving::new(UnitSystem::Metric);
         assert!(save(&mut screen, &world).is_none());
 
         select_recipe(&mut screen, &world, shot);
@@ -478,7 +467,7 @@ mod tests {
     #[test]
     fn after_serving_the_form_is_kept_for_another_round() {
         let (mut world, tanqueray, shot) = gin_world();
-        let mut screen = Serving::new(&world.config);
+        let mut screen = Serving::new(UnitSystem::Metric);
         select_recipe(&mut screen, &world, shot);
         select_item(&mut screen, &world, 0, tanqueray);
 
@@ -493,7 +482,7 @@ mod tests {
     #[test]
     fn the_notice_lasts_until_dismissed_another_recipe_is_chosen_or_serving_again() {
         let (mut world, _, shot) = gin_world();
-        let mut screen = Serving::new(&world.config);
+        let mut screen = Serving::new(UnitSystem::Metric);
         select_recipe(&mut screen, &world, shot);
 
         serve(&mut screen, &mut world);
@@ -569,7 +558,7 @@ mod tests {
     #[test]
     fn a_category_link_opens_the_category_and_leaves_the_form_alone() {
         let (mut world, _, shot) = gin_world();
-        let mut screen = Serving::new(&world.config);
+        let mut screen = Serving::new(UnitSystem::Metric);
         select_recipe(&mut screen, &world, shot);
         let gin = world.recipes.get(shot).unwrap().ingredients[0].category;
 
@@ -621,10 +610,10 @@ mod tests {
     }
 
     #[test]
-    fn swap_units_toggles_the_unit_system() {
+    fn set_units_changes_the_unit_system() {
         let world = World::new();
-        let mut screen = Serving::new(&world.config);
-        update(&mut screen, &world, Message::SwapUnits);
+        let mut screen = Serving::new(UnitSystem::Metric);
+        update(&mut screen, &world, Message::SetUnits(UnitSystem::Imperial));
         assert_eq!(screen.input.units(), UnitSystem::Imperial);
     }
 }

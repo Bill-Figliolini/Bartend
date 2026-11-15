@@ -2,7 +2,7 @@ use iced::{
     Element,
     Length::{Fill, Shrink},
     Task,
-    widget::{Column, Container, button, column, container, row, scrollable, space, text},
+    widget::{Column, Container, column, row, scrollable},
 };
 
 use crate::{
@@ -21,7 +21,6 @@ use crate::{
         },
         widget::{
             detail::{card, gauge, hint, link_row, stat_tile},
-            footer::footer,
             master_list::{Entry, master_list},
         },
     },
@@ -37,7 +36,8 @@ pub struct Inventory {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    SwapUnits,
+    /// Shows amounts in the given unit system, as picked in the top bar.
+    SetUnits(UnitSystem),
     /// Shows the item in the detail panel, or the new-item form for `None`.
     /// Any edit in progress is discarded.
     Select(Option<ItemID>),
@@ -94,14 +94,18 @@ impl Command {
 }
 
 impl Inventory {
-    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
-        let unit_system = config.default_units();
+    /// The unit system amounts are shown in.
+    #[cfg(test)]
+    pub fn units(&self) -> UnitSystem {
+        self.unit_system
+    }
 
+    pub fn new(config: &Config, category_service: &CategoryService, units: UnitSystem) -> Self {
         let form = ItemInput::new(config, category_service.get_all(CategoryFilter {}));
         Self {
             editor: Editor::new(form, "Item"),
             selected: None,
-            unit_system,
+            unit_system: units,
         }
     }
 
@@ -122,7 +126,7 @@ impl Inventory {
             "+ New Item".to_string(),
             inventory_msg(Message::Select(None)),
         );
-        let master = master_list(Some(new), entries);
+        let master = master_list(Some(new), entries, "No items yet");
 
         let detail = match self.selected {
             Some(item) if self.editor.editing().is_none() => {
@@ -130,12 +134,6 @@ impl Inventory {
             }
             _ => self.form_view(),
         };
-        let unit_swap_button = button(text(self.unit_system.to_string()))
-            .style(button::secondary)
-            .on_press(inventory_msg(Message::SwapUnits));
-        let footer = footer(container(row![space().width(Fill), unit_swap_button]).center_y(Fill));
-        let detail = column![container(detail).height(Fill), footer].into();
-
         Panels { master, detail }
     }
 
@@ -236,8 +234,8 @@ impl Inventory {
 
     pub fn update(&mut self, item_service: &ItemService, message: Message) -> Option<Command> {
         match message {
-            Message::SwapUnits => {
-                self.unit_system.swap();
+            Message::SetUnits(units) => {
+                self.unit_system = units;
                 None
             }
             Message::Select(item) => {
@@ -354,7 +352,7 @@ mod tests {
     fn saving_a_new_item_adds_it_with_its_category() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         fill(&mut screen, &world, "Tanqueray", "750");
         send(
             &mut screen,
@@ -377,7 +375,7 @@ mod tests {
     #[test]
     fn saving_an_invalid_form_does_nothing() {
         let world = World::new();
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         fill(&mut screen, &world, "Tanqueray", "lots");
         assert!(screen.update(&world.items, SAVE).is_none());
     }
@@ -414,7 +412,7 @@ mod tests {
         let vodka = world.add_category("Vodka");
         let item = world.add_item("Tanqueray", 750.0);
         world.map_item(item, gin);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
 
         let edit = Message::BeginEdit(item, Some(category(&world, gin)));
         assert!(screen.update(&world.items, edit).is_none());
@@ -456,7 +454,7 @@ mod tests {
         let mut world = World::new();
         let first = world.add_item("Tanqueray", 750.0);
         let second = world.add_item("Beefeater", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
 
         screen.update(&world.items, Message::BeginEdit(first, None));
         screen.update(&world.items, Message::BeginEdit(second, None));
@@ -471,7 +469,7 @@ mod tests {
     fn cancel_edit_returns_to_an_empty_form() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         screen.update(&world.items, Message::BeginEdit(item, None));
 
         let cancel = Message::Editor(EditorMessage::Cancel);
@@ -507,7 +505,7 @@ mod tests {
     fn deleting_an_item_removes_it() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
 
         let command = screen.update(&world.items, Message::DeleteItem(item));
         assert_reloads(&apply(&mut world, command.unwrap()));
@@ -516,12 +514,12 @@ mod tests {
     }
 
     #[test]
-    fn swap_units_toggles_the_unit_system() {
+    fn set_units_changes_the_unit_system() {
         let world = World::new();
-        let mut screen = Inventory::new(&world.config, &world.categories);
-        screen.update(&world.items, Message::SwapUnits);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
+        screen.update(&world.items, Message::SetUnits(UnitSystem::Imperial));
         assert_eq!(screen.unit_system, UnitSystem::Imperial);
-        screen.update(&world.items, Message::SwapUnits);
+        screen.update(&world.items, Message::SetUnits(UnitSystem::Metric));
         assert_eq!(screen.unit_system, UnitSystem::Metric);
     }
 
@@ -529,7 +527,7 @@ mod tests {
     fn reload_ends_editing_and_keeps_a_live_selection() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         screen.update(&world.items, Message::Select(Some(item)));
         screen.update(&world.items, Message::BeginEdit(item, None));
 
@@ -543,7 +541,7 @@ mod tests {
     fn reload_after_a_delete_clears_the_selection() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         screen.update(&world.items, Message::Select(Some(item)));
 
         let command = screen.update(&world.items, Message::DeleteItem(item));
@@ -558,7 +556,7 @@ mod tests {
         let mut world = World::new();
         let first = world.add_item("Tanqueray", 750.0);
         let second = world.add_item("Beefeater", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         screen.update(&world.items, Message::BeginEdit(first, None));
 
         screen.update(&world.items, Message::Select(Some(second)));
@@ -575,7 +573,7 @@ mod tests {
     fn selecting_new_clears_the_selection() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         screen.update(&world.items, Message::Select(Some(item)));
 
         screen.update(&world.items, Message::Select(None));

@@ -149,11 +149,13 @@ impl ServingInput {
         self.units
     }
 
-    /// Shows amounts and stock in the other unit system. Amounts already
-    /// typed into split pours keep the units they were typed in.
-    pub fn swap_units(&mut self) {
-        self.units.swap();
-        let units = self.units;
+    /// Shows amounts and stock in `units`. Amounts already typed into
+    /// split pours keep the units they were typed in.
+    pub fn set_units(&mut self, units: UnitSystem) {
+        if self.units == units {
+            return;
+        }
+        self.units = units;
         for (_, ingredient) in self.ingredients.iter_mut() {
             ingredient.reoffer(units);
         }
@@ -1326,7 +1328,7 @@ mod tests {
         let mut input = ServingInput::new(UnitSystem::Metric);
         choose(&mut input, &world, ounce);
         let row = input.pour_key(0, 0).ingredient;
-        input.swap_units();
+        input.set_units(UnitSystem::Imperial);
         send(&mut input, &world, ServingMessage::AddPour(row));
         let (first, second) = (input.pour_key(0, 0), input.pour_key(0, 1));
         pick(&mut input, &world, first, full);
@@ -1363,7 +1365,7 @@ mod tests {
         let row = input.pour_key(0, 0).ingredient;
         // 30 ml is 1.0145 fl oz and the 20 ml left is 0.6764 fl oz; filled
         // in to two places, neither split adds up exactly.
-        input.swap_units();
+        input.set_units(UnitSystem::Imperial);
         send(&mut input, &world, ServingMessage::AddPour(row));
         let key = input.pour_key(0, 1);
         pick(&mut input, &world, key, full);
@@ -1654,7 +1656,7 @@ mod tests {
         pick(&mut input, &world, pour, full);
         assert_eq!(labels(&input, 0), vec!["Dregs (20 ml)", "Full (750 ml)"]);
 
-        input.swap_units();
+        input.set_units(UnitSystem::Imperial);
 
         // 750 ml is 25.3635 fl oz.
         assert_eq!(input.units(), UnitSystem::Imperial);
