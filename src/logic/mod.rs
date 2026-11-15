@@ -12,7 +12,7 @@ pub use self::{
     graph::GraphPatch,
     item_service::ItemService,
     recipe_service::RecipeService,
-    stock::{StockLevel, can_make, totals_by_key},
+    stock::{IngredientStatus, StockLevel, can_make, ingredient_statuses, totals_by_key},
     usage::{RecipeUse, recipes_for_category, recipes_using},
 };
 #[derive(Debug, Clone)]

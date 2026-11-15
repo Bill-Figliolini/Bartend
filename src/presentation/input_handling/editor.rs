@@ -2,7 +2,7 @@
 
 use iced::{
     Element,
-    widget::{button, column, row, text},
+    widget::{button, row},
 };
 
 use crate::{
@@ -148,17 +148,6 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
             buttons = buttons.push(cancel);
         }
         buttons.into()
-    }
-
-    /// The [`title`](Self::title), then the form, then its
-    /// [`buttons`](Self::buttons). Screens wanting another layout can put
-    /// those parts together themselves.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> Element<'_, EditorMessage<F::Message>> {
-        let header = text(self.title()).size(24);
-        column![header, self.form_view(), self.buttons()]
-            .spacing(16)
-            .into()
     }
 }
 

@@ -1,6 +1,6 @@
-//! Stock checks shared by serving and inventory: totalling usage, deciding
-//! whether a recipe can be made from what is in stock, and how full an item
-//! is.
+//! Stock checks shared by serving, inventory and recipes: totalling usage,
+//! deciding whether each ingredient of a recipe (and so the recipe) can be
+//! made from what is in stock, and how full an item is.
 
 use crate::{
     logic::{CategoryService, ItemService},
@@ -60,7 +60,61 @@ pub fn totals_by_key<K: PartialEq>(
     Ok(totals)
 }
 
-/// Whether there is enough stock to make one serving of `recipe`.
+/// Whether stock covers one serving's worth of a recipe ingredient.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IngredientStatus {
+    /// Enough is stocked.
+    InStock,
+    /// Some is stocked, but not enough.
+    Short,
+    /// Nothing that satisfies the ingredient is stocked.
+    NoneInStock,
+}
+
+/// How well stock covers each of `recipe`'s ingredients, in recipe order.
+///
+/// An ingredient is judged against everything the recipe needs of its
+/// category, so two rows of 35 ml Gin need 70 ml between them. Only items
+/// stocked in the same kind of quantity as the ingredient count towards it,
+/// and a category the recipe asks for in two kinds (e.g. by volume and by
+/// dash) is never [`IngredientStatus::InStock`], since no single stock total
+/// can be compared against both. Like [`can_make`], this is an estimate:
+/// categories that share items each count the same bottle.
+pub fn ingredient_statuses(
+    recipe: &RecipeBody,
+    item_service: &ItemService,
+    category_service: &CategoryService,
+) -> Vec<IngredientStatus> {
+    let ingredients = &recipe.ingredients;
+    ingredients
+        .iter()
+        .map(|ingredient| {
+            let same_category = ingredients
+                .iter()
+                .filter(|other| other.category == ingredient.category);
+            let needed = same_category
+                .clone()
+                .try_fold(ingredient.quantity * 0.0, |total, other| {
+                    total.checked_add(other.quantity)
+                });
+            let stock = category_stock(
+                ingredient.category,
+                ingredient.quantity,
+                item_service,
+                category_service,
+            );
+            match needed {
+                Some(needed) if stock.covers(needed) == Some(true) => IngredientStatus::InStock,
+                _ if stock.is_empty() => IngredientStatus::NoneInStock,
+                _ => IngredientStatus::Short,
+            }
+        })
+        .collect()
+}
+
+/// Whether there is enough stock to make one serving of `recipe`: every
+/// one of its [ingredient statuses](ingredient_statuses) is
+/// [`IngredientStatus::InStock`].
 ///
 /// This is an estimate for flagging recipes, not a guarantee: each category
 /// is checked against its own stock, so two categories that share items
@@ -72,19 +126,9 @@ pub fn can_make(
     item_service: &ItemService,
     category_service: &CategoryService,
 ) -> bool {
-    let ingredients = recipe
-        .ingredients
-        .iter()
-        .map(|ingredient| (ingredient.category, ingredient.quantity));
-    let Ok(needed) = totals_by_key(ingredients) else {
-        // One category is asked for in two kinds of quantity; no single
-        // stock total can be compared against both.
-        return false;
-    };
-    needed.iter().all(|(category, needed)| {
-        category_stock(*category, *needed, item_service, category_service).covers(*needed)
-            == Some(true)
-    })
+    ingredient_statuses(recipe, item_service, category_service)
+        .into_iter()
+        .all(|status| status == IngredientStatus::InStock)
 }
 
 /// The total stock satisfying `category`, counting only items of the same
@@ -156,14 +200,20 @@ mod tests {
             id
         }
         fn can_make(&self, ingredients: &[(CategoryID, Quantity)]) -> bool {
-            let recipe = RecipeBody {
-                name: "Test".to_string(),
-                ingredients: ingredients
-                    .iter()
-                    .map(|&(category, quantity)| Ingredient { category, quantity })
-                    .collect(),
-            };
-            can_make(&recipe, &self.items, &self.categories)
+            can_make(&recipe(ingredients), &self.items, &self.categories)
+        }
+        fn statuses(&self, ingredients: &[(CategoryID, Quantity)]) -> Vec<IngredientStatus> {
+            ingredient_statuses(&recipe(ingredients), &self.items, &self.categories)
+        }
+    }
+
+    fn recipe(ingredients: &[(CategoryID, Quantity)]) -> RecipeBody {
+        RecipeBody {
+            name: "Test".to_string(),
+            ingredients: ingredients
+                .iter()
+                .map(|&(category, quantity)| Ingredient { category, quantity })
+                .collect(),
         }
     }
 
@@ -280,5 +330,78 @@ mod tests {
     fn a_recipe_without_ingredients_can_always_be_made() {
         let bar = Bar::new();
         assert!(bar.can_make(&[]));
+    }
+
+    #[test]
+    fn statuses_say_whether_each_ingredient_is_covered() {
+        use IngredientStatus::{InStock, NoneInStock, Short};
+        let mut bar = Bar::new();
+        let gin = bar.category("Gin");
+        let campari = bar.category("Campari");
+        let vermouth = bar.category("Vermouth");
+        bar.stock(gin, ml(50.0));
+        bar.stock(campari, ml(20.0));
+
+        assert_eq!(
+            bar.statuses(&[(gin, ml(30.0)), (campari, ml(30.0)), (vermouth, ml(30.0))]),
+            vec![InStock, Short, NoneInStock]
+        );
+    }
+
+    #[test]
+    fn statuses_judge_rows_against_the_whole_category_need() {
+        use IngredientStatus::{InStock, Short};
+        let mut bar = Bar::new();
+        let gin = bar.category("Gin");
+        let tonic = bar.category("Tonic");
+        bar.stock(gin, ml(60.0));
+        bar.stock(tonic, ml(200.0));
+
+        assert_eq!(
+            bar.statuses(&[(gin, ml(30.0)), (tonic, ml(150.0)), (gin, ml(30.0))]),
+            vec![InStock, InStock, InStock]
+        );
+        assert_eq!(
+            bar.statuses(&[(gin, ml(40.0)), (tonic, ml(150.0)), (gin, ml(40.0))]),
+            vec![Short, InStock, Short]
+        );
+    }
+
+    #[test]
+    fn statuses_only_count_stock_of_the_same_kind() {
+        let mut bar = Bar::new();
+        let sugar = bar.category("Sugar");
+        bar.stock(sugar, Quantity::new(500.0, Unit::Gram));
+
+        assert_eq!(
+            bar.statuses(&[(sugar, ml(10.0))]),
+            vec![IngredientStatus::NoneInStock]
+        );
+    }
+
+    #[test]
+    fn a_category_asked_for_in_two_kinds_is_never_in_stock() {
+        use IngredientStatus::{NoneInStock, Short};
+        let mut bar = Bar::new();
+        let bitters = bar.category("Bitters");
+        bar.stock(bitters, ml(100.0));
+
+        assert_eq!(
+            bar.statuses(&[
+                (bitters, ml(1.0)),
+                (bitters, Quantity::new(2.0, Unit::Dash))
+            ]),
+            vec![Short, NoneInStock]
+        );
+    }
+
+    #[test]
+    fn a_zero_amount_is_in_stock_even_with_nothing_stocked() {
+        let mut bar = Bar::new();
+        let garnish = bar.category("Garnish");
+        assert_eq!(
+            bar.statuses(&[(garnish, ml(0.0))]),
+            vec![IngredientStatus::InStock]
+        );
     }
 }

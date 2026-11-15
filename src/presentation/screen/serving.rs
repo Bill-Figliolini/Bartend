@@ -241,6 +241,14 @@ fn input_msg(msg: ServingMessage) -> application::Message {
 }
 
 #[cfg(test)]
+impl Serving {
+    /// The recipe chosen to serve.
+    pub fn chosen_recipe(&self) -> Option<crate::models::RecipeID> {
+        self.input.recipe_id()
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{

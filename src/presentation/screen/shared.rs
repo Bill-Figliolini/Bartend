@@ -1,6 +1,6 @@
 //! Pieces the detail panels and forms of several screens share, so that
-//! items and categories read alike: the header with a name, a breadcrumb
-//! and Edit / Delete, the form page with Save / Cancel, and counts in
+//! items, categories and recipes read alike: the header with a name, a
+//! subtitle and Edit / Delete, the form page with Save / Cancel, and counts in
 //! words.
 
 use iced::{
@@ -24,18 +24,20 @@ use crate::{
 pub(super) const NAME_SIZE: f32 = 28.0;
 
 /// A detail panel's header: `name` in large type over a `subtitle` line on
-/// the left, and Edit and Delete buttons on the right.
+/// the left, and on the right any `lead` button (such as Serve) followed by
+/// Edit and Delete.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub(super) fn detail_header(
+pub(super) fn detail_header<'a>(
     name: String,
-    subtitle: Element<'_, Message>,
+    subtitle: Element<'a, Message>,
+    lead: Option<Element<'a, Message>>,
     edit: Message,
     delete: Message,
-) -> Element<'_, Message> {
+) -> Element<'a, Message> {
     let title = column![text(name).size(NAME_SIZE), subtitle].spacing(6);
     let edit = button("Edit").on_press(edit);
     let delete = button("Delete").style(quiet_danger).on_press(delete);
-    let buttons = row![edit, delete].spacing(constants::SPACING);
+    let buttons = row![lead, edit, delete].spacing(constants::SPACING);
     row![title, space().width(Fill), buttons].into()
 }
 
@@ -49,9 +51,21 @@ pub(super) fn form_page<'a>(
     buttons: Element<'a, Message>,
     fields: Element<'a, Message>,
 ) -> Element<'a, Message> {
+    form_page_with_cards(title, note, buttons, card(None, fields))
+}
+
+/// A [`form_page`] whose form lays out its own cards, e.g. one for the name
+/// and one for a list of rows, so `cards` are shown as they are.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub(super) fn form_page_with_cards<'a>(
+    title: String,
+    note: &'a str,
+    buttons: Element<'a, Message>,
+    cards: Element<'a, Message>,
+) -> Element<'a, Message> {
     let title = column![text(title).size(NAME_SIZE), hint(note)].spacing(6);
     let header = row![title, space().width(Fill), buttons];
-    scrollable(column![header, card(None, fields)].spacing(16)).into()
+    scrollable(column![header, cards].spacing(16)).into()
 }
 
 /// A breadcrumb from [`breadcrumb_label`] as a chip, with a muted "+N

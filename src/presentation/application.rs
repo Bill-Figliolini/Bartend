@@ -12,10 +12,11 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, Config, RecipeID},
+    models::{BartendError, CategoryID, Config, Recipe, RecipeID},
     persistence::Database,
     presentation::{
         constants,
+        input_handling::ServingMessage,
         screen::{self, Panels, Screen, ScreenKind},
         theme::Themes,
         widget::tab_bar::tab_bar,
@@ -55,6 +56,11 @@ pub(in crate::presentation) enum Message {
     OpenScreen(ScreenKind),
     /// Opens the Recipes screen on the given recipe.
     ShowRecipe(RecipeID),
+    /// Opens the Categories screen on the given category.
+    ShowCategory(CategoryID),
+    /// Opens the Serving screen with the given recipe chosen, ready to
+    /// serve.
+    ShowServing(RecipeID),
     Error(BartendError),
 
     ResetSettings,
@@ -207,6 +213,20 @@ impl Bartend {
                     recipe,
                 ))))
             }
+            Message::ShowCategory(category) => {
+                self.open_screen(ScreenKind::Categories);
+                self.update(Message::Categories(screen::categories::Message::Select(
+                    Some(category),
+                )))
+            }
+            Message::ShowServing(id) => match self.recipe_service.get(id) {
+                Ok(body) => {
+                    self.open_screen(ScreenKind::Serving);
+                    let choose = ServingMessage::Recipe(Recipe { id, body });
+                    self.update(Message::Serving(screen::serving::Message::Input(choose)))
+                }
+                Err(e) => self.update(Message::Error(e)),
+            },
             Message::Error(e) => {
                 self.error = Some(e);
                 Task::none()
@@ -438,6 +458,65 @@ mod tests {
             panic!("expected the Recipes screen, got {:?}", app.screen.kind());
         };
         assert_eq!(recipes.selected(), Some(recipe));
+    }
+
+    #[test]
+    fn show_category_opens_the_categories_screen_on_it() {
+        let (mut app, _dir) = app();
+        let gin = app
+            .category_service
+            .insert(
+                &app.database.category_db(),
+                &crate::models::CategoryBody {
+                    name: "Gin".to_string(),
+                },
+            )
+            .unwrap();
+
+        run(&mut app, Message::ShowCategory(gin));
+
+        let Screen::Categories(categories) = &app.screen else {
+            panic!(
+                "expected the Categories screen, got {:?}",
+                app.screen.kind()
+            );
+        };
+        assert_eq!(categories.selected(), Some(gin));
+    }
+
+    #[test]
+    fn show_serving_opens_the_serving_screen_with_the_recipe_chosen() {
+        let (mut app, _dir) = app();
+        let recipe = app
+            .recipe_service
+            .add(
+                &app.database.recipe_db(),
+                crate::models::RecipeBody {
+                    name: "Negroni".to_string(),
+                    ingredients: Vec::new(),
+                },
+            )
+            .unwrap();
+
+        run(&mut app, Message::ShowServing(recipe));
+
+        let Screen::Serving(serving) = &app.screen else {
+            panic!("expected the Serving screen, got {:?}", app.screen.kind());
+        };
+        assert_eq!(serving.chosen_recipe(), Some(recipe));
+    }
+
+    #[test]
+    fn show_serving_a_missing_recipe_reports_it_and_stays_put() {
+        let (mut app, _dir) = app();
+
+        run(&mut app, Message::ShowServing(RecipeID(99)));
+
+        assert!(matches!(
+            app.error,
+            Some(BartendError::Logic(LogicError::InvalidRecipe(RecipeID(99))))
+        ));
+        assert_eq!(app.screen.kind(), ScreenKind::Inventory);
     }
 
     #[test]

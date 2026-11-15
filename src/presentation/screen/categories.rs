@@ -179,6 +179,7 @@ impl Categories {
         let header = detail_header(
             category_name(service, category),
             breadcrumb_line(breadcrumb, "Top-level category"),
+            None,
             categories_msg(Message::Edit(category)),
             categories_msg(Message::DeleteCategory(category)),
         );
@@ -339,6 +340,14 @@ fn category_add_msg(parent: CategoryID, child: CategoryID) -> application::Messa
 
 fn category_remove_msg(parent: CategoryID, child: CategoryID) -> application::Message {
     categories_msg(Message::RemoveRelation(parent, child))
+}
+
+#[cfg(test)]
+impl Categories {
+    /// The category shown in the detail panel.
+    pub fn selected(&self) -> Option<CategoryID> {
+        self.selected
+    }
 }
 
 #[cfg(test)]

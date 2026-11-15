@@ -1,13 +1,15 @@
 //! Building blocks for detail panels: cards, stat tiles, a stock gauge,
-//! chips, link rows (optionally with a row action) and labelled fields.
+//! chips (plain or [toned](Tone)), link rows (optionally with a row action
+//! or a toned status) and labelled fields.
 //! Every colour comes from the theme's palette, so they suit whichever
 //! theme is chosen.
 
 use iced::{
     Alignment::Center,
     Border, Element,
-    Length::Fill,
+    Length::{Fill, Fixed},
     Theme,
+    alignment::Horizontal::Right,
     widget::{Column, Container, Text, button, column, container, progress_bar, row, space, text},
 };
 
@@ -21,6 +23,19 @@ const VALUE_SIZE: f32 = 28.0;
 const MUTED_ALPHA: f32 = 0.65;
 /// Thickness of the stock gauge.
 const GAUGE_GIRTH: f32 = 8.0;
+/// Width of the status column of a [`status_link_row`], so the details
+/// before it line up from row to row. Fits "None in stock" in small type.
+const STATUS_WIDTH: f32 = 100.0;
+
+/// How a chip or a status reads: plain, or in the theme's colour for good
+/// news, a warning, or a problem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tone {
+    Neutral,
+    Success,
+    Warning,
+    Danger,
+}
 
 /// A rounded, bordered box holding `content`, under a small muted `title`
 /// if it has one.
@@ -51,9 +66,10 @@ fn card_box<'a, Message: 'a>(
 /// then anything `below` it, such as a [`gauge`].
 ///
 /// To line tiles up in a row, give the shorter ones `.height(Fill)`: they
-/// grow to match the tallest tile that keeps its own height. At least one
-/// tile must keep its own height, or the row has none to match and
-/// collapses.
+/// grow to match the tallest tile that keeps its own height and comes
+/// before them in the row. So put a tile that keeps its own height first:
+/// a `.height(Fill)` tile with none before it has nothing to match and
+/// collapses to nothing.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn stat_tile<'a, Message: 'a>(
     label: &str,
@@ -91,6 +107,19 @@ pub fn chip<'a, Message: 'a>(label: impl text::IntoFragment<'a>) -> Element<'a, 
         .into()
 }
 
+/// A [`chip`] coloured by `tone`, e.g. to say whether a recipe can be
+/// made.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn toned_chip<'a, Message: 'a>(
+    label: impl text::IntoFragment<'a>,
+    tone: Tone,
+) -> Element<'a, Message> {
+    container(text(label).size(constants::SMALL_TEXT))
+        .padding([2, 10])
+        .style(move |theme: &Theme| toned_chip_style(theme, tone))
+        .into()
+}
+
 /// A full-width row that can be clicked, e.g. to open a recipe: `label`
 /// on the left and a muted `detail` on the right.
 #[cfg_attr(coverage_nightly, coverage(off))]
@@ -120,6 +149,36 @@ pub fn link_row_with_action<'a, Message: Clone + 'a>(
     row![link_row(label, detail, on_press), action.into()]
         .spacing(constants::SPACING)
         .align_y(Center)
+        .into()
+}
+
+/// A [`link_row`] that ends in a short `status` coloured by its tone, such
+/// as whether an ingredient is in stock. The status sits in a fixed-width
+/// column so each row's `detail` lines up with the others.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn status_link_row<'a, Message: Clone + 'a>(
+    label: impl text::IntoFragment<'a>,
+    detail: impl text::IntoFragment<'a>,
+    (status, tone): (impl text::IntoFragment<'a>, Tone),
+    on_press: Message,
+) -> Element<'a, Message> {
+    let status = text(status)
+        .size(constants::SMALL_TEXT)
+        .width(Fixed(STATUS_WIDTH))
+        .align_x(Right)
+        .style(move |theme: &Theme| toned_text(theme, tone));
+    let content = row![
+        text(label),
+        space().width(Fill),
+        text(detail).style(muted),
+        status
+    ]
+    .spacing(constants::SPACING)
+    .align_y(Center);
+    button(content)
+        .width(Fill)
+        .style(button::text)
+        .on_press(on_press)
         .into()
 }
 
@@ -195,6 +254,19 @@ pub fn muted(theme: &Theme) -> text::Style {
     }
 }
 
+/// Text coloured by `tone`: [muted](muted) when neutral, otherwise in the
+/// theme's success, warning or danger colour.
+pub fn toned_text(theme: &Theme, tone: Tone) -> text::Style {
+    let palette = theme.extended_palette();
+    let color = match tone {
+        Tone::Neutral => return muted(theme),
+        Tone::Success => palette.success.base.color,
+        Tone::Warning => palette.warning.base.color,
+        Tone::Danger => palette.danger.base.color,
+    };
+    text::Style { color: Some(color) }
+}
+
 /// `fraction` as a whole percentage, rounded down so that an item just
 /// under a threshold never reads as being on it.
 pub fn percent(fraction: f32) -> String {
@@ -225,6 +297,23 @@ fn chip_style(theme: &Theme) -> container::Style {
             ..Border::default()
         },
         ..container::Style::default()
+    }
+}
+
+/// A [`chip_style`] filled with the weak shade of `tone`'s colour, or the
+/// plain chip when neutral.
+fn toned_chip_style(theme: &Theme, tone: Tone) -> container::Style {
+    let palette = theme.extended_palette();
+    let pair = match tone {
+        Tone::Neutral => return chip_style(theme),
+        Tone::Success => palette.success.weak,
+        Tone::Warning => palette.warning.weak,
+        Tone::Danger => palette.danger.weak,
+    };
+    container::Style {
+        background: Some(pair.color.into()),
+        text_color: Some(pair.text),
+        ..chip_style(theme)
     }
 }
 
@@ -322,6 +411,49 @@ mod tests {
             let color = muted(theme).color.unwrap();
             assert_eq!([color.r, color.g, color.b], [text.r, text.g, text.b]);
             assert!(color.a < text.a, "{theme}");
+        }
+    }
+
+    #[test]
+    fn toned_chips_use_the_weak_shade_of_their_tone() {
+        for theme in Theme::ALL {
+            let palette = theme.extended_palette();
+            assert_eq!(toned_chip_style(theme, Tone::Neutral), chip_style(theme));
+            let cases = [
+                (Tone::Success, palette.success.weak),
+                (Tone::Warning, palette.warning.weak),
+                (Tone::Danger, palette.danger.weak),
+            ];
+            for (tone, pair) in cases {
+                let style = toned_chip_style(theme, tone);
+                assert_eq!(
+                    style.background,
+                    Some(pair.color.into()),
+                    "{theme} {tone:?}"
+                );
+                assert_eq!(style.text_color, Some(pair.text));
+                assert_eq!(style.border, chip_style(theme).border);
+            }
+        }
+    }
+
+    #[test]
+    fn toned_text_is_muted_or_the_tone_colour() {
+        for theme in Theme::ALL {
+            let palette = theme.extended_palette();
+            assert_eq!(toned_text(theme, Tone::Neutral).color, muted(theme).color);
+            let cases = [
+                (Tone::Success, palette.success.base.color),
+                (Tone::Warning, palette.warning.base.color),
+                (Tone::Danger, palette.danger.base.color),
+            ];
+            for (tone, color) in cases {
+                assert_eq!(
+                    toned_text(theme, tone).color,
+                    Some(color),
+                    "{theme} {tone:?}"
+                );
+            }
         }
     }
 }

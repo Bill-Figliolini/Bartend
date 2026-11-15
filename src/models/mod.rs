@@ -11,5 +11,5 @@ pub use {
     config::{Config, ConfigError, DEFAULT_THEME_NAME, EditableConfig, ThemeChoice},
     item::{Item, ItemBody, ItemID, ItemUse},
     quantity::{CountName, Quantity, Unit, UnitSystem},
-    recipe::{Ingredient, Recipe, RecipeBody, RecipeID},
+    recipe::{Ingredient, Recipe, RecipeBody, RecipeID, VolumeSummary},
 };

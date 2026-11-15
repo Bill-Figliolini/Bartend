@@ -294,6 +294,7 @@ fn header<'a>(
     detail_header(
         name,
         breadcrumb_line(breadcrumb, "No category"),
+        None,
         inventory_msg(Message::BeginEdit(item, category)),
         inventory_msg(Message::DeleteItem(item)),
     )

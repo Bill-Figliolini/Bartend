@@ -138,6 +138,10 @@ impl<T> Rows<T> {
         self.rows.len()
     }
 
+    fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
     /// The rows in display order, with their keys, for changing in place.
     fn iter_mut(&mut self) -> impl Iterator<Item = (RowKey, &mut T)> {
         self.rows.iter_mut().map(|(key, row)| (*key, row))

@@ -1,17 +1,35 @@
 use std::fmt::Display;
 
 use iced::{
+    Alignment::Center,
     Element,
-    widget::{button, column, row},
+    Length::{Fill, FillPortion, Fixed, Shrink},
+    widget::{Column, button, column, container, row, space},
 };
 
 use crate::{
     models::{Category, Config, Ingredient, Quantity, RecipeBody, Unit, UnitSystem},
     presentation::{
+        constants,
         input_handling::{Form, FormError, RowKey, Rows, Validator, discard_stale_row},
-        widget::input::{NumberField, RequiredPick, StringField},
+        widget::{
+            detail::{card, hint, labeled, row_danger_button},
+            input::{NumberField, RequiredPick, StringField},
+        },
     },
 };
+
+/// How the ingredient table's width is shared: the category column takes
+/// this many parts...
+const CATEGORY_PORTION: u16 = 3;
+/// ...and the amount and unit columns one part each.
+const AMOUNT_PORTION: u16 = 1;
+/// Width of the column holding each row's Remove button, kept empty in the
+/// heading row so the headings line up with the fields.
+const REMOVE_WIDTH: f32 = 72.0;
+/// Height of a text field or picker, so a row's Remove button can sit
+/// level with its fields even when an error pushes the row taller.
+const FIELD_HEIGHT: f32 = 31.0;
 
 /// An edit to a [`RecipeInput`].
 #[derive(Debug, Clone)]
@@ -89,8 +107,8 @@ struct IngredientInput {
 impl IngredientInput {
     fn new(categories: Vec<Category>, unit_system: UnitSystem) -> Self {
         Self {
-            category: RequiredPick::new(categories, None, "Category"),
-            quantity: NumberField::new("Quantity"),
+            category: RequiredPick::new(categories, None, ""),
+            quantity: NumberField::new(""),
             unit: RequiredPick::new(Unit::get_units(), Some(unit_system.default_units()), ""),
         }
     }
@@ -112,22 +130,36 @@ impl IngredientInput {
             quantity: Quantity::new(quantity?, unit?),
         })
     }
+    /// The row's fields, each in its column of the ingredient table.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self, show: bool) -> Element<'_, IngredientMessage> {
-        row![
+        table_row([
             self.category.view(IngredientMessage::Category, show),
             self.quantity.view(IngredientMessage::Quantity, show),
             self.unit.view(IngredientMessage::Unit, show),
-        ]
-        .into()
+        ])
     }
 }
+
+/// `cells` laid out as the Category, Amount and Unit columns of the
+/// ingredient table.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn table_row<'a, M: 'a>([category, amount, unit]: [Element<'a, M>; 3]) -> Element<'a, M> {
+    row![
+        container(category).width(FillPortion(CATEGORY_PORTION)),
+        container(amount).width(FillPortion(AMOUNT_PORTION)),
+        container(unit).width(FillPortion(AMOUNT_PORTION)),
+    ]
+    .spacing(constants::SPACING)
+    .into()
+}
+
 impl RecipeInput {
     /// New rows start in the configured unit system's default unit;
     /// `categories` are the ones each row offers.
     pub fn new(config: &Config, categories: Vec<Category>) -> Self {
         RecipeInput {
-            name_input: StringField::new("Name"),
+            name_input: StringField::new(""),
             ingredient_inputs: Rows::default(),
             categories,
             unit_system: config.default_units(),
@@ -214,22 +246,59 @@ impl Form for RecipeInput {
         }
     }
 
-    /// The name, one line per ingredient with a button to remove it, then a
-    /// button to add another.
+    /// Two cards: the name, then the ingredient table, with column
+    /// headings over one row per ingredient (each with a button to remove
+    /// it) and a button to add another.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self, show_errors: bool) -> Element<'_, RecipeMessage> {
-        let name = self.name_input.view(RecipeMessage::Name, show_errors);
-        let ingredients = column(self.ingredient_inputs.iter().map(|(key, ingredient)| {
-            row![
-                ingredient
-                    .view(show_errors)
-                    .map(move |msg| RecipeMessage::Row(key, msg)),
-                button("X").on_press(RecipeMessage::RemoveRow(key))
+        let name = labeled(
+            "Name",
+            self.name_input.view(RecipeMessage::Name, show_errors),
+        );
+
+        let add = button("+ Add ingredient")
+            .style(button::secondary)
+            .on_press(RecipeMessage::AddRow);
+        let ingredients: Element<'_, _> = if self.ingredient_inputs.is_empty() {
+            column![
+                hint("No ingredients yet. You can save the recipe and add them later."),
+                add
             ]
+            .spacing(constants::SPACING)
             .into()
-        }));
-        let add_row = button("Add Ingredient").on_press(RecipeMessage::AddRow);
-        column![name, ingredients, add_row].into()
+        } else {
+            let headings = row![
+                table_row(["Category", "Amount", "Unit"].map(|heading| hint(heading).into())),
+                space().width(Fixed(REMOVE_WIDTH)),
+            ]
+            .spacing(constants::SPACING);
+            let rows = self.ingredient_inputs.iter().map(|(key, ingredient)| {
+                let fields = ingredient
+                    .view(show_errors)
+                    .map(move |msg| RecipeMessage::Row(key, msg));
+                let remove = container(row_danger_button("Remove", RecipeMessage::RemoveRow(key)))
+                    .width(Fixed(REMOVE_WIDTH))
+                    .height(Fixed(FIELD_HEIGHT))
+                    .align_x(Center)
+                    .center_y(Fixed(FIELD_HEIGHT));
+                row![fields, remove]
+                    .spacing(constants::SPACING)
+                    .height(Shrink)
+                    .into()
+            });
+            column![
+                headings,
+                Column::with_children(rows).spacing(constants::SPACING),
+                add
+            ]
+            .spacing(constants::SPACING)
+            .into()
+        };
+
+        column![card(None, name), card(Some("Ingredients"), ingredients)]
+            .spacing(16)
+            .width(Fill)
+            .into()
     }
 }
 

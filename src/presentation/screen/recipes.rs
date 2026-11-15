@@ -1,12 +1,18 @@
 use crate::{
-    logic::{CategoryService, RecipeService},
-    models::{CategoryFilter, Config, Ingredient, Recipe, RecipeBody, RecipeID, UnitSystem},
+    logic::{CategoryService, IngredientStatus, ItemService, RecipeService, ingredient_statuses},
+    models::{
+        CategoryFilter, CategoryID, Config, Recipe, RecipeBody, RecipeID, UnitSystem, VolumeSummary,
+    },
     presentation::{
         application::{self, Context},
         constants,
-        input_handling::{Editor, EditorMessage, RecipeInput, RecipeMessage, Saved},
-        screen::Panels,
+        input_handling::{Editor, EditorMessage, RecipeInput, RecipeMessage, Saved, show_quantity},
+        screen::{
+            Panels,
+            shared::{counted, detail_header, form_page_with_cards},
+        },
         widget::{
+            detail::{Tone, card, hint, stat_tile, status_link_row, toned_chip},
             footer::footer,
             master_list::{Entry, master_list},
         },
@@ -14,9 +20,9 @@ use crate::{
 };
 use iced::{
     Element,
-    Length::Fill,
+    Length::{Fill, Shrink},
     Task,
-    widget::{Column, button, column, container, row, space, text},
+    widget::{Column, button, column, container, row, scrollable, space, text},
 };
 #[derive(Debug)]
 pub struct Recipes {
@@ -80,6 +86,7 @@ impl Recipes {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> Panels<'_> {
@@ -97,9 +104,9 @@ impl Recipes {
 
         let detail = match self.selected {
             Some(recipe) if self.editor.editing().is_none() => {
-                self.recipe_details(recipe, category_service, recipe_service)
+                self.recipe_details(recipe, item_service, category_service, recipe_service)
             }
-            _ => self.editor.view().map(editor_msg),
+            _ => self.form_view(),
         };
         let unit_swap_button = button(text(self.unit_system.to_string()))
             .style(button::secondary)
@@ -110,35 +117,101 @@ impl Recipes {
         Panels { master, detail }
     }
 
-    /// The read-only view of `recipe`: its ingredients, and buttons to edit
-    /// or delete it.
+    /// The new- or edit-recipe form, laid out like the recipe's details:
+    /// the heading with Save and Cancel to its right, then the name and the
+    /// ingredient table in their own cards.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn form_view(&self) -> Element<'_, application::Message> {
+        let note = if self.editor.editing().is_some() {
+            "Change any details, then Save."
+        } else {
+            "Add a recipe, then Save."
+        };
+        form_page_with_cards(
+            self.editor.title(),
+            note,
+            self.editor.buttons().map(editor_msg),
+            self.editor.form_view().map(editor_msg),
+        )
+    }
+
+    /// The read-only view of `recipe`: its name and whether it can be made
+    /// from what is in stock, tiles for its volume and ingredient count,
+    /// then its ingredients, each with how well stock covers it.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn recipe_details(
         &self,
         id: RecipeID,
+        item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> Element<'_, application::Message> {
         let body = recipe_service.get(id).unwrap_or_default();
-        let name = text(body.name.clone()).size(24);
-        let ingredients: Element<'_, _> =
-            if body.ingredients.is_empty() {
-                text("No ingredients").into()
-            } else {
-                Column::with_children(body.ingredients.iter().map(|ingredient| {
-                    view_ingredient(ingredient, category_service, &self.unit_system)
-                }))
-                .spacing(constants::SPACING / 2)
-                .into()
-            };
-        let edit = button("Edit").on_press(recipes_msg(Message::BeginEdit(Recipe { id, body })));
-        let delete = button("Delete")
-            .style(button::danger)
-            .on_press(recipes_msg(Message::DeleteRecipe(id)));
-        let buttons = row![edit, delete].spacing(constants::SPACING);
-        column![name, text("Ingredients").size(18), ingredients, buttons]
-            .spacing(16)
+        let statuses = ingredient_statuses(&body, item_service, category_service);
+
+        let serve = button("Serve")
+            .on_press(application::Message::ShowServing(id))
+            .into();
+        let header = detail_header(
+            body.name.clone(),
+            availability(&statuses),
+            Some(serve),
+            recipes_msg(Message::BeginEdit(Recipe {
+                id,
+                body: body.clone(),
+            })),
+            recipes_msg(Message::DeleteRecipe(id)),
+        );
+
+        let (volume, below) = volume_figure(&body.volume_summary(), self.unit_system);
+        let volume_tile = stat_tile(
+            "Drink volume",
+            volume,
+            below.map(|below| hint(below).into()),
+        );
+        // The ingredients tile has nothing under its figure, so it is never
+        // the taller one and takes the volume tile's height. It must come
+        // after that tile to do so (see `stat_tile`).
+        let ingredients_tile = stat_tile(
+            "Ingredients",
+            counted(body.ingredients.len(), "ingredient"),
+            None,
+        )
+        .height(Fill);
+        let tiles = row![volume_tile, ingredients_tile]
+            .spacing(constants::SPACING)
+            .height(Shrink);
+
+        let ingredients = self.ingredients_card(&body, &statuses, category_service);
+
+        scrollable(column![header, tiles, ingredients].spacing(16)).into()
+    }
+
+    /// One row per ingredient: its category, amount and stock status, each
+    /// opening the category on the Categories screen when clicked.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn ingredients_card(
+        &self,
+        body: &RecipeBody,
+        statuses: &[IngredientStatus],
+        category_service: &CategoryService,
+    ) -> Element<'_, application::Message> {
+        let content: Element<'_, _> = if body.ingredients.is_empty() {
+            hint("No ingredients yet. Edit the recipe to add some.").into()
+        } else {
+            Column::with_children(body.ingredients.iter().zip(statuses).map(
+                |(ingredient, &status)| {
+                    status_link_row(
+                        category_name(category_service, ingredient.category),
+                        show_quantity(ingredient.quantity, self.unit_system),
+                        status_label(status),
+                        application::Message::ShowCategory(ingredient.category),
+                    )
+                },
+            ))
             .into()
+        };
+        card(Some("Ingredients"), content)
     }
 
     pub fn update(&mut self, message: Message, recipe_service: &RecipeService) -> Option<Command> {
@@ -186,21 +259,52 @@ fn recipes_msg(msg: Message) -> application::Message {
 fn editor_msg(msg: EditorMessage<RecipeMessage>) -> application::Message {
     recipes_msg(Message::Editor(msg))
 }
+/// Under the recipe's name: whether it can be made from what is in stock
+/// (every ingredient [`IngredientStatus::InStock`], as Serving judges it),
+/// or a note that it is still a draft with no ingredients.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn view_ingredient<'a>(
-    ingredient: &Ingredient,
-    category_service: &CategoryService,
-    unit_system: &'a UnitSystem,
-) -> Element<'a, application::Message> {
-    let category_name = category_service
-        .get(ingredient.category)
-        .cloned()
-        .unwrap_or_default()
-        .name;
-    let category = text!("{category_name}: ");
-    let quantity_value = text(ingredient.quantity.value(*unit_system));
-    let quantity_unit = text(ingredient.quantity.unit(*unit_system).to_string());
-    row![category, quantity_value, quantity_unit].into()
+fn availability<'a>(statuses: &[IngredientStatus]) -> Element<'a, application::Message> {
+    if statuses.is_empty() {
+        hint("Draft: no ingredients yet").into()
+    } else if statuses
+        .iter()
+        .all(|&status| status == IngredientStatus::InStock)
+    {
+        toned_chip("Ready to make", Tone::Success)
+    } else {
+        toned_chip("Missing ingredients", Tone::Warning)
+    }
+}
+
+/// How an ingredient's stock status reads on its row.
+fn status_label(status: IngredientStatus) -> (&'static str, Tone) {
+    match status {
+        IngredientStatus::InStock => ("In stock", Tone::Neutral),
+        IngredientStatus::Short => ("Short", Tone::Warning),
+        IngredientStatus::NoneInStock => ("None in stock", Tone::Danger),
+    }
+}
+
+/// The drink volume tile's figure, and any line under it: the amounts that
+/// can't join the volume, or why there is no volume to show.
+fn volume_figure(summary: &VolumeSummary, units: UnitSystem) -> (String, Option<String>) {
+    let others: Vec<String> = summary
+        .others
+        .iter()
+        .map(|&quantity| show_quantity(quantity, units))
+        .collect();
+    let plus = (!others.is_empty()).then(|| format!("plus {}", others.join(", ")));
+    match summary.volume {
+        Some(volume) => (show_quantity(volume, units), plus),
+        None => (
+            "—".to_string(),
+            Some(plus.unwrap_or_else(|| "No ingredients measured by volume".to_string())),
+        ),
+    }
+}
+
+fn category_name(service: &CategoryService, id: CategoryID) -> String {
+    service.get(id).cloned().unwrap_or_default().name
 }
 
 #[cfg(test)]
@@ -428,5 +532,66 @@ mod tests {
 
         screen.update(Message::Select(None), &world.recipes);
         assert_eq!(screen.selected, None);
+    }
+
+    #[test]
+    fn statuses_read_as_labels_in_their_tone() {
+        assert_eq!(
+            status_label(IngredientStatus::InStock),
+            ("In stock", Tone::Neutral)
+        );
+        assert_eq!(
+            status_label(IngredientStatus::Short),
+            ("Short", Tone::Warning)
+        );
+        assert_eq!(
+            status_label(IngredientStatus::NoneInStock),
+            ("None in stock", Tone::Danger)
+        );
+    }
+
+    #[test]
+    fn volume_figure_shows_the_volume_and_whatever_cannot_join_it() {
+        use crate::models::{Quantity, Unit};
+        let summary = |volume, others| VolumeSummary { volume, others };
+        let ml = |amount| Quantity::new(amount, Unit::Milliliter);
+        let dashes = Quantity::new(2.0, Unit::Dash);
+        let grams = Quantity::new(5.0, Unit::Gram);
+
+        assert_eq!(
+            volume_figure(&summary(Some(ml(90.0)), vec![]), UnitSystem::Metric),
+            ("90 ml".to_string(), None)
+        );
+        assert_eq!(
+            volume_figure(
+                &summary(Some(ml(90.0)), vec![dashes, grams]),
+                UnitSystem::Metric
+            ),
+            ("90 ml".to_string(), Some("plus 2 dash, 5 g".to_string()))
+        );
+        assert_eq!(
+            volume_figure(&summary(None, vec![dashes]), UnitSystem::Metric),
+            ("—".to_string(), Some("plus 2 dash".to_string()))
+        );
+        assert_eq!(
+            volume_figure(&summary(None, vec![]), UnitSystem::Metric),
+            (
+                "—".to_string(),
+                Some("No ingredients measured by volume".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn volume_figure_follows_the_unit_system() {
+        use crate::models::{Quantity, Unit};
+        let summary = VolumeSummary {
+            volume: Some(Quantity::new(2.0, Unit::FluidOunce)),
+            others: Vec::new(),
+        };
+        assert_eq!(
+            volume_figure(&summary, UnitSystem::Imperial).0,
+            "2 fl oz".to_string()
+        );
     }
 }
