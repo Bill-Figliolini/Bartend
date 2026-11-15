@@ -24,7 +24,31 @@ pub struct Config {
     path: PathBuf,
     db_path: PathBuf,
     default_unit_system: UnitSystem,
+    /// Older config files have no theme; they load with the default.
+    #[serde(default)]
+    theme: ThemeChoice,
 }
+
+/// The theme the user picked, by name. Tagged so that user-defined themes can
+/// be added later as their own variant without changing the file format.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "name")]
+pub enum ThemeChoice {
+    BuiltIn(String),
+}
+impl Default for ThemeChoice {
+    fn default() -> Self {
+        ThemeChoice::BuiltIn(DEFAULT_THEME_NAME.to_string())
+    }
+}
+impl Display for ThemeChoice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ThemeChoice::BuiltIn(name) => write!(f, "{name}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ConfigError {
     UnableToAccessSystemConfigDir,
@@ -34,10 +58,18 @@ pub enum ConfigError {
     UnableToAccessConfigFile,
     UnableToCreateConfigFile,
     UnableToCreateDataDir,
+    /// The saved theme does not exist; the default is used instead.
+    UnknownTheme(ThemeChoice),
 }
 impl Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
+            ConfigError::UnknownTheme(theme) => {
+                return write!(
+                    f,
+                    "Config Error: Saved theme '{theme}' not found; using {DEFAULT_THEME_NAME}"
+                );
+            }
             ConfigError::UnableToAccessSystemConfigDir => {
                 "Unable to access system configuration folder"
             }
@@ -55,6 +87,8 @@ impl Display for ConfigError {
 const CONFIG_DIR_NAME: &str = "Bartend";
 const DEFAULT_CONFIG_FILE_NAME: &str = "Bartend.json";
 const DEFAULT_DB_NAME: &str = "Bartend.db";
+/// Must match the display name of a built-in theme.
+pub const DEFAULT_THEME_NAME: &str = "Kanagawa Wave";
 
 impl Config {
     /// Loads a config if it exists at path, and creates one at path if it does not yet exist.
@@ -91,6 +125,7 @@ impl Config {
                 path: config_path,
                 db_path,
                 default_unit_system: UnitSystem::Metric,
+                theme: ThemeChoice::default(),
             };
 
             if config.save().is_err() {
@@ -133,6 +168,10 @@ impl Config {
     pub const fn default_units(&self) -> UnitSystem {
         self.default_unit_system
     }
+    #[must_use]
+    pub const fn theme(&self) -> &ThemeChoice {
+        &self.theme
+    }
 
     #[must_use]
     pub fn editable(&self) -> EditableConfig {
@@ -140,6 +179,7 @@ impl Config {
             path: self.path.clone(),
             db_path: self.db_path.clone(),
             default_unit_system: self.default_unit_system,
+            theme: self.theme.clone(),
         }
     }
 }
@@ -184,6 +224,7 @@ pub struct EditableConfig {
     path: PathBuf,
     pub db_path: PathBuf,
     pub default_unit_system: UnitSystem,
+    pub theme: ThemeChoice,
 }
 
 impl EditableConfig {
@@ -193,6 +234,7 @@ impl EditableConfig {
             path: self.path.clone(),
             db_path: self.db_path.clone(),
             default_unit_system: self.default_unit_system,
+            theme: self.theme.clone(),
         }
     }
 }
@@ -224,6 +266,7 @@ mod tests {
                 path: test_dir.path().join("existing.json"),
                 db_path: test_dir.path().join("existing.db"),
                 default_unit_system: UnitSystem::Imperial,
+                theme: ThemeChoice::BuiltIn("Nord".to_string()),
             };
             config.save().unwrap();
 
@@ -233,6 +276,30 @@ mod tests {
             assert_eq!(loaded.path(), config.path());
             assert_eq!(loaded.db_path(), config.db_path());
             assert_eq!(loaded.default_units(), UnitSystem::Imperial);
+            assert_eq!(loaded.theme(), &ThemeChoice::BuiltIn("Nord".to_string()));
+        }
+
+        #[test]
+        fn a_config_without_a_theme_gets_the_default() {
+            let test_dir = tempdir().unwrap();
+            let config = Config::load(
+                Some(test_dir.path().join("old.json")),
+                Some(test_dir.path().join("old.db")),
+            )
+            .unwrap();
+            let mut json = serde_json::to_value(&config).unwrap();
+            json.as_object_mut().unwrap().remove("theme");
+            fs::write(config.path(), json.to_string()).unwrap();
+
+            let loaded = Config::load(Some(config.path().clone()), None).unwrap();
+
+            assert_eq!(loaded.theme(), &ThemeChoice::default());
+        }
+
+        #[test]
+        fn the_theme_is_saved_tagged_by_kind() {
+            let json = serde_json::to_value(ThemeChoice::BuiltIn("Nord".to_string())).unwrap();
+            assert_eq!(json, serde_json::json!({"kind": "BuiltIn", "name": "Nord"}));
         }
 
         #[test]
@@ -270,12 +337,17 @@ mod tests {
             let mut editable = config.editable();
             editable.db_path = test_dir.path().join("b.db");
             editable.default_unit_system = UnitSystem::Imperial;
+            editable.theme = ThemeChoice::BuiltIn("Dracula".to_string());
 
             let committed = editable.commit();
 
             assert_eq!(committed.path(), config.path());
             assert_eq!(committed.db_path(), &test_dir.path().join("b.db"));
             assert_eq!(committed.default_units(), UnitSystem::Imperial);
+            assert_eq!(
+                committed.theme(),
+                &ThemeChoice::BuiltIn("Dracula".to_string())
+            );
         }
     }
     #[test]
@@ -288,11 +360,20 @@ mod tests {
             ConfigError::UnableToAccessConfigFile,
             ConfigError::UnableToCreateConfigFile,
             ConfigError::UnableToCreateDataDir,
+            ConfigError::UnknownTheme(ThemeChoice::BuiltIn("Nope".to_string())),
         ];
         let messages: std::collections::HashSet<String> =
             errors.iter().map(ToString::to_string).collect();
         assert_eq!(messages.len(), errors.len(), "messages should be distinct");
         assert!(messages.iter().all(|m| m.starts_with("Config Error: ")));
+    }
+    #[test]
+    fn an_unknown_theme_names_the_theme_and_the_fallback() {
+        let error = ConfigError::UnknownTheme(ThemeChoice::BuiltIn("Nope".to_string()));
+        assert_eq!(
+            error.to_string(),
+            "Config Error: Saved theme 'Nope' not found; using Kanagawa Wave"
+        );
     }
     mod save {
         use super::*;
@@ -304,6 +385,7 @@ mod tests {
                 path: test_dir.path().join("missing_dir").join("c.json"),
                 db_path: test_dir.path().join("c.db"),
                 default_unit_system: UnitSystem::Metric,
+                theme: ThemeChoice::default(),
             };
             assert!(matches!(config.save(), Err(ConfigError::WriteError)));
         }
@@ -316,6 +398,7 @@ mod tests {
                 path: test_file.clone(),
                 db_path: test_db,
                 default_unit_system: UnitSystem::Metric,
+                theme: ThemeChoice::default(),
             };
 
             config.save().unwrap();

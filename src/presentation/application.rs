@@ -17,6 +17,7 @@ use crate::{
     presentation::{
         constants,
         screen::{self, Panels, Screen, ScreenKind},
+        theme::Themes,
         widget::tab_bar::tab_bar,
     },
 };
@@ -39,7 +40,10 @@ struct Bartend {
     item_service: ItemService,
     recipe_service: RecipeService,
     error: Option<BartendError>,
-    theme_value: Theme,
+    themes: Themes,
+    /// A theme picked in Settings but not yet saved. Shown in place of the
+    /// saved theme until the edit is saved or discarded.
+    preview_theme: Option<Theme>,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +57,8 @@ pub(in crate::presentation) enum Message {
 
     ResetSettings,
     OpenDBPicker(PathBuf),
+    /// A theme was picked in Settings: show it now, and stage it as an edit.
+    PreviewTheme(Theme),
 
     /// Tab: focus the next field.
     FocusNext,
@@ -118,6 +124,8 @@ impl Bartend {
             }
         };
         let screen = Screen::start(&config, &category_service);
+        let themes = Themes::new();
+        let error = theme_notice(&config, &themes);
 
         Self {
             screen,
@@ -126,12 +134,16 @@ impl Bartend {
             category_service,
             item_service,
             recipe_service,
-            error: None,
-            theme_value: Theme::KanagawaWave,
+            error,
+            themes,
+            preview_theme: None,
         }
     }
     fn theme(&self) -> Theme {
-        self.theme_value.clone()
+        match &self.preview_theme {
+            Some(theme) => theme.clone(),
+            None => self.themes.resolve(self.config.theme()),
+        }
     }
 
     /// Keyboard navigation; see [`shortcut`].
@@ -158,9 +170,11 @@ impl Bartend {
         if self.screen.kind() == kind {
             return;
         }
+        // Leaving Settings discards its unsaved edits, including a previewed theme.
+        self.preview_theme = None;
         self.screen = match kind {
             ScreenKind::Inventory => Screen::inventory(&self.config, &self.category_service),
-            ScreenKind::Settings => Screen::settings(&self.config),
+            ScreenKind::Settings => Screen::settings(&self.config, &self.themes),
             ScreenKind::Categories => Screen::categories(),
             ScreenKind::Recipes => Screen::recipes(&self.config, &self.category_service),
             ScreenKind::Serving => Screen::serving(&self.config),
@@ -171,6 +185,9 @@ impl Bartend {
         match message {
             Message::NoOp => Task::none(),
             Message::ReloadScreen => {
+                // On Settings this follows a successful save, so the saved
+                // theme already matches the preview.
+                self.preview_theme = None;
                 let reload_message = self.screen.reload_message(&self.config);
                 self.update(reload_message)
             }
@@ -188,6 +205,7 @@ impl Bartend {
             }
 
             Message::ResetSettings => {
+                self.preview_theme = None;
                 let reset_message =
                     Message::Settings(screen::settings::Message::ResetConfig(self.config.clone()));
                 self.update(reset_message)
@@ -203,6 +221,15 @@ impl Bartend {
                     Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
                 })
             }),
+            Message::PreviewTheme(theme) => {
+                if self.screen.kind() != ScreenKind::Settings {
+                    return Task::none();
+                }
+                self.preview_theme = Some(theme.clone());
+                self.update(Message::Settings(screen::settings::Message::UpdateTheme(
+                    theme,
+                )))
+            }
 
             Message::FocusNext => operation::focus_next(),
             Message::FocusPrevious => operation::focus_previous(),
@@ -303,12 +330,21 @@ fn shortcut(event: Event, status: event::Status, _window: window::Id) -> Option<
     }
 }
 
+/// The error to show at startup if the saved theme can't be found. The app
+/// falls back to the default theme either way.
+fn theme_notice(config: &Config, themes: &Themes) -> Option<BartendError> {
+    themes
+        .lookup(config.theme())
+        .err()
+        .map(BartendError::Config)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         logic::LogicError,
-        models::{CategoryID, ItemID, UnitSystem},
+        models::{CategoryID, ConfigError, ItemID, ThemeChoice, UnitSystem},
         presentation::{
             input_handling::{CategoryMessage, EditorMessage, ItemMessage},
             screen::{
@@ -337,7 +373,8 @@ mod tests {
             item_service: items,
             recipe_service: recipes,
             error: None,
-            theme_value: Theme::KanagawaWave,
+            themes: Themes::new(),
+            preview_theme: None,
         };
         (app, dir)
     }
@@ -614,8 +651,84 @@ mod tests {
     }
 
     #[test]
-    fn theme_is_kanagawa_wave() {
+    fn the_default_theme_is_kanagawa_wave() {
         let (app, _dir) = app();
         assert_eq!(app.theme(), Theme::KanagawaWave);
+    }
+
+    /// Opens Settings and picks `theme`, without saving.
+    fn preview(app: &mut Bartend, theme: Theme) {
+        run(app, Message::OpenScreen(ScreenKind::Settings));
+        run(app, Message::PreviewTheme(theme));
+    }
+
+    #[test]
+    fn picking_a_theme_shows_it_before_saving() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        assert_eq!(app.theme(), Theme::Nord);
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+    }
+
+    #[test]
+    fn cancelling_settings_restores_the_saved_theme() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        run(&mut app, Message::ResetSettings);
+        assert_eq!(app.theme(), Theme::KanagawaWave);
+
+        // The staged edit is discarded too.
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+    }
+
+    #[test]
+    fn leaving_settings_restores_the_saved_theme() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        run(&mut app, Message::OpenScreen(ScreenKind::Inventory));
+
+        assert_eq!(app.theme(), Theme::KanagawaWave);
+    }
+
+    #[test]
+    fn saving_keeps_the_previewed_theme() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert!(app.preview_theme.is_none());
+        assert_eq!(app.theme(), Theme::Nord);
+        let on_disk = Config::load(Some(app.config.path().clone()), None).unwrap();
+        assert_eq!(on_disk.theme(), &ThemeChoice::BuiltIn("Nord".to_string()));
+    }
+
+    #[test]
+    fn a_theme_picked_off_settings_is_ignored() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::PreviewTheme(Theme::Nord));
+
+        assert_eq!(app.theme(), Theme::KanagawaWave);
+    }
+
+    #[test]
+    fn an_unknown_saved_theme_is_reported_at_startup() {
+        let (app, _dir) = app();
+        let themes = Themes::new();
+        assert!(theme_notice(&app.config, &themes).is_none());
+
+        let mut config = app.config.editable();
+        config.theme = ThemeChoice::BuiltIn("Not A Theme".to_string());
+        let config = config.commit();
+
+        assert!(matches!(
+            theme_notice(&config, &themes),
+            Some(BartendError::Config(ConfigError::UnknownTheme(_)))
+        ));
+        assert_eq!(themes.resolve(config.theme()), Theme::KanagawaWave);
     }
 }

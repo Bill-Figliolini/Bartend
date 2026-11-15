@@ -8,7 +8,7 @@ mod recipe;
 pub use {
     bartend_error::BartendError,
     category::{Category, CategoryBody, CategoryFilter, CategoryID},
-    config::{Config, ConfigError, EditableConfig},
+    config::{Config, ConfigError, DEFAULT_THEME_NAME, EditableConfig, ThemeChoice},
     item::{Item, ItemBody, ItemID, ItemUse},
     quantity::{CountName, Quantity, Unit, UnitSystem},
     recipe::{Ingredient, Recipe, RecipeBody, RecipeID},

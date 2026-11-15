@@ -13,6 +13,7 @@ use crate::{
         application::{Context, Message},
         input_handling::EditorMessage::{Cancel, Save},
         screen::{recipes::Recipes, serving::Serving},
+        theme::Themes,
     },
 };
 
@@ -186,8 +187,8 @@ impl Screen {
         Self::Inventory(Box::new(inventory))
     }
 
-    pub fn settings(current_config: &Config) -> Self {
-        Self::Settings(settings::Settings::new(current_config))
+    pub fn settings(current_config: &Config, themes: &Themes) -> Self {
+        Self::Settings(settings::Settings::new(current_config, themes))
     }
     pub fn categories() -> Self {
         Self::Categories(categories::Categories::new())
@@ -361,7 +362,7 @@ mod tests {
     fn screens(world: &World) -> Vec<Screen> {
         vec![
             Screen::inventory(&world.config, &world.categories),
-            Screen::settings(&world.config),
+            Screen::settings(&world.config, &Themes::new()),
             Screen::categories(),
             Screen::recipes(&world.config, &world.categories),
             Screen::serving(&world.config),
