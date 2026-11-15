@@ -60,6 +60,10 @@ impl Display for LogicError {
                     "Item {item_id} is stocked in different units than it was used in"
                 )
             }
+            LogicError::InvalidFullSize => write!(
+                f,
+                "an item's full size must be above zero, in the same kind of unit as its quantity"
+            ),
         }
     }
 }
@@ -107,6 +111,10 @@ mod tests {
             (
                 LogicError::IncompatibleUnits(ItemID(8)),
                 "LOGIC ERROR: Item 8 is stocked in different units than it was used in",
+            ),
+            (
+                LogicError::InvalidFullSize,
+                "LOGIC ERROR: an item's full size must be above zero, in the same kind of unit as its quantity",
             ),
         ];
         for (error, expected) in cases {

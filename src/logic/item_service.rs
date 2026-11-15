@@ -101,16 +101,24 @@ impl ItemService {
         Ok(totals)
     }
 
+    /// # Errors
+    /// [`LogicError::InvalidFullSize`] if the item's full size does not
+    /// [fit](ItemBody::full_size_fits); nothing is saved.
     pub fn add(
         &mut self,
         db: &impl ItemRepository,
         item: &ItemBody,
     ) -> Result<ItemID, BartendError> {
+        check_full_size(item)?;
         let id = db.insert(item)?;
         self.items.insert(id, item.clone());
         Ok(id)
     }
+    /// # Errors
+    /// [`LogicError::InvalidFullSize`] if the item's full size does not
+    /// [fit](ItemBody::full_size_fits); nothing is saved.
     pub fn update(&mut self, db: &impl ItemRepository, item: Item) -> Result<(), BartendError> {
+        check_full_size(&item.body)?;
         db.update(&item)?;
         let item_location = self.get_mut(item.id)?;
         *item_location = item.body;
@@ -125,6 +133,14 @@ impl ItemService {
     #[cfg(test)]
     pub fn item_count(&self) -> usize {
         self.items.len()
+    }
+}
+
+fn check_full_size(item: &ItemBody) -> Result<(), LogicError> {
+    if item.full_size_fits() {
+        Ok(())
+    } else {
+        Err(LogicError::InvalidFullSize)
     }
 }
 
@@ -165,6 +181,7 @@ mod tests {
                     ItemBody {
                         name: format!("item {}", i + 1),
                         quantity: Quantity::new(1.0, Unit::Milliliter),
+                        full_size: None,
                     },
                 );
             }
@@ -218,6 +235,7 @@ mod tests {
         let body = ItemBody {
             name: "Tanqueray".to_string(),
             quantity: milliliters(750.0),
+            full_size: None,
         };
 
         let id = item_service.add(&db, &body).unwrap();
@@ -233,6 +251,7 @@ mod tests {
         let body = ItemBody {
             name: "renamed".to_string(),
             quantity: milliliters(5.0),
+            full_size: None,
         };
 
         item_service
@@ -246,6 +265,33 @@ mod tests {
             .unwrap();
 
         assert_eq!(item_service.get(ItemID(3)).unwrap(), &body);
+    }
+
+    #[test]
+    fn a_full_size_of_another_kind_is_rejected() {
+        let db = TestDB::new();
+        let mut item_service = ItemService::new(&db).unwrap();
+        let body = ItemBody {
+            name: "Tanqueray".to_string(),
+            quantity: milliliters(750.0),
+            full_size: Some(Quantity::new(750.0, Unit::Gram)),
+        };
+
+        assert!(matches!(
+            item_service.add(&db, &body),
+            Err(BartendError::Logic(LogicError::InvalidFullSize))
+        ));
+        assert_eq!(item_service.item_count(), 30);
+
+        let update = Item {
+            id: ItemID(3),
+            body,
+        };
+        assert!(matches!(
+            item_service.update(&db, update),
+            Err(BartendError::Logic(LogicError::InvalidFullSize))
+        ));
+        assert_eq!(item_service.get(ItemID(3)).unwrap().full_size, None);
     }
 
     #[test]
@@ -273,6 +319,7 @@ mod tests {
                 &ItemBody {
                     name: "Tanqueray".to_string(),
                     quantity: milliliters(750.0),
+                    full_size: None,
                 },
             )
             .unwrap();
@@ -301,6 +348,7 @@ mod tests {
                 &ItemBody {
                     name: "Tanqueray".to_string(),
                     quantity: milliliters(100.0),
+                    full_size: None,
                 },
             )
             .unwrap();

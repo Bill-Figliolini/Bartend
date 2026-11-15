@@ -1,10 +1,43 @@
-//! Stock checks shared by serving: totalling usage and deciding whether a
-//! recipe can be made from what is in stock.
+//! Stock checks shared by serving and inventory: totalling usage, deciding
+//! whether a recipe can be made from what is in stock, and how full an item
+//! is.
 
 use crate::{
     logic::{CategoryService, ItemService},
-    models::{CategoryID, Quantity, RecipeBody},
+    models::{CategoryID, ItemBody, Quantity, RecipeBody},
 };
+
+/// Below this share of its full size, an item is [`StockLevel::Low`].
+const LOW_BELOW: f32 = 0.25;
+/// Below this share of its full size, an item is [`StockLevel::Critical`].
+const CRITICAL_BELOW: f32 = 0.10;
+
+/// How much of an item is left, compared with its full size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StockLevel {
+    /// At least a quarter left.
+    Healthy,
+    /// Under a quarter left.
+    Low,
+    /// Under a tenth left.
+    Critical,
+}
+
+impl StockLevel {
+    /// The level `item` is at, or `None` if it has no
+    /// [fill fraction](ItemBody::fill_fraction) to judge by.
+    #[must_use]
+    pub fn of(item: &ItemBody) -> Option<Self> {
+        let fraction = item.fill_fraction()?;
+        Some(if fraction < CRITICAL_BELOW {
+            Self::Critical
+        } else if fraction < LOW_BELOW {
+            Self::Low
+        } else {
+            Self::Healthy
+        })
+    }
+}
 
 /// The total quantity for each distinct key, in order of first appearance.
 ///
@@ -114,6 +147,7 @@ mod tests {
             let body = ItemBody {
                 name: "bottle".to_string(),
                 quantity,
+                full_size: None,
             };
             let id = self.items.add(&self.db.item_db(), &body).unwrap();
             self.categories
@@ -131,6 +165,40 @@ mod tests {
             };
             can_make(&recipe, &self.items, &self.categories)
         }
+    }
+
+    fn bottle_at(stock: f32) -> ItemBody {
+        ItemBody {
+            name: "Tanqueray".to_string(),
+            quantity: ml(stock),
+            full_size: Some(ml(1000.0)),
+        }
+    }
+
+    #[test]
+    fn stock_level_follows_the_share_left() {
+        let cases = [
+            (1000.0, StockLevel::Healthy),
+            (250.0, StockLevel::Healthy),
+            (249.0, StockLevel::Low),
+            (100.0, StockLevel::Low),
+            (99.0, StockLevel::Critical),
+            (0.0, StockLevel::Critical),
+        ];
+        for (stock, expected) in cases {
+            assert_eq!(
+                StockLevel::of(&bottle_at(stock)),
+                Some(expected),
+                "{stock} ml"
+            );
+        }
+    }
+
+    #[test]
+    fn no_stock_level_without_a_full_size() {
+        let mut item = bottle_at(10.0);
+        item.full_size = None;
+        assert_eq!(StockLevel::of(&item), None);
     }
 
     #[test]

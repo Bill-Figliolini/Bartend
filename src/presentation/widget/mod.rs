@@ -1,3 +1,4 @@
+pub(super) mod detail;
 pub(super) mod footer;
 pub(super) mod input;
 pub(super) mod master_list;

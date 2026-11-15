@@ -3,6 +3,7 @@ mod graph;
 mod item_service;
 mod recipe_service;
 mod stock;
+mod usage;
 
 use crate::models::{CategoryID, ItemID, Quantity, RecipeID};
 
@@ -11,7 +12,8 @@ pub use self::{
     graph::GraphPatch,
     item_service::ItemService,
     recipe_service::RecipeService,
-    stock::{can_make, totals_by_key},
+    stock::{StockLevel, can_make, totals_by_key},
+    usage::{RecipeUse, recipes_using},
 };
 #[derive(Debug, Clone)]
 pub enum LogicError {
@@ -32,4 +34,7 @@ pub enum LogicError {
     /// The item was used in a different kind of quantity (e.g. by mass)
     /// than it is stocked in (e.g. by volume).
     IncompatibleUnits(ItemID),
+    /// An item's full size is not a positive amount of the same kind of
+    /// quantity as its stock.
+    InvalidFullSize,
 }

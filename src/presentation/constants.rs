@@ -13,3 +13,6 @@ pub(super) const SPACING: u32 = 10;
 
 /// Inner padding of the panels.
 pub(super) const PADDING: u16 = 12;
+
+/// Size of small text: captions, field labels, hints and field errors.
+pub(super) const SMALL_TEXT: f32 = 13.0;

@@ -6,6 +6,15 @@ use crate::{
     persistence::repositories::CategoryRepository,
 };
 
+/// One way down the category tree to a category, for showing where it sits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Breadcrumb {
+    /// From a top-level category down to the category itself.
+    pub path: Vec<CategoryID>,
+    /// How many other ways there are down to it, through other parents.
+    pub other_paths: usize,
+}
+
 #[derive(Debug)]
 pub struct CategoryService {
     categories: HashMap<CategoryID, CategoryBody>,
@@ -246,6 +255,80 @@ impl CategoryService {
         self.graph.remove_edge(&parent, &child);
         Ok(())
     }
+    /// Every category `item` counts towards: its own, and all of that
+    /// category's ancestors. Empty for an item without a category.
+    pub fn categories_satisfied_by(&self, item: ItemID) -> HashSet<CategoryID> {
+        self.item_category(item)
+            .and_then(|category| self.graph.get_ancestors(&category))
+            .unwrap_or_default()
+    }
+
+    /// The longest path from a top-level category down to `category`, with
+    /// ties going to the path whose names come first alphabetically (from
+    /// the top), and a count of the other paths. `None` for an unknown
+    /// category.
+    pub fn breadcrumb(&self, category: CategoryID) -> Option<Breadcrumb> {
+        if !self.graph.contains_vertex(&category) {
+            return None;
+        }
+        let (path, paths) = self.best_path(category, &mut HashMap::new());
+        Some(Breadcrumb {
+            path,
+            other_paths: paths.saturating_sub(1),
+        })
+    }
+
+    /// The [`breadcrumb`](Self::breadcrumb) path to `category` and the
+    /// number of paths there are to it, memoised in `seen` so that shared
+    /// ancestors are only walked once.
+    fn best_path(
+        &self,
+        category: CategoryID,
+        seen: &mut HashMap<CategoryID, (Vec<CategoryID>, usize)>,
+    ) -> (Vec<CategoryID>, usize) {
+        if let Some(known) = seen.get(&category) {
+            return known.clone();
+        }
+        let parents = self
+            .graph
+            .get_immediate_ancestors(&category)
+            .unwrap_or_default();
+        let mut best: Option<Vec<CategoryID>> = None;
+        let mut paths: usize = 0;
+        for parent in parents {
+            let (path, count) = self.best_path(parent, seen);
+            paths = paths.saturating_add(count);
+            if best
+                .as_ref()
+                .is_none_or(|current| self.path_precedes(&path, current))
+            {
+                best = Some(path);
+            }
+        }
+        let mut path = best.unwrap_or_default();
+        path.push(category);
+        let result = (path, paths.max(1));
+        seen.insert(category, result.clone());
+        result
+    }
+
+    /// Whether path `a` should be shown over `b`: it is longer, or as long
+    /// with names that sort first.
+    fn path_precedes(&self, a: &[CategoryID], b: &[CategoryID]) -> bool {
+        let key = |path: &[CategoryID]| -> Vec<(String, i64)> {
+            path.iter()
+                .map(|id| {
+                    let name = self.get(*id).map(|body| body.name.to_lowercase());
+                    (name.unwrap_or_default(), id.0)
+                })
+                .collect()
+        };
+        b.len()
+            .cmp(&a.len())
+            .then_with(|| key(a).cmp(&key(b)))
+            .is_lt()
+    }
+
     pub fn valid_relations(&self, category: CategoryID) -> HashSet<CategoryID> {
         self.graph
             .get_non_cyclic_additions(&category)
@@ -473,6 +556,99 @@ mod tests {
         }
 
         #[test]
+        fn an_item_satisfies_its_category_and_every_ancestor() {
+            let (db, mut service) = service();
+            let (spirit, botanical, gin, vodka) =
+                (CategoryID(0), CategoryID(1), CategoryID(2), CategoryID(3));
+            service.add_category_relation(&db, spirit, gin).unwrap();
+            service.add_category_relation(&db, botanical, gin).unwrap();
+            service.add_category_relation(&db, spirit, vodka).unwrap();
+            service.add_item_mapping(&db, ItemID(5), gin).unwrap();
+
+            assert_eq!(
+                service.categories_satisfied_by(ItemID(5)),
+                HashSet::from([spirit, botanical, gin])
+            );
+            assert!(service.categories_satisfied_by(ItemID(6)).is_empty());
+        }
+
+        /// Adds each `(parent, child)` relation, by id.
+        fn relate(db: &TestDB, service: &mut CategoryService, edges: &[(i64, i64)]) {
+            for &(parent, child) in edges {
+                service
+                    .add_category_relation(db, CategoryID(parent), CategoryID(child))
+                    .unwrap();
+            }
+        }
+
+        fn ids(path: &[i64]) -> Vec<CategoryID> {
+            path.iter().copied().map(CategoryID).collect()
+        }
+
+        #[test]
+        fn a_top_level_category_is_its_own_breadcrumb() {
+            let (_, service) = service();
+            let expected = Breadcrumb {
+                path: ids(&[4]),
+                other_paths: 0,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(4)), Some(expected));
+            assert_eq!(service.breadcrumb(CategoryID(999)), None);
+        }
+
+        #[test]
+        fn breadcrumb_follows_the_only_path_down() {
+            let (db, mut service) = service();
+            relate(&db, &mut service, &[(0, 1), (1, 2)]);
+            let expected = Breadcrumb {
+                path: ids(&[0, 1, 2]),
+                other_paths: 0,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(2)), Some(expected));
+        }
+
+        #[test]
+        fn breadcrumb_prefers_the_longest_path_and_counts_the_rest() {
+            let (db, mut service) = service();
+            // 5 -> 9 directly, and 3 -> 4 -> 9.
+            relate(&db, &mut service, &[(5, 9), (3, 4), (4, 9)]);
+            let expected = Breadcrumb {
+                path: ids(&[3, 4, 9]),
+                other_paths: 1,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(9)), Some(expected));
+        }
+
+        #[test]
+        fn breadcrumb_ties_go_to_the_alphabetically_first_path() {
+            let (db, mut service) = service();
+            // Both parents are top-level. Id 4 is "category 5" and id 9 is
+            // "category 10", which sorts first.
+            relate(&db, &mut service, &[(4, 20), (9, 20)]);
+            let expected = Breadcrumb {
+                path: ids(&[9, 20]),
+                other_paths: 1,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(20)), Some(expected));
+        }
+
+        #[test]
+        fn breadcrumb_counts_every_path_through_a_diamond() {
+            let (db, mut service) = service();
+            // 0 -> {1, 2} -> 3 -> 4, plus 5 -> 4: three paths to 4.
+            relate(
+                &db,
+                &mut service,
+                &[(0, 1), (0, 2), (1, 3), (2, 3), (3, 4), (5, 4)],
+            );
+            let expected = Breadcrumb {
+                path: ids(&[0, 1, 3, 4]),
+                other_paths: 2,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(4)), Some(expected));
+        }
+
+        #[test]
         fn child_categories_lists_direct_children() {
             let (db, mut service) = service();
             service
@@ -571,6 +747,7 @@ mod tests {
                     .insert(&ItemBody {
                         name: name.to_string(),
                         quantity: Quantity::new(1.0, Unit::Milliliter),
+                        full_size: None,
                     })
                     .unwrap()
             };

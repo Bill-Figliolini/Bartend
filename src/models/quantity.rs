@@ -149,6 +149,16 @@ impl Quantity {
             .then(|| self.amount() + COVER_TOLERANCE >= needed.amount())
     }
 
+    /// How much of `whole` this is (0.5 for half, above 1 for more), or
+    /// `None` if they are different kinds or `whole` is not a positive,
+    /// finite amount.
+    #[must_use]
+    pub fn fraction_of(self, whole: Self) -> Option<f32> {
+        let whole_amount = whole.amount();
+        (self.same_kind(whole) && whole_amount.is_finite() && whole_amount > 0.0)
+            .then(|| self.amount() / whole_amount)
+    }
+
     /// The amount in the stored (metric) unit.
     const fn amount(self) -> f32 {
         match self {
@@ -420,6 +430,22 @@ mod test {
     /// Compares by bit pattern, avoiding `float_cmp`.
     fn bits(value: f32) -> u32 {
         value.to_bits()
+    }
+
+    #[test]
+    fn fraction_of_compares_amounts_of_one_kind() {
+        let half = Quantity::new(375.0, Unit::Milliliter)
+            .fraction_of(Quantity::new(750.0, Unit::Milliliter));
+        assert_eq!(half.map(bits), Some(bits(0.5)));
+
+        let over = Quantity::new(30.0, Unit::Gram).fraction_of(Quantity::new(20.0, Unit::Gram));
+        assert_eq!(over.map(bits), Some(bits(1.5)));
+
+        let ml = Quantity::new(1.0, Unit::Milliliter);
+        assert_eq!(ml.fraction_of(Quantity::new(1.0, Unit::Gram)), None);
+        assert_eq!(ml.fraction_of(ml * 0.0), None, "zero whole");
+        assert_eq!(ml.fraction_of(ml * -1.0), None, "negative whole");
+        assert_eq!(ml.fraction_of(ml * f32::INFINITY), None, "infinite whole");
     }
 
     #[test]

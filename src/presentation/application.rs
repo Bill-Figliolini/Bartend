@@ -12,7 +12,7 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, Config},
+    models::{BartendError, Config, RecipeID},
     persistence::Database,
     presentation::{
         constants,
@@ -53,6 +53,8 @@ pub(in crate::presentation) enum Message {
     ClearError,
 
     OpenScreen(ScreenKind),
+    /// Opens the Recipes screen on the given recipe.
+    ShowRecipe(RecipeID),
     Error(BartendError),
 
     ResetSettings,
@@ -198,6 +200,12 @@ impl Bartend {
             Message::OpenScreen(kind) => {
                 self.open_screen(kind);
                 Task::none()
+            }
+            Message::ShowRecipe(recipe) => {
+                self.open_screen(ScreenKind::Recipes);
+                self.update(Message::Recipes(screen::recipes::Message::Select(Some(
+                    recipe,
+                ))))
             }
             Message::Error(e) => {
                 self.error = Some(e);
@@ -408,6 +416,28 @@ mod tests {
             run(&mut app, Message::OpenScreen(kind));
             assert_eq!(app.screen.kind(), kind);
         }
+    }
+
+    #[test]
+    fn show_recipe_opens_the_recipes_screen_on_it() {
+        let (mut app, _dir) = app();
+        let recipe = app
+            .recipe_service
+            .add(
+                &app.database.recipe_db(),
+                crate::models::RecipeBody {
+                    name: "Negroni".to_string(),
+                    ingredients: Vec::new(),
+                },
+            )
+            .unwrap();
+
+        run(&mut app, Message::ShowRecipe(recipe));
+
+        let Screen::Recipes(recipes) = &app.screen else {
+            panic!("expected the Recipes screen, got {:?}", app.screen.kind());
+        };
+        assert_eq!(recipes.selected(), Some(recipe));
     }
 
     #[test]

@@ -172,6 +172,14 @@ impl Recipes {
         }
     }
 }
+#[cfg(test)]
+impl Recipes {
+    /// The recipe shown in the detail panel.
+    pub fn selected(&self) -> Option<RecipeID> {
+        self.selected
+    }
+}
+
 fn recipes_msg(msg: Message) -> application::Message {
     application::Message::Recipes(msg)
 }

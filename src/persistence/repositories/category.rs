@@ -410,6 +410,7 @@ mod tests {
                 let item = ItemBody {
                     name: "test".to_string(),
                     quantity: Quantity::Volume { quantity: 750.0 },
+                    full_size: None,
                 };
                 let category = CategoryBody {
                     name: "testcat".to_string(),
@@ -438,6 +439,7 @@ mod tests {
                 let item = ItemBody {
                     name: "test".to_string(),
                     quantity: Quantity::Volume { quantity: 750.0 },
+                    full_size: None,
                 };
                 let category = CategoryBody {
                     name: "testcat".to_string(),
@@ -462,6 +464,7 @@ mod tests {
                 let item = ItemBody {
                     name: "test".to_string(),
                     quantity: Quantity::Volume { quantity: 750.0 },
+                    full_size: None,
                 };
                 let category = CategoryBody {
                     name: "testcat".to_string(),
@@ -495,6 +498,7 @@ mod tests {
                 let item = ItemBody {
                     name: "test".to_string(),
                     quantity: Quantity::Volume { quantity: 750.0 },
+                    full_size: None,
                 };
                 let category = CategoryBody {
                     name: "testcat".to_string(),

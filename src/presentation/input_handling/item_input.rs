@@ -1,12 +1,19 @@
 use std::fmt::Display;
 
-use iced::{Element, widget::row};
+use iced::{
+    Element,
+    widget::{column, row},
+};
 
 use crate::{
     models::{Category, Config, ItemBody, Quantity, Unit, UnitSystem},
     presentation::{
+        constants,
         input_handling::{Form, FormError, Validator},
-        widget::input::{NumberField, OptionalPick, RequiredPick, StringField},
+        widget::{
+            detail::labeled,
+            input::{NumberField, OptionalPick, OptionalPositiveField, RequiredPick, StringField},
+        },
     },
 };
 
@@ -16,6 +23,7 @@ pub enum ItemMessage {
     Name(String),
     Quantity(String),
     Unit(Unit),
+    FullSize(String),
     Category(Category),
 }
 
@@ -26,6 +34,7 @@ pub enum ItemField {
     Name,
     Quantity,
     Unit,
+    FullSize,
 }
 
 impl Display for ItemField {
@@ -34,6 +43,7 @@ impl Display for ItemField {
             ItemField::Name => "Name",
             ItemField::Quantity => "Quantity",
             ItemField::Unit => "Unit",
+            ItemField::FullSize => "Full size",
         };
         write!(f, "{text}")
     }
@@ -46,6 +56,9 @@ pub struct ItemInput {
     name: StringField,
     quantity: NumberField,
     unit: RequiredPick<Unit>,
+    /// How much a full one holds, in the same unit as the quantity. May be
+    /// left blank.
+    full_size: OptionalPositiveField,
     category: OptionalPick<Category>,
 }
 impl ItemInput {
@@ -57,10 +70,11 @@ impl ItemInput {
             UnitSystem::Imperial => Unit::FluidOunce,
         };
         Self {
-            name: StringField::new("Name"),
-            quantity: NumberField::new("Quantity"),
+            name: StringField::new(""),
+            quantity: NumberField::new(""),
             unit: RequiredPick::new(Unit::get_units(), Some(units), ""),
-            category: OptionalPick::new(categories, None, "Category"),
+            full_size: OptionalPositiveField::new("Optional"),
+            category: OptionalPick::new(categories, None, ""),
         }
     }
 }
@@ -77,6 +91,7 @@ impl Form for ItemInput {
             ItemMessage::Name(text) => self.name.set(text),
             ItemMessage::Quantity(text) => self.quantity.set(text),
             ItemMessage::Unit(unit) => self.unit.select(unit),
+            ItemMessage::FullSize(text) => self.full_size.set(text),
             ItemMessage::Category(category) => self.category.select(category),
         }
     }
@@ -86,11 +101,17 @@ impl Form for ItemInput {
         let name = validator.check(ItemField::Name, self.name.value());
         let quantity = validator.check(ItemField::Quantity, self.quantity.value());
         let unit = validator.check(ItemField::Unit, self.unit.value());
+        let full_size = validator.check(ItemField::FullSize, self.full_size.value());
         let Ok(category) = self.category.value();
-        match (name, quantity, unit) {
-            (Some(name), Some(quantity), Some(unit)) => {
-                let quantity = Quantity::new(quantity, unit);
-                Ok((ItemBody { name, quantity }, category))
+        match (name, quantity, unit, full_size) {
+            (Some(name), Some(quantity), Some(unit), Some(full_size)) => {
+                // Entered in the quantity's unit, so always the same kind.
+                let body = ItemBody {
+                    name,
+                    quantity: Quantity::new(quantity, unit),
+                    full_size: full_size.map(|full_size| Quantity::new(full_size, unit)),
+                };
+                Ok((body, category))
             }
             _ => Err(validator.into_error()),
         }
@@ -101,10 +122,11 @@ impl Form for ItemInput {
     fn clear(&mut self) {
         self.name.clear();
         self.quantity.clear();
+        self.full_size.clear();
         self.category.clear();
     }
 
-    /// Shows the item's quantity in `units`.
+    /// Shows the item's quantity, and full size if it has one, in `units`.
     fn fill(&mut self, (item, category): &(ItemBody, Option<Category>), units: UnitSystem) {
         if let Some(category) = category {
             self.category.select(category.clone());
@@ -112,16 +134,44 @@ impl Form for ItemInput {
         self.name.set(item.name.clone());
         self.quantity.set(item.quantity.value(units).to_string());
         self.unit.select(item.quantity.unit(units));
+        // A full size of another kind than the stock can't be shown in the
+        // quantity's unit; the services never save one.
+        let full_size = item
+            .full_size
+            .filter(|full_size| full_size.same_kind(item.quantity))
+            .map(|full_size| full_size.value(units).to_string());
+        self.full_size.set(full_size.unwrap_or_default());
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
+    /// Each field under its label: the name, then the amount in stock with
+    /// its unit and the full size, then the category.
     fn view(&self, show_errors: bool) -> Element<'_, ItemMessage> {
-        row![
-            self.name.view(ItemMessage::Name, show_errors),
-            self.quantity.view(ItemMessage::Quantity, show_errors),
-            self.unit.view(ItemMessage::Unit, show_errors),
-            self.category.view(ItemMessage::Category, show_errors),
+        let full_size_label = match self.unit.value() {
+            Ok(unit) => format!("Full size ({unit})"),
+            Err(_) => "Full size".to_string(),
+        };
+        let amounts = row![
+            labeled(
+                "In stock",
+                self.quantity.view(ItemMessage::Quantity, show_errors)
+            ),
+            labeled("Unit", self.unit.view(ItemMessage::Unit, show_errors)),
+            labeled(
+                &full_size_label,
+                self.full_size.view(ItemMessage::FullSize, show_errors)
+            ),
         ]
+        .spacing(constants::SPACING);
+        column![
+            labeled("Name", self.name.view(ItemMessage::Name, show_errors)),
+            amounts,
+            labeled(
+                "Category",
+                self.category.view(ItemMessage::Category, show_errors)
+            ),
+        ]
+        .spacing(constants::SPACING)
         .into()
     }
 }
@@ -166,6 +216,7 @@ mod tests {
             ItemBody {
                 name: "Tanqueray".to_string(),
                 quantity: Quantity::new(750.0, Unit::Milliliter),
+                full_size: None,
             }
         );
         assert_eq!(chosen, Some(category(1, "Gin")));
@@ -176,6 +227,7 @@ mod tests {
         assert_eq!(ItemField::Name.to_string(), "Name");
         assert_eq!(ItemField::Quantity.to_string(), "Quantity");
         assert_eq!(ItemField::Unit.to_string(), "Unit");
+        assert_eq!(ItemField::FullSize.to_string(), "Full size");
     }
 
     #[test]
@@ -195,6 +247,7 @@ mod tests {
             ItemBody {
                 name: "Tanqueray".to_string(),
                 quantity: Quantity::new(750.0, Unit::Milliliter),
+                full_size: None,
             },
             Some(category(1, "Gin")),
         );
@@ -206,6 +259,94 @@ mod tests {
             assert!((body.quantity.value(UnitSystem::Metric) - 750.0).abs() < 0.01);
             assert_eq!(chosen, Some(category(1, "Gin")));
         }
+    }
+
+    #[test]
+    fn editing_shows_the_full_size_and_clearing_empties_it() {
+        let full_size = Some(Quantity::new(750.0, Unit::Milliliter));
+        let edit = (
+            ItemBody {
+                name: "Tanqueray".to_string(),
+                quantity: Quantity::new(300.0, Unit::Milliliter),
+                full_size,
+            },
+            None,
+        );
+        let mut input = item_input();
+        input.fill(&edit, UnitSystem::Metric);
+        assert_eq!(input.full_size.text(), "750");
+        assert_eq!(input.validate().unwrap().0.full_size, full_size);
+
+        input.clear();
+        input.update(ItemMessage::Name("Beefeater".to_string()));
+        input.update(ItemMessage::Quantity("700".to_string()));
+        assert_eq!(input.full_size.text(), "");
+        assert_eq!(input.validate().unwrap().0.full_size, None);
+    }
+
+    #[test]
+    fn full_size_round_trips_in_either_unit_system() {
+        let edit = (
+            ItemBody {
+                name: "Tanqueray".to_string(),
+                quantity: Quantity::new(300.0, Unit::Milliliter),
+                full_size: Some(Quantity::new(750.0, Unit::Milliliter)),
+            },
+            None,
+        );
+        for system in [UnitSystem::Metric, UnitSystem::Imperial] {
+            let mut input = item_input();
+            input.fill(&edit, system);
+            let full_size = input.validate().unwrap().0.full_size.unwrap();
+            assert!(
+                (full_size.value(UnitSystem::Metric) - 750.0).abs() < 0.01,
+                "{system:?}: {full_size:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn full_size_is_in_the_quantitys_unit() {
+        let mut input = item_input();
+        input.update(ItemMessage::Name("Sugar".to_string()));
+        input.update(ItemMessage::Quantity("200".to_string()));
+        input.update(ItemMessage::Unit(Unit::Gram));
+        input.update(ItemMessage::FullSize("1000".to_string()));
+
+        let (body, _) = input.validate().unwrap();
+        assert_eq!(body.full_size, Some(Quantity::new(1000.0, Unit::Gram)));
+        assert!(body.full_size_fits());
+    }
+
+    #[test]
+    fn an_invalid_full_size_is_reported() {
+        let mut input = item_input();
+        input.update(ItemMessage::Name("Tanqueray".to_string()));
+        input.update(ItemMessage::Quantity("700".to_string()));
+        input.update(ItemMessage::FullSize("0".to_string()));
+
+        assert_eq!(
+            input.validate(),
+            Err(FormError(vec![(
+                ItemField::FullSize,
+                Error::NumberNotPositive
+            )]))
+        );
+    }
+
+    #[test]
+    fn a_full_size_of_another_kind_is_not_shown() {
+        let edit = (
+            ItemBody {
+                name: "Tanqueray".to_string(),
+                quantity: Quantity::new(300.0, Unit::Milliliter),
+                full_size: Some(Quantity::new(750.0, Unit::Gram)),
+            },
+            None,
+        );
+        let mut input = item_input();
+        input.fill(&edit, UnitSystem::Metric);
+        assert_eq!(input.full_size.text(), "");
     }
 
     #[test]

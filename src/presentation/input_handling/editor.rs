@@ -123,16 +123,23 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
         self.show_errors = false;
     }
 
-    /// A header saying whether this is a new value or an edit, then the
-    /// form, then its buttons: Save, plus Cancel while editing.
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> Element<'_, EditorMessage<F::Message>> {
-        let header = match self.editing {
-            None => text!("New {}", self.noun),
-            Some(_) => text!("Edit {}", self.noun),
+    /// The form's heading: "New Item", or "Edit Item" while editing.
+    pub fn title(&self) -> String {
+        match self.editing {
+            None => format!("New {}", self.noun),
+            Some(_) => format!("Edit {}", self.noun),
         }
-        .size(24);
-        let form = self.form.view(self.show_errors).map(EditorMessage::Input);
+    }
+
+    /// The form's fields, showing their errors once a save has been tried.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn form_view(&self) -> Element<'_, EditorMessage<F::Message>> {
+        self.form.view(self.show_errors).map(EditorMessage::Input)
+    }
+
+    /// Save, plus Cancel while editing.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn buttons(&self) -> Element<'_, EditorMessage<F::Message>> {
         let mut buttons = row![button("Save").on_press(EditorMessage::Save)].spacing(10);
         if self.editing.is_some() {
             let cancel = button("Cancel")
@@ -140,7 +147,18 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
                 .on_press(EditorMessage::Cancel);
             buttons = buttons.push(cancel);
         }
-        column![header, form, buttons].spacing(16).into()
+        buttons.into()
+    }
+
+    /// The [`title`](Self::title), then the form, then its
+    /// [`buttons`](Self::buttons). Screens wanting another layout can put
+    /// those parts together themselves.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn view(&self) -> Element<'_, EditorMessage<F::Message>> {
+        let header = text(self.title()).size(24);
+        column![header, self.form_view(), self.buttons()]
+            .spacing(16)
+            .into()
     }
 }
 
@@ -226,6 +244,14 @@ mod tests {
 
     fn save(editor: &mut TestEditor) -> EditorResult<NameForm, u32> {
         editor.update(EditorMessage::Save)
+    }
+
+    #[test]
+    fn title_says_whether_the_value_is_new_or_edited() {
+        let mut editor = editor();
+        assert_eq!(editor.title(), "New Name");
+        begin(&mut editor, 7, "Gin");
+        assert_eq!(editor.title(), "Edit Name");
     }
 
     #[test]

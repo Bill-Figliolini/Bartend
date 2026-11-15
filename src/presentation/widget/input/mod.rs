@@ -14,12 +14,14 @@ use std::{convert::Infallible, fmt::Display};
 
 use iced::{
     Element,
-    widget::{column, row, text},
+    widget::{Text, column, row, text},
 };
+
+use crate::presentation::constants;
 
 pub use {
     pick_field::{OptionalPick, RequiredPick},
-    text_field::{NumberField, PositiveField, StringField},
+    text_field::{NumberField, OptionalPositiveField, PositiveField, StringField},
 };
 
 /// Why a single input field failed validation.
@@ -50,20 +52,26 @@ impl From<Infallible> for Error {
 /// the user is typing.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn with_error<'a, M: 'a>(field: Element<'a, M>, error: Option<Error>) -> Element<'a, M> {
-    column![
-        field,
-        row(error.map(|error| text(error.to_string()).into()))
-    ]
-    .into()
+    column![field, row(error.map(|error| error_text(error).into()))]
+        .spacing(2)
+        .into()
+}
+
+/// `error` as shown under a field: small, in the theme's danger colour.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn error_text<'a>(error: Error) -> Text<'a> {
+    text(error.to_string())
+        .size(constants::SMALL_TEXT)
+        .style(text::danger)
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let text = match self {
-            Self::StringEmpty => "String Must Not Be Empty",
-            Self::QuantityInvalid => "Must be a number that is zero or above",
-            Self::NumberNotPositive => "Must be a number above zero",
-            Self::MustChooseValue => "A value must be selected",
+            Self::StringEmpty => "Can't be blank",
+            Self::QuantityInvalid => "Enter a number, 0 or more",
+            Self::NumberNotPositive => "Enter a number above 0",
+            Self::MustChooseValue => "Choose an option",
             Self::PoursDontAddUp => "Amounts must add up to what the recipe calls for",
             Self::NotEnoughStock => "Not enough in stock",
         };
@@ -77,18 +85,15 @@ mod tests {
 
     #[test]
     fn errors_explain_what_is_expected() {
-        assert_eq!(Error::StringEmpty.to_string(), "String Must Not Be Empty");
+        assert_eq!(Error::StringEmpty.to_string(), "Can't be blank");
         assert_eq!(
             Error::QuantityInvalid.to_string(),
-            "Must be a number that is zero or above"
+            "Enter a number, 0 or more"
         );
-        assert_eq!(
-            Error::MustChooseValue.to_string(),
-            "A value must be selected"
-        );
+        assert_eq!(Error::MustChooseValue.to_string(), "Choose an option");
         assert_eq!(
             Error::NumberNotPositive.to_string(),
-            "Must be a number above zero"
+            "Enter a number above 0"
         );
         assert_eq!(
             Error::PoursDontAddUp.to_string(),

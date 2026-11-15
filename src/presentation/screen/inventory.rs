@@ -1,24 +1,29 @@
 use iced::{
+    Alignment::Center,
     Element,
-    Length::Fill,
+    Length::{Fill, Shrink},
     Task,
-    widget::{button, column, container, row, space, text},
+    widget::{Column, Container, button, column, container, row, scrollable, space, text},
 };
 
 use crate::{
-    logic::{CategoryService, ItemService},
+    logic::{CategoryService, ItemService, RecipeService, RecipeUse, StockLevel, recipes_using},
     models::{Category, CategoryFilter, CategoryID, Config, Item, ItemBody, ItemID, UnitSystem},
     presentation::{
         application::{self, Context},
         constants,
-        input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved},
+        input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved, show_quantity},
         screen::Panels,
         widget::{
+            detail::{card, chip, gauge, hint, link_row, quiet_danger, stat_tile},
             footer::footer,
             master_list::{Entry, master_list},
         },
     },
 };
+
+/// Size of the item's name at the top of its details.
+const NAME_SIZE: f32 = 28.0;
 
 #[derive(Debug)]
 pub struct Inventory {
@@ -114,6 +119,7 @@ impl Inventory {
         &self,
         item_service: &ItemService,
         category_service: &CategoryService,
+        recipe_service: &RecipeService,
     ) -> Panels<'_> {
         let entries = item_service.sorted_ids().into_iter().map(|id| Entry {
             label: item_service.get(id).cloned().unwrap_or_default().name,
@@ -129,9 +135,9 @@ impl Inventory {
 
         let detail = match self.selected {
             Some(item) if self.editor.editing().is_none() => {
-                self.item_details(item, item_service, category_service)
+                self.item_details(item, item_service, category_service, recipe_service)
             }
-            _ => self.editor.view().map(editor_msg),
+            _ => self.form_view(),
         };
         let unit_swap_button = button(text(self.unit_system.to_string()))
             .style(button::secondary)
@@ -142,38 +148,98 @@ impl Inventory {
         Panels { master, detail }
     }
 
-    /// The read-only view of `item`, with buttons to edit or delete it.
+    /// The read-only view of `item`: its name and category, tiles for its
+    /// stock and how many recipes use it, then a list of those recipes.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn item_details(
         &self,
         item: ItemID,
         item_service: &ItemService,
         category_service: &CategoryService,
+        recipe_service: &RecipeService,
     ) -> Element<'_, application::Message> {
         let body = item_service.get(item).cloned().unwrap_or_default();
         let category = category_service.item_category(item).map(|id| Category {
             id,
             body: category_service.get(id).cloned().unwrap_or_default(),
         });
-        let category_name = category
-            .as_ref()
-            .map_or_else(|| "None".to_string(), |category| category.body.name.clone());
+        let uses = recipes_using(item, item_service, category_service, recipe_service);
 
-        let name = text(body.name).size(24);
-        let quantity = text!(
-            "Quantity: {:.0} {}",
-            body.quantity.value(self.unit_system),
-            body.quantity.unit(self.unit_system)
-        );
-        let category_text = text!("Category: {category_name}");
-        let edit = button("Edit").on_press(inventory_msg(Message::BeginEdit(item, category)));
-        let delete = button("Delete")
-            .style(button::danger)
-            .on_press(inventory_msg(Message::DeleteItem(item)));
-        let buttons = row![edit, delete].spacing(constants::SPACING);
-        column![name, quantity, category_text, buttons]
-            .spacing(16)
+        let breadcrumb = category
+            .as_ref()
+            .and_then(|category| breadcrumb_label(category.id, category_service));
+        // The stock tile always has a line under its figure, so it is the
+        // taller one and sets the row's height.
+        let tiles = row![self.stock_tile(&body), uses_tile(&uses).height(Fill)]
+            .spacing(constants::SPACING)
+            .height(Shrink);
+        let used_in = self.used_in_card(&uses, category.is_some());
+        let header = header(item, body.name, breadcrumb, category);
+
+        scrollable(column![header, tiles, used_in].spacing(16)).into()
+    }
+
+    /// The new- or edit-item form, laid out like the item's details: the
+    /// heading with Save and Cancel to its right, then the fields in a card.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn form_view(&self) -> Element<'_, application::Message> {
+        let note = if self.editor.editing().is_some() {
+            "Change any details, then Save."
+        } else {
+            "Add something you stock, then Save."
+        };
+        let title = column![text(self.editor.title()).size(NAME_SIZE), hint(note)].spacing(6);
+        let buttons = self.editor.buttons().map(editor_msg);
+        let header = row![title, space().width(Fill), buttons];
+        let fields = card(None, self.editor.form_view().map(editor_msg));
+        scrollable(column![header, fields].spacing(16)).into()
+    }
+
+    /// How much is in stock, with a gauge against the full size if the
+    /// item has one.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn stock_tile(&self, body: &ItemBody) -> Element<'_, application::Message> {
+        let units = self.unit_system;
+        let gauge_parts = body
+            .fill_fraction()
+            .zip(StockLevel::of(body))
+            .zip(body.full_size);
+        let below: Element<'_, _> = match gauge_parts {
+            Some(((fraction, level), full_size)) => {
+                let full = hint(format!("of {} full size", show_quantity(full_size, units)));
+                column![gauge(fraction, level), full].spacing(4).into()
+            }
+            None => hint("Add a full size to see how full it is").into(),
+        };
+        stat_tile("In stock", show_quantity(body.quantity, units), Some(below)).into()
+    }
+
+    /// The recipes the item can go into, each opening on the Recipes
+    /// screen when clicked.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn used_in_card(
+        &self,
+        uses: &[RecipeUse],
+        has_category: bool,
+    ) -> Element<'_, application::Message> {
+        let content: Element<'_, _> = if uses.is_empty() {
+            let note = if has_category {
+                "No recipe calls for this item's category yet."
+            } else {
+                "Give this item a category to use it in recipes."
+            };
+            hint(note).into()
+        } else {
+            Column::with_children(uses.iter().map(|usage| {
+                link_row(
+                    usage.name.clone(),
+                    show_quantity(usage.amount, self.unit_system),
+                    application::Message::ShowRecipe(usage.recipe),
+                )
+            }))
             .into()
+        };
+        card(Some("Used in"), content)
     }
 
     pub fn update(&mut self, item_service: &ItemService, message: Message) -> Option<Command> {
@@ -215,6 +281,63 @@ impl Inventory {
             Message::DeleteItem(item) => Some(Command::Delete(item)),
         }
     }
+}
+
+/// The item's name and category on the left; Edit and Delete on the right.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn header<'a>(
+    item: ItemID,
+    name: String,
+    breadcrumb: Option<(String, usize)>,
+    category: Option<Category>,
+) -> Element<'a, application::Message> {
+    let category_line: Element<'a, _> = match breadcrumb {
+        Some((path, others)) => row![chip(path)]
+            .push((others > 0).then(|| hint(format!("+{others} more"))))
+            .spacing(constants::SPACING)
+            .align_y(Center)
+            .into(),
+        None => hint("No category").into(),
+    };
+    let title = column![text(name).size(NAME_SIZE), category_line].spacing(6);
+
+    let edit = button("Edit").on_press(inventory_msg(Message::BeginEdit(item, category)));
+    let delete = button("Delete")
+        .style(quiet_danger)
+        .on_press(inventory_msg(Message::DeleteItem(item)));
+    let buttons = row![edit, delete].spacing(constants::SPACING);
+
+    row![title, space().width(Fill), buttons].into()
+}
+
+/// How many recipes the item can go into.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn uses_tile<'a>(uses: &[RecipeUse]) -> Container<'a, application::Message> {
+    stat_tile("Used in", recipe_count(uses.len()), None)
+}
+
+/// `count` recipes, in words.
+fn recipe_count(count: usize) -> String {
+    match count {
+        0 => "No recipes".to_string(),
+        1 => "1 recipe".to_string(),
+        n => format!("{n} recipes"),
+    }
+}
+
+/// The path down to `category`, as names joined by `›`, and how many other
+/// paths lead to it.
+fn breadcrumb_label(
+    category: CategoryID,
+    category_service: &CategoryService,
+) -> Option<(String, usize)> {
+    let breadcrumb = category_service.breadcrumb(category)?;
+    let names: Vec<String> = breadcrumb
+        .path
+        .iter()
+        .map(|id| category_service.get(*id).cloned().unwrap_or_default().name)
+        .collect();
+    Some((names.join(" › "), breadcrumb.other_paths))
 }
 
 fn inventory_msg(msg: Message) -> application::Message {
@@ -307,6 +430,7 @@ mod tests {
         let body = ItemBody {
             name: "Tanqueray".to_string(),
             quantity: ml(750.0),
+            full_size: None,
         };
 
         let messages = apply(&mut world, Command::Add(body, Some(CategoryID(99))));
@@ -431,6 +555,33 @@ mod tests {
         assert_reloads(&apply(&mut world, command.unwrap()));
 
         assert_eq!(world.items.item_count(), 0);
+    }
+
+    #[test]
+    fn recipe_counts_read_naturally() {
+        assert_eq!(recipe_count(0), "No recipes");
+        assert_eq!(recipe_count(1), "1 recipe");
+        assert_eq!(recipe_count(4), "4 recipes");
+    }
+
+    #[test]
+    fn breadcrumb_label_joins_names_down_the_tree() {
+        let mut world = World::new();
+        let spirit = world.add_category("Spirit");
+        let gin = world.add_category("Gin");
+        let botanical = world.add_category("Botanical");
+        world.relate(spirit, gin);
+        world.relate(botanical, gin);
+
+        assert_eq!(
+            breadcrumb_label(gin, &world.categories),
+            Some(("Botanical › Gin".to_string(), 1))
+        );
+        assert_eq!(
+            breadcrumb_label(spirit, &world.categories),
+            Some(("Spirit".to_string(), 0))
+        );
+        assert_eq!(breadcrumb_label(CategoryID(99), &world.categories), None);
     }
 
     #[test]

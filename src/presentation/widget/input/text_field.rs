@@ -62,6 +62,23 @@ impl Rule for Positive {
     }
 }
 
+/// Either nothing (blank or whitespace-only text), or a [`Positive`]
+/// number.
+#[derive(Debug)]
+pub struct OptionalPositive;
+
+impl Rule for OptionalPositive {
+    type Output = Option<f32>;
+
+    fn apply(raw: &str) -> Result<Option<f32>, Error> {
+        if raw.trim().is_empty() {
+            Ok(None)
+        } else {
+            Positive::apply(raw).map(Some)
+        }
+    }
+}
+
 /// A text box whose contents are checked by the rule `R`.
 ///
 /// The field holds only what the user typed. Validation is a pure read
@@ -81,6 +98,9 @@ pub type NumberField = TextField<NonNegative>;
 /// A text box for a number that must be above zero, such as a count of
 /// servings.
 pub type PositiveField = TextField<Positive>;
+/// A text box for a number above zero that may be left blank, such as an
+/// item's full size.
+pub type OptionalPositiveField = TextField<OptionalPositive>;
 
 impl<R: Rule> TextField<R> {
     pub fn new(placeholder: impl Into<String>) -> Self {
@@ -216,6 +236,30 @@ mod tests {
     fn positive_rejects_zero_negatives_and_non_numbers() {
         for text in ["", "abc", "0", "-0", "-1", "NaN", "inf", "-inf"] {
             let value = field::<Positive>(text).value();
+            assert_eq!(value, Err(Error::NumberNotPositive), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn optional_positive_may_be_blank() {
+        for text in ["", "  "] {
+            assert_eq!(
+                field::<OptionalPositive>(text).value(),
+                Ok(None),
+                "{text:?}"
+            );
+        }
+        let value = field::<OptionalPositive>(" 750 ").value();
+        assert_eq!(
+            value.map(|v| v.map(f32::to_bits)),
+            Ok(Some(750f32.to_bits()))
+        );
+    }
+
+    #[test]
+    fn optional_positive_rejects_what_positive_does() {
+        for text in ["abc", "0", "-1", "NaN", "inf"] {
+            let value = field::<OptionalPositive>(text).value();
             assert_eq!(value, Err(Error::NumberNotPositive), "{text:?}");
         }
     }

@@ -15,8 +15,9 @@ pub trait Requirement<T> {
     /// [`Infallible`] when no choice is needed, so the value can be read
     /// with an irrefutable `let Ok(value) = field.value();`.
     type Error: Into<Error>;
-    /// Appended to the placeholder.
-    const SUFFIX: &'static str;
+    /// How the placeholder notes that a choice is optional, if it is: added
+    /// in brackets after it, or shown alone when there is no placeholder.
+    const NOTE: Option<&'static str>;
     /// Checks the current selection.
     fn apply(selection: Option<&T>) -> Result<Self::Output, Self::Error>;
     /// Updates the selection when the user picks `picked`.
@@ -30,7 +31,7 @@ pub struct Required;
 impl<T: Clone> Requirement<T> for Required {
     type Output = T;
     type Error = Error;
-    const SUFFIX: &'static str = "";
+    const NOTE: Option<&'static str> = None;
 
     fn apply(selection: Option<&T>) -> Result<T, Error> {
         selection.cloned().ok_or(Error::MustChooseValue)
@@ -48,7 +49,7 @@ pub struct Optional;
 impl<T: Clone + PartialEq> Requirement<T> for Optional {
     type Output = Option<T>;
     type Error = Infallible;
-    const SUFFIX: &'static str = " (Optional)";
+    const NOTE: Option<&'static str> = Some("Optional");
 
     fn apply(selection: Option<&T>) -> Result<Option<T>, Infallible> {
         Ok(selection.cloned())
@@ -86,8 +87,12 @@ where
 {
     /// `initial` is selected to begin with; it need not be in `options`.
     pub fn new(options: Vec<T>, initial: Option<T>, placeholder: impl Into<String>) -> Self {
-        let mut placeholder = placeholder.into();
-        placeholder.push_str(Q::SUFFIX);
+        let placeholder = placeholder.into();
+        let placeholder = match Q::NOTE {
+            None => placeholder,
+            Some(note) if placeholder.is_empty() => note.to_string(),
+            Some(note) => format!("{placeholder} ({note})"),
+        };
         Self {
             options: combo_box::State::new(options),
             selection: initial,
@@ -201,6 +206,14 @@ mod tests {
     fn placeholder_marks_optional_fields() {
         assert_eq!(spirits::<Required>().placeholder, "Spirit");
         assert_eq!(spirits::<Optional>().placeholder, "Spirit (Optional)");
+    }
+
+    #[test]
+    fn without_a_placeholder_only_the_optional_note_shows() {
+        let required = RequiredPick::<String>::new(Vec::new(), None, "");
+        let optional = OptionalPick::<String>::new(Vec::new(), None, "");
+        assert_eq!(required.placeholder, "");
+        assert_eq!(optional.placeholder, "Optional");
     }
 
     #[test]

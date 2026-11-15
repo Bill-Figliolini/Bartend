@@ -109,7 +109,9 @@ impl Screen {
         recipe_service: &RecipeService,
     ) -> Panels<'_> {
         match self {
-            Self::Inventory(inventory) => inventory.view(item_service, category_service),
+            Self::Inventory(inventory) => {
+                inventory.view(item_service, category_service, recipe_service)
+            }
             Self::Settings(settings) => settings.view(),
             Self::Categories(categories) => categories.view(category_service),
             Self::Recipes(recipes) => recipes.view(category_service, recipe_service),
@@ -271,6 +273,7 @@ pub(in crate::presentation) mod test_support {
             let body = ItemBody {
                 name: name.to_string(),
                 quantity: Quantity::new(milliliters, Unit::Milliliter),
+                full_size: None,
             };
             self.items.add(&self.database.item_db(), &body).unwrap()
         }
@@ -287,6 +290,13 @@ pub(in crate::presentation) mod test_support {
         pub fn map_item(&mut self, item: ItemID, category: CategoryID) {
             self.categories
                 .add_item_mapping(&self.database.category_db(), item, category)
+                .unwrap();
+        }
+
+        /// Makes `child` a subcategory of `parent`.
+        pub fn relate(&mut self, parent: CategoryID, child: CategoryID) {
+            self.categories
+                .add_category_relation(&self.database.category_db(), parent, child)
                 .unwrap();
         }
 

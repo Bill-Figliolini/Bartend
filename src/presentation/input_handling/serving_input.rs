@@ -15,7 +15,7 @@ use crate::{
     presentation::{
         constants,
         input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
-        widget::input::{Error, PositiveField, RequiredPick},
+        widget::input::{Error, PositiveField, RequiredPick, error_text},
     },
 };
 
@@ -848,8 +848,7 @@ impl IngredientUseInput {
                 .padding(0)
                 .on_press(ServingMessage::AddPour(key))
         });
-        let error = error_for(ServingField::Ingredient(key))
-            .map(|error| text(error.to_string()).size(14).style(text::danger));
+        let error = error_for(ServingField::Ingredient(key)).map(error_text);
         if add.is_some() || error.is_some() {
             let notes = row![]
                 .push(add)
@@ -1073,6 +1072,7 @@ mod tests {
         let by_mass = ItemBody {
             name: "Gin Jelly".to_string(),
             quantity: Quantity::new(100.0, Unit::Gram),
+            full_size: None,
         };
         let jelly = world
             .items
