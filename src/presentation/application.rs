@@ -7,7 +7,7 @@ use iced::{
     alignment::Vertical::Center,
     event,
     keyboard::{self, Key, key::Named},
-    widget::{button, column, container, operation, row, text},
+    widget::{column, container, operation, row, text},
     window,
 };
 use rfd::AsyncFileDialog;
@@ -22,7 +22,8 @@ use crate::{
         screen::{self, Panels, Screen, ScreenKind},
         theme::Themes,
         widget::{
-            detail::{Tone, toned_card},
+            deco,
+            detail::{Tone, toned_card, toned_card_button},
             frame,
             tab_bar::tab_bar,
         },
@@ -33,6 +34,7 @@ pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title("Bartend")
         .theme(Bartend::theme)
+        .font(deco::HEADING_FONT_BYTES)
         .subscription(Bartend::subscription)
         .window_size((1100.0, 720.0))
         .run()
@@ -338,9 +340,7 @@ impl Bartend {
 
         let mut detail_contents = column![].spacing(constants::SPACING);
         if let Some(error) = &self.error {
-            let dismiss = button("Dismiss")
-                .style(button::secondary)
-                .on_press(Message::ClearError);
+            let dismiss = toned_card_button(Tone::Danger, "Dismiss").on_press(Message::ClearError);
             let banner = row![text(error.to_string()).width(Fill), dismiss]
                 .spacing(constants::SPACING)
                 .align_y(Center);
@@ -418,6 +418,7 @@ mod tests {
                 categories, inventory, settings,
                 test_support::{World, drain},
             },
+            theme::art_deco,
         },
     };
 
@@ -844,9 +845,9 @@ mod tests {
     }
 
     #[test]
-    fn the_default_theme_is_kanagawa_wave() {
+    fn the_default_theme_is_art_deco() {
         let (app, _dir) = app();
-        assert_eq!(app.theme(), Theme::KanagawaWave);
+        assert_eq!(app.theme(), art_deco());
     }
 
     /// Opens Settings and picks `theme`, without saving.
@@ -870,7 +871,7 @@ mod tests {
         preview(&mut app, Theme::Nord);
 
         run(&mut app, Message::ResetSettings);
-        assert_eq!(app.theme(), Theme::KanagawaWave);
+        assert_eq!(app.theme(), art_deco());
 
         // The staged edit is discarded too.
         run(&mut app, Message::Settings(settings::Message::Save));
@@ -884,7 +885,7 @@ mod tests {
 
         run(&mut app, Message::OpenScreen(ScreenKind::Inventory));
 
-        assert_eq!(app.theme(), Theme::KanagawaWave);
+        assert_eq!(app.theme(), art_deco());
     }
 
     #[test]
@@ -905,7 +906,7 @@ mod tests {
         let (mut app, _dir) = app();
         run(&mut app, Message::PreviewTheme(Theme::Nord));
 
-        assert_eq!(app.theme(), Theme::KanagawaWave);
+        assert_eq!(app.theme(), art_deco());
     }
 
     #[test]
@@ -922,6 +923,6 @@ mod tests {
             theme_notice(&config, &themes),
             Some(BartendError::Config(ConfigError::UnknownTheme(_)))
         ));
-        assert_eq!(themes.resolve(config.theme()), Theme::KanagawaWave);
+        assert_eq!(themes.resolve(config.theme()), art_deco());
     }
 }

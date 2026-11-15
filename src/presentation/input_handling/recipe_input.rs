@@ -4,7 +4,7 @@ use iced::{
     Alignment::Center,
     Element,
     Length::{Fill, FillPortion, Fixed, Shrink},
-    widget::{Column, button, column, container, row, space},
+    widget::{Column, column, container, row, space},
 };
 
 use crate::{
@@ -13,7 +13,8 @@ use crate::{
         constants,
         input_handling::{Form, FormError, RowKey, Rows, Validator, discard_stale_row},
         widget::{
-            detail::{card, hint, labeled, row_danger_button},
+            deco,
+            detail::{card, column_heading, hint, labeled, row_danger_button},
             input::{NumberField, RequiredPick, StringField},
         },
     },
@@ -256,9 +257,7 @@ impl Form for RecipeInput {
             self.name_input.view(RecipeMessage::Name, show_errors),
         );
 
-        let add = button("+ Add ingredient")
-            .style(button::secondary)
-            .on_press(RecipeMessage::AddRow);
+        let add = deco::secondary_button("+ Add ingredient").on_press(RecipeMessage::AddRow);
         let ingredients: Element<'_, _> = if self.ingredient_inputs.is_empty() {
             column![
                 hint("No ingredients yet. You can save the recipe and add them later."),
@@ -268,7 +267,9 @@ impl Form for RecipeInput {
             .into()
         } else {
             let headings = row![
-                table_row(["Category", "Amount", "Unit"].map(|heading| hint(heading).into())),
+                table_row(
+                    ["Category", "Amount", "Unit"].map(|heading| column_heading(heading).into())
+                ),
                 space().width(Fixed(REMOVE_WIDTH)),
             ]
             .spacing(constants::SPACING);

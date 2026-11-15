@@ -13,6 +13,7 @@ use crate::{
             },
         },
         widget::{
+            controls,
             detail::{card, hint, link_row, link_row_with_action, row_danger_button, stat_tile},
             master_list::{Entry, master_list},
         },
@@ -22,7 +23,7 @@ use iced::{
     Element,
     Length::{Fill, Shrink},
     Task,
-    widget::{Column, column, pick_list, row, scrollable},
+    widget::{Column, column, pick_list, row},
 };
 
 #[derive(Debug)]
@@ -183,7 +184,7 @@ impl Categories {
         let subcategories = Self::subcategories_card(category, service);
         let part_of = Self::part_of_card(&parents, service);
 
-        scrollable(column![header, tiles, subcategories, part_of].spacing(16)).into()
+        controls::scrolling(column![header, tiles, subcategories, part_of].spacing(16)).into()
     }
 
     /// `category`'s subcategories, each opening when clicked and with a
@@ -289,6 +290,8 @@ impl Categories {
         })
         .placeholder("Add a subcategory")
         .width(Fill)
+        .style(controls::picker)
+        .menu_style(controls::menu)
         .into()
     }
 }

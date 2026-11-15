@@ -6,7 +6,10 @@ use std::{
 
 use iced::{Element, widget::combo_box};
 
-use crate::presentation::widget::input::{Error, keyboard_pick::KeyboardPick, with_error};
+use crate::presentation::widget::{
+    controls,
+    input::{Error, keyboard_pick::KeyboardPick, with_error},
+};
 
 /// Whether a [`PickField`] must have a selection, and how picking behaves.
 pub trait Requirement<T> {
@@ -145,7 +148,9 @@ where
             &self.placeholder,
             self.selection.as_ref(),
             on_select,
-        );
+        )
+        .input_style(controls::text_field)
+        .menu_style(controls::menu);
         with_error(KeyboardPick::new(picker).into(), error)
     }
 }

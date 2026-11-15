@@ -7,13 +7,13 @@ use iced::{
     Element,
     Length::Fill,
     Theme,
-    widget::{Column, button, column, container, row, scrollable, space, text},
+    widget::{Column, button, column, container, row, space, text},
 };
 
 use crate::presentation::{
     application::Message,
     constants,
-    widget::{detail::hint, frame},
+    widget::{controls, deco, detail::hint, frame},
 };
 
 /// One row of a [`master_list`].
@@ -31,9 +31,8 @@ pub struct Entry {
 
 /// How much of the text colour a dimmed entry keeps.
 const DIMMED_ALPHA: f32 = 0.45;
-/// Size of the accent bar beside the selected entry.
-const MARKER_WIDTH: f32 = 3.0;
-const MARKER_HEIGHT: f32 = 16.0;
+/// Size of the diamond before the selected entry.
+const MARKER_SIZE: f32 = 7.0;
 
 /// The list, under a `new` button if given. With no entries, `empty` is
 /// shown in their place.
@@ -47,16 +46,17 @@ pub fn master_list<'a>(
     let list: Element<'a, Message> = if rows.is_empty() {
         container(hint(empty)).padding([4, 6]).into()
     } else {
-        scrollable(Column::with_children(rows).spacing(2))
+        controls::scrolling(Column::with_children(rows).spacing(2))
             .height(Fill)
             .into()
     };
 
     let mut contents = column![].spacing(constants::SPACING);
     if let Some((label, on_press)) = new {
-        let new_button = button(text(label).width(Fill).center())
+        let new_button = button(deco::caps(&label).size(14).width(Fill).center())
             .width(Fill)
-            .style(frame::outlined)
+            .padding([7, 10])
+            .style(deco::secondary)
             .on_press(on_press);
         contents = contents.push(new_button);
     }
@@ -70,7 +70,7 @@ pub fn master_list<'a>(
         .into()
 }
 
-/// One entry: its label beside an accent bar that shows while it is
+/// One entry: its label after an accent diamond that shows while it is
 /// selected, on the frame's tint.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn entry<'a>(entry: Entry) -> Element<'a, Message> {
@@ -80,10 +80,12 @@ fn entry<'a>(entry: Entry) -> Element<'a, Message> {
         on_press,
         dimmed,
     } = entry;
-    let marker = container(space())
-        .width(MARKER_WIDTH)
-        .height(MARKER_HEIGHT)
-        .style(move |theme: &Theme| frame::marker(theme, selected));
+    // Unselected entries keep the diamond's room, so labels line up.
+    let marker: Element<'a, Message> = if selected {
+        deco::diamond(MARKER_SIZE)
+    } else {
+        space().width(MARKER_SIZE).into()
+    };
     let dimmed = dimmed.then_some(DIMMED_ALPHA);
     button(row![marker, text(label)].spacing(8).align_y(Center))
         .width(Fill)

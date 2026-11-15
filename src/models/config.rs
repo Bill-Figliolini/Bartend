@@ -87,8 +87,8 @@ impl Display for ConfigError {
 const CONFIG_DIR_NAME: &str = "Bartend";
 const DEFAULT_CONFIG_FILE_NAME: &str = "Bartend.json";
 const DEFAULT_DB_NAME: &str = "Bartend.db";
-/// Must match the display name of a built-in theme.
-pub const DEFAULT_THEME_NAME: &str = "Kanagawa Wave";
+/// The display name of the app's own theme, which is the default.
+pub const DEFAULT_THEME_NAME: &str = "Art Deco";
 
 impl Config {
     /// Loads a config if it exists at path, and creates one at path if it does not yet exist.
@@ -372,7 +372,7 @@ mod tests {
         let error = ConfigError::UnknownTheme(ThemeChoice::BuiltIn("Nope".to_string()));
         assert_eq!(
             error.to_string(),
-            "Config Error: Saved theme 'Nope' not found; using Kanagawa Wave"
+            "Config Error: Saved theme 'Nope' not found; using Art Deco"
         );
     }
     mod save {

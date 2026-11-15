@@ -5,7 +5,7 @@ use iced::{
     Element,
     Length::Fill,
     Task, Theme,
-    widget::{button, pick_list, row, space, text},
+    widget::{pick_list, row, space, text},
 };
 
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
         screen::{Panels, shared::form_page},
         theme::{Themes, choice_for},
         widget::{
+            controls, deco,
             detail::labeled,
             master_list::{Entry, master_list},
         },
@@ -155,7 +156,7 @@ impl Settings {
         let fields: Element<'_, application::Message> = match self.section {
             Section::Database => {
                 let path = text(self.config.db_path.display().to_string());
-                let choose = button("Choose file…").style(button::secondary).on_press(
+                let choose = deco::secondary_button("Choose file…").on_press(
                     application::Message::OpenDBPicker(self.config.db_path.clone()),
                 );
                 labeled(
@@ -172,7 +173,9 @@ impl Settings {
                     Some(self.config.default_unit_system),
                     |unit_system: UnitSystem| settings_msg(Message::UpdateUnitSystem(unit_system)),
                 )
-                .width(Fill);
+                .width(Fill)
+                .style(controls::picker)
+                .menu_style(controls::menu);
                 labeled("Default units", unit_picker)
             }
             Section::Appearance => {
@@ -181,15 +184,16 @@ impl Settings {
                     Some(self.themes.resolve(&self.config.theme)),
                     application::Message::PreviewTheme,
                 )
-                .width(Fill);
+                .width(Fill)
+                .style(controls::picker)
+                .menu_style(controls::menu);
                 labeled("Theme", theme_picker)
             }
         };
 
-        let save_button = button("Save").on_press(settings_msg(Message::Save));
-        let cancel_button = button("Cancel")
-            .style(button::secondary)
-            .on_press(application::Message::ResetSettings);
+        let save_button = deco::primary_button("Save").on_press(settings_msg(Message::Save));
+        let cancel_button =
+            deco::secondary_button("Cancel").on_press(application::Message::ResetSettings);
         let buttons = row![save_button, cancel_button].spacing(constants::SPACING);
 
         let detail = form_page(

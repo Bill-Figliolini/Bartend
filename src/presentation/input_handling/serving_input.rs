@@ -18,7 +18,8 @@ use crate::{
         constants,
         input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
         widget::{
-            detail::{Tone, hint, row_danger_button, toned_text},
+            deco,
+            detail::{Tone, column_heading, hint, row_danger_button, toned_text},
             input::{Error, PositiveField, RequiredPick, error_text},
         },
     },
@@ -227,12 +228,12 @@ impl ServingInput {
         let stepper = row![
             button(text("-").center())
                 .width(32)
-                .style(button::secondary)
+                .style(deco::secondary)
                 .on_press_maybe(step_down),
             field,
             button(text("+").center())
                 .width(32)
-                .style(button::secondary)
+                .style(deco::secondary)
                 .on_press(ServingMessage::StepServings(Step::Up)),
         ]
         .spacing(constants::SPACING / 2)
@@ -253,7 +254,8 @@ impl ServingInput {
             return hint("No ingredients to pour. Edit the recipe to add some.").into();
         }
         let headings = table_row(
-            ["Ingredient", "Amount", "Use item", "Left after"].map(|label| hint(label).into()),
+            ["Ingredient", "Amount", "Use item", "Left after"]
+                .map(|label| column_heading(label).into()),
         );
         let errors = self.errors();
         let ingredients = self.ingredients.iter().map(|(key, ingredient)| {
@@ -826,8 +828,8 @@ impl IngredientUseInput {
 
         // Another bottle only helps while some candidate is not yet poured.
         let add = (self.candidates.len() > self.pours.len()).then(|| {
-            button(text("+ Add bottle").size(constants::SMALL_TEXT))
-                .style(button::secondary)
+            deco::small_button("+ Add bottle")
+                .style(deco::secondary)
                 .on_press(ServingMessage::AddPour(key))
         });
         let error = error_for(ServingField::Ingredient(key)).map(error_text);

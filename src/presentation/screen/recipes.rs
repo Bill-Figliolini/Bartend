@@ -13,6 +13,7 @@ use crate::{
             },
         },
         widget::{
+            controls, deco,
             detail::{Tone, card, hint, stat_tile, status_link_row},
             master_list::{Entry, master_list},
         },
@@ -22,7 +23,7 @@ use iced::{
     Element,
     Length::{Fill, Shrink},
     Task,
-    widget::{Column, button, column, row, scrollable},
+    widget::{Column, column, row},
 };
 #[derive(Debug)]
 pub struct Recipes {
@@ -142,7 +143,7 @@ impl Recipes {
         let body = recipe_service.get(id).unwrap_or_default();
         let statuses = ingredient_statuses(&body, item_service, category_service);
 
-        let serve = button("Serve")
+        let serve = deco::primary_button("Serve")
             .on_press(application::Message::ShowServing(id))
             .into();
         let header = detail_header(
@@ -177,7 +178,7 @@ impl Recipes {
 
         let ingredients = self.ingredients_card(&body, &statuses, category_service);
 
-        scrollable(column![header, tiles, ingredients].spacing(16)).into()
+        controls::scrolling(column![header, tiles, ingredients].spacing(16)).into()
     }
 
     /// One row per ingredient: its category, amount and stock status, each

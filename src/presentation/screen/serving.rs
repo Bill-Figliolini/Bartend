@@ -3,7 +3,7 @@ use iced::{
     Element,
     Length::{Fill, Shrink},
     Task,
-    widget::{button, column, row, scrollable, space, text},
+    widget::{column, row, space, text},
 };
 
 use crate::{
@@ -18,7 +18,8 @@ use crate::{
             shared::{Availability, page_header, volume_figure},
         },
         widget::{
-            detail::{Tone, card, control_tile, hint, stat_tile, toned_card},
+            controls, deco,
+            detail::{Tone, card, control_tile, hint, stat_tile, toned_card, toned_card_button},
             master_list::{Entry, master_list},
         },
     },
@@ -170,9 +171,8 @@ impl Serving {
         category_service: &CategoryService,
     ) -> Element<'a, application::Message> {
         let save = self.input.servable().then(|| serving_msg(Message::Save));
-        let serve = button("Serve").on_press_maybe(save);
-        let view_recipe = button("View recipe")
-            .style(button::secondary)
+        let serve = deco::primary_button("Serve").on_press_maybe(save);
+        let view_recipe = deco::secondary_button("View recipe")
             .on_press(application::Message::ShowRecipe(recipe.id));
         let header = page_header(
             recipe.body.name.clone(),
@@ -210,14 +210,13 @@ impl Serving {
             .push(tiles)
             .push(pours)
             .spacing(16);
-        scrollable(content).into()
+        controls::scrolling(content).into()
     }
 
     /// What the last serving used, in a success card with Dismiss.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn notice_view(&self, served: &Served) -> Element<'_, application::Message> {
-        let dismiss = button("Dismiss")
-            .style(button::secondary)
+        let dismiss = toned_card_button(Tone::Success, "Dismiss")
             .on_press(serving_msg(Message::DismissNotice));
         let message = text(served.describe(self.input.units()));
         toned_card(

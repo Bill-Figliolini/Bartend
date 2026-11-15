@@ -2,7 +2,10 @@ use std::marker::PhantomData;
 
 use iced::{Element, widget::text_input};
 
-use crate::presentation::widget::input::{Error, with_error};
+use crate::presentation::widget::{
+    controls,
+    input::{Error, with_error},
+};
 
 /// How a [`TextField`]'s raw text is turned into a value.
 pub trait Rule {
@@ -151,7 +154,9 @@ impl<R: Rule> TextField<R> {
         on_input: impl Fn(String) -> M + 'a,
         error: Option<Error>,
     ) -> Element<'a, M> {
-        let input = text_input(&self.placeholder, &self.text).on_input(on_input);
+        let input = text_input(&self.placeholder, &self.text)
+            .on_input(on_input)
+            .style(controls::text_field);
         with_error(input.into(), error)
     }
 }

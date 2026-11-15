@@ -1,6 +1,7 @@
 //! The window's frame around the panels: the top bar and the master list
-//! sit on a raised surface, edged from the detail panel by hairlines, and
-//! mark what is chosen in them with a faint accent tint.
+//! sit on a raised surface, edged from the detail panel by hairlines (a
+//! faint accent one under the top bar), and mark what is chosen in them
+//! with a faint accent tint. Everything is square.
 //! Every colour comes from the theme's palette, like the panels' own.
 
 use iced::{
@@ -8,14 +9,18 @@ use iced::{
     widget::{button, container, rule},
 };
 
+use super::deco::accent;
+
 /// Thickness of the lines between the frame and the detail panel.
 const HAIRLINE: u32 = 1;
 /// How much of the accent colour the tint behind a chosen entry keeps.
 const TINT_ALPHA: f32 = 0.16;
 /// How much of the text colour an unchosen tab keeps.
 const QUIET_ALPHA: f32 = 0.7;
-/// Corner radius of the frame's buttons.
-pub(super) const RADIUS: f32 = 6.0;
+/// How much of the accent colour the line under the top bar keeps.
+const ACROSS_ALPHA: f32 = 0.45;
+/// Thickness of the line under the active tab.
+const UNDERLINE: u32 = 1;
 
 /// The raised surface the top bar and master list sit on: the shade cards
 /// are filled with.
@@ -28,10 +33,18 @@ pub fn surface(theme: &Theme) -> container::Style {
     }
 }
 
-/// A line across the window, under the top bar.
+/// A line across the window, under the top bar: a faint wash of the
+/// accent colour.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn hairline_across<'a, Message: 'a>() -> Element<'a, Message> {
-    rule::horizontal(HAIRLINE).style(hairline).into()
+    rule::horizontal(HAIRLINE).style(accent_hairline).into()
+}
+
+/// A line in the accent colour under the active tab, either side of its
+/// diamond.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn underline<'a, Message: 'a>() -> Element<'a, Message> {
+    rule::horizontal(UNDERLINE).style(underline_style).into()
 }
 
 /// A line down the window, between the master list and the detail panel.
@@ -40,8 +53,23 @@ pub fn hairline_down<'a, Message: 'a>() -> Element<'a, Message> {
     rule::vertical(HAIRLINE).style(hairline).into()
 }
 
-/// A [`hairline_across`] or [`hairline_down`]: in the colour of cards'
-/// borders.
+/// A [`hairline_across`]: a faint wash of the accent colour.
+fn accent_hairline(theme: &Theme) -> rule::Style {
+    rule::Style {
+        color: accent(theme).scale_alpha(ACROSS_ALPHA),
+        ..hairline(theme)
+    }
+}
+
+/// An [`underline`]: the accent colour.
+fn underline_style(theme: &Theme) -> rule::Style {
+    rule::Style {
+        color: accent(theme),
+        ..hairline(theme)
+    }
+}
+
+/// A [`hairline_down`]: in the colour of cards' borders.
 fn hairline(theme: &Theme) -> rule::Style {
     rule::Style {
         color: theme.extended_palette().background.weak.color,
@@ -52,14 +80,9 @@ fn hairline(theme: &Theme) -> rule::Style {
 }
 
 /// The faint wash of the accent colour behind a chosen entry, tab segment
-/// or hovered outline button.
+/// or hovered [outlined button](super::deco::secondary).
 pub fn tint(theme: &Theme) -> Color {
     theme.palette().primary.scale_alpha(TINT_ALPHA)
-}
-
-/// The colour of the bar beside a chosen entry and under the active tab.
-pub fn accent(theme: &Theme) -> Color {
-    theme.palette().primary
 }
 
 /// A row of the master list, or a segment of the unit switch: plain text
@@ -87,10 +110,7 @@ pub fn entry(
     button::Style {
         background,
         text_color,
-        border: Border {
-            radius: RADIUS.into(),
-            ..Border::default()
-        },
+        border: Border::default(),
         ..button::Style::default()
     }
 }
@@ -114,42 +134,12 @@ pub fn tab(theme: &Theme, status: button::Status, active: bool) -> button::Style
     }
 }
 
-/// A button for adding something, such as "+ New Item": accent-coloured
-/// text and outline on no background, filling with the [`tint`] on hover.
-pub fn outlined(theme: &Theme, status: button::Status) -> button::Style {
-    let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
-        .then(|| tint(theme).into());
-    button::Style {
-        background,
-        text_color: accent(theme),
-        border: Border {
-            width: 1.0,
-            radius: RADIUS.into(),
-            color: accent(theme),
-        },
-        ..button::Style::default()
-    }
-}
-
-/// The bar beside a chosen entry or under the active tab: the accent
-/// colour, or nothing so that others keep the same layout.
-pub fn marker(theme: &Theme, shown: bool) -> container::Style {
-    container::Style {
-        background: shown.then(|| accent(theme).into()),
-        border: Border {
-            radius: f32::MAX.into(),
-            ..Border::default()
-        },
-        ..container::Style::default()
-    }
-}
-
 /// The outline around the unit switch's segments.
 pub fn switch_outline(theme: &Theme) -> container::Style {
     container::Style {
         border: Border {
             width: 1.0,
-            radius: RADIUS.into(),
+            radius: 0.0.into(),
             color: theme.extended_palette().background.weak.color,
         },
         ..container::Style::default()
@@ -159,19 +149,25 @@ pub fn switch_outline(theme: &Theme) -> container::Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::presentation::theme::Themes;
 
     const ACTIVE: button::Status = button::Status::Active;
     const HOVERED: button::Status = button::Status::Hovered;
 
     #[test]
     fn the_frame_is_on_the_card_shade_and_edged_like_cards() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             assert_eq!(
                 surface(theme).background,
                 Some(palette.background.weakest.color.into())
             );
             assert_eq!(hairline(theme).color, palette.background.weak.color);
+            assert_eq!(
+                accent_hairline(theme).color,
+                accent(theme).scale_alpha(ACROSS_ALPHA)
+            );
+            assert_eq!(underline_style(theme).color, accent(theme));
             assert_eq!(
                 switch_outline(theme).border.color,
                 palette.background.weak.color
@@ -181,7 +177,7 @@ mod tests {
 
     #[test]
     fn chosen_entries_are_tinted_and_never_dimmed() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let text = theme.extended_palette().background.weakest.text;
             let chosen = entry(theme, ACTIVE, true, Some(0.5));
             assert_eq!(chosen.background, Some(tint(theme).into()));
@@ -199,7 +195,7 @@ mod tests {
 
     #[test]
     fn the_active_tab_is_in_the_accent_colour_and_others_are_quieter() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let text = theme.extended_palette().background.weakest.text;
             assert_eq!(tab(theme, ACTIVE, true).text_color, accent(theme));
             assert_eq!(
@@ -212,24 +208,15 @@ mod tests {
     }
 
     #[test]
-    fn outlined_buttons_fill_with_the_tint_on_hover() {
-        for theme in Theme::ALL {
-            let active = outlined(theme, ACTIVE);
-            assert_eq!(active.background, None);
-            assert_eq!(active.border.color, accent(theme));
-            assert_eq!(active.text_color, accent(theme));
-            assert_eq!(
-                outlined(theme, HOVERED).background,
-                Some(tint(theme).into())
-            );
-        }
-    }
-
-    #[test]
-    fn markers_show_only_when_asked() {
-        for theme in Theme::ALL {
-            assert_eq!(marker(theme, true).background, Some(accent(theme).into()));
-            assert_eq!(marker(theme, false).background, None);
+    fn entries_and_the_switch_are_square() {
+        for theme in Themes::new().options() {
+            for chosen in [true, false] {
+                assert_eq!(
+                    entry(theme, HOVERED, chosen, None).border.radius,
+                    0.0.into()
+                );
+            }
+            assert_eq!(switch_outline(theme).border.radius, 0.0.into());
         }
     }
 }

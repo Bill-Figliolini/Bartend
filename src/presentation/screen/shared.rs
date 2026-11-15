@@ -9,7 +9,7 @@ use iced::{
     Element,
     Length::Fill,
     Task,
-    widget::{button, column, row, scrollable, space, text},
+    widget::{column, row, space},
 };
 
 use crate::{
@@ -18,12 +18,12 @@ use crate::{
     presentation::{
         application::Message,
         constants,
-        widget::detail::{Tone, card, chip, hint, quiet_danger, toned_chip},
+        widget::{
+            controls, deco,
+            detail::{Tone, card, chip, hint, toned_chip},
+        },
     },
 };
-
-/// Size of the name at the top of a detail panel or form.
-pub(super) const NAME_SIZE: f32 = 28.0;
 
 /// What follows a write to the database: reloading the screen once it
 /// succeeds, or reporting why it failed.
@@ -51,26 +51,37 @@ pub(super) fn detail_header<'a>(
     name: String,
     subtitle: Element<'a, Message>,
     lead: Option<Element<'a, Message>>,
-    edit: Message,
+    edit_message: Message,
     delete: Message,
 ) -> Element<'a, Message> {
-    let edit = button("Edit").on_press(edit);
-    let delete = button("Delete").style(quiet_danger).on_press(delete);
+    // One filled button per header: Edit, unless a lead such as Serve is
+    // the main action.
+    let edit = if lead.is_some() {
+        deco::secondary_button("Edit")
+    } else {
+        deco::primary_button("Edit")
+    };
+    let edit = edit.on_press(edit_message);
+    let delete = deco::danger_button("Delete").on_press(delete);
     let buttons = row![lead, edit, delete].spacing(constants::SPACING);
     page_header(name, subtitle, buttons.into())
 }
 
-/// A panel's header: `name` in large type over a `subtitle` line on the
-/// left, and `buttons` on the right. [`detail_header`] is this with Edit
-/// and Delete.
+/// A panel's header: `name` as a [title](deco::title) over a `subtitle`
+/// line on the left, `buttons` on the right, and an
+/// [ornament rule](deco::ornament_rule) underneath. [`detail_header`] is
+/// this with Edit and Delete.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(super) fn page_header<'a>(
     name: String,
     subtitle: Element<'a, Message>,
     buttons: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let title = column![text(name).size(NAME_SIZE), subtitle].spacing(6);
-    row![title, space().width(Fill), buttons].into()
+    let title = column![deco::title(name), subtitle].spacing(6);
+    let header = row![title, space().width(Fill), buttons];
+    column![header, deco::ornament_rule()]
+        .spacing(constants::SPACING)
+        .into()
 }
 
 /// Whether a recipe can be made from what is in stock, as shown under its
@@ -132,8 +143,8 @@ pub(super) fn volume_figure(
     }
 }
 
-/// A new- or edit form laid out like a detail panel: `title` in large type
-/// over a muted `note`, with the form's `buttons` (Save, and Cancel while
+/// A new- or edit form laid out like a detail panel: a [`page_header`]
+/// with `title` over a muted `note`, with the form's `buttons` (Save, and Cancel while
 /// editing) to the right, then the `fields` in a card.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(super) fn form_page<'a>(
@@ -154,9 +165,8 @@ pub(super) fn form_page_with_cards<'a>(
     buttons: Element<'a, Message>,
     cards: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let title = column![text(title).size(NAME_SIZE), hint(note)].spacing(6);
-    let header = row![title, space().width(Fill), buttons];
-    scrollable(column![header, cards].spacing(16)).into()
+    let header = page_header(title, hint(note).into(), buttons);
+    controls::scrolling(column![header, cards].spacing(16)).into()
 }
 
 /// A breadcrumb from [`breadcrumb_label`] as a chip, with a muted "+N

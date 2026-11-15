@@ -1,30 +1,49 @@
-//! Building blocks for detail panels: cards (plain or [toned](Tone)), stat
-//! tiles (showing a figure or holding a control), a stock gauge, chips
-//! (plain or toned), link rows (optionally with a row action
-//! or a toned status) and labelled fields.
+//! Building blocks for detail panels: double-bordered cards (plain or
+//! [toned](Tone)), stat tiles with corner brackets (showing a figure or
+//! holding a control), a segmented stock gauge, square chips (plain or
+//! toned), link rows (optionally with a row action or a toned status),
+//! column headings and labelled fields.
 //! Every colour comes from the theme's palette, so they suit whichever
 //! theme is chosen.
 
 use iced::{
     Alignment::Center,
-    Border, Element,
+    Border, Color, Element,
     Length::{Fill, Fixed},
     Theme,
     alignment::Horizontal::Right,
     theme::palette::Pair,
-    widget::{Column, Container, Text, button, column, container, progress_bar, row, space, text},
+    widget::{Button, Column, Row, Text, button, column, container, row, space, text},
 };
 
-use crate::{logic::StockLevel, presentation::constants};
+use crate::{
+    logic::StockLevel,
+    presentation::{
+        constants,
+        widget::{
+            deco,
+            deco_card::{DecoCard, FRAME_PADDING},
+        },
+    },
+};
 
-/// Corner radius of cards.
-const CARD_RADIUS: f32 = 8.0;
+/// How much of the accent colour the inner line of a plain card keeps.
+const INNER_LINE_ALPHA: f32 = 0.35;
+/// Space between a card's inner line and its content.
+const CARD_PADDING: f32 = constants::PADDING as f32 + FRAME_PADDING;
 /// Size of the headline figure in a stat tile.
 const VALUE_SIZE: f32 = 28.0;
+/// How much of a toned card's text colour fills a button on it when
+/// hovered.
+const ON_TONE_WASH: f32 = 0.12;
 /// How much of the text colour muted text keeps.
 const MUTED_ALPHA: f32 = 0.65;
 /// Thickness of the stock gauge.
 const GAUGE_GIRTH: f32 = 8.0;
+/// How many segments the stock gauge is split into.
+const GAUGE_SEGMENTS: u8 = 20;
+/// Gap between the stock gauge's segments.
+const GAUGE_GAP: f32 = 2.0;
 /// Width of the status column of a [`status_link_row`], so the details
 /// before it line up from row to row. Fits "None in stock" in small type.
 const STATUS_WIDTH: f32 = 100.0;
@@ -39,8 +58,8 @@ pub enum Tone {
     Danger,
 }
 
-/// A rounded, bordered box holding `content`, under a small muted `title`
-/// if it has one.
+/// A square box with a double border, holding `content` under a small
+/// `title` if it has one.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn card<'a, Message: 'a>(
     title: Option<&str>,
@@ -53,15 +72,22 @@ pub fn card<'a, Message: 'a>(
 fn card_box<'a, Message: 'a>(
     title: Option<&str>,
     content: impl Into<Element<'a, Message>>,
-) -> Container<'a, Message> {
+) -> DecoCard<'a, Message> {
     let body = Column::new()
         .push(title.map(caption))
         .push(content)
         .spacing(constants::SPACING);
-    container(body)
+    let box_ = container(body)
         .width(Fill)
-        .padding(constants::PADDING)
-        .style(card_style)
+        .padding(CARD_PADDING)
+        .style(card_style);
+    DecoCard::new(box_, |theme| inner_line(theme, Tone::Neutral))
+}
+
+/// A [`card_box`] for a tile, with accent brackets in its corners.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn tile_box<'a, Message: 'a>(content: impl Into<Element<'a, Message>>) -> DecoCard<'a, Message> {
+    card_box(None, content).brackets(deco::accent)
 }
 
 /// A card showing one figure: a small `label`, the `value` in large type,
@@ -79,11 +105,11 @@ pub fn stat_tile<'a, Message: 'a>(
     label: &str,
     value: impl text::IntoFragment<'a>,
     below: Option<Element<'a, Message>>,
-) -> Container<'a, Message> {
+) -> DecoCard<'a, Message> {
     let body = column![caption(label), text(value).size(VALUE_SIZE)]
         .push(below)
         .spacing(constants::SPACING / 2);
-    card_box(None, body)
+    tile_box(body)
 }
 
 /// A [`stat_tile`] whose figure is a control, such as a stepper, rather
@@ -93,33 +119,49 @@ pub fn stat_tile<'a, Message: 'a>(
 pub fn control_tile<'a, Message: 'a>(
     label: &str,
     control: impl Into<Element<'a, Message>>,
-) -> Container<'a, Message> {
+) -> DecoCard<'a, Message> {
     let body = column![caption(label), control.into()].spacing(constants::SPACING / 2);
-    card_box(None, body)
+    tile_box(body)
 }
 
-/// A card filled with the weak shade of `tone`'s colour and outlined in
-/// it, for a message about the whole page, such as what was just served.
-/// A neutral one is a plain [`card`].
+/// A card filled with the weak shade of `tone`'s colour and double
+/// outlined in it, for a message about the whole page, such as what was
+/// just served. A neutral one is a plain [`card`].
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn toned_card<'a, Message: 'a>(
     tone: Tone,
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    container(content)
+    let box_ = container(content)
         .width(Fill)
-        .padding(constants::PADDING)
-        .style(move |theme: &Theme| toned_card_style(theme, tone))
-        .into()
+        .padding(CARD_PADDING)
+        .style(move |theme: &Theme| toned_card_style(theme, tone));
+    DecoCard::new(box_, move |theme| inner_line(theme, tone)).into()
 }
 
-/// A bar filled to `fraction` (0 to 1), coloured by `level`, followed by
-/// the share as a percentage.
+/// A button for a [`toned_card`] of the same `tone`, such as Dismiss: a
+/// [secondary button](deco::secondary_button) outlined in the card's text
+/// colour, which reads on the card where the accent may not.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn toned_card_button<'a, Message: 'a>(tone: Tone, label: &str) -> Button<'a, Message> {
+    deco::secondary_button(label).style(move |theme: &Theme, status| on_tone(theme, status, tone))
+}
+
+/// A row of square segments, lit up to `fraction` (0 to 1) in the colour
+/// of `level` (see [`lit_segments`]), followed by the share as a
+/// percentage.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn gauge<'a, Message: 'a>(fraction: f32, level: StockLevel) -> Element<'a, Message> {
-    let bar = progress_bar(0.0..=1.0, fraction)
-        .girth(GAUGE_GIRTH)
-        .style(move |theme: &Theme| gauge_style(theme, level));
+    let lit = lit_segments(fraction);
+    let segments = (0..GAUGE_SEGMENTS).map(|index| {
+        let on = usize::from(index) < lit;
+        container(space())
+            .width(Fill)
+            .height(GAUGE_GIRTH)
+            .style(move |theme: &Theme| segment_style(theme, level, on))
+            .into()
+    });
+    let bar = Row::with_children(segments).spacing(GAUGE_GAP).width(Fill);
     let share = text(percent(fraction))
         .size(constants::SMALL_TEXT)
         .style(muted);
@@ -129,7 +171,21 @@ pub fn gauge<'a, Message: 'a>(fraction: f32, level: StockLevel) -> Element<'a, M
         .into()
 }
 
-/// A small pill-shaped label, e.g. for a category.
+/// How many of the gauge's segments are lit for a `fraction` (0 to 1) of
+/// stock: rounded up, so any stock at all lights at least one, and none
+/// lights none.
+pub fn lit_segments(fraction: f32) -> usize {
+    // Leeway for fractions such as 0.15 that come out a hair over their
+    // true value, so they don't light a segment too many.
+    const LEEWAY: f32 = 1e-4;
+    let filled = fraction * f32::from(GAUGE_SEGMENTS) - LEEWAY;
+    (0..GAUGE_SEGMENTS)
+        .filter(|&index| f32::from(index) < filled)
+        .count()
+        .max(usize::from(fraction > 0.0))
+}
+
+/// A small square label, e.g. for a category.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn chip<'a, Message: 'a>(label: impl text::IntoFragment<'a>) -> Element<'a, Message> {
     container(text(label).size(constants::SMALL_TEXT))
@@ -213,68 +269,50 @@ pub fn status_link_row<'a, Message: Clone + 'a>(
         .into()
 }
 
-/// A compact [`quiet_danger`] button in small type, for an action on one
+/// A compact [`deco::quiet_danger`] button in small capitals, for an action on one
 /// row of a list rather than on the whole page.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn row_danger_button<'a, Message: Clone + 'a>(
     label: &str,
     on_press: Message,
 ) -> Element<'a, Message> {
-    button(text(label.to_owned()).size(constants::SMALL_TEXT))
-        .padding([2, 8])
-        .style(quiet_danger)
+    deco::small_button(label)
+        .style(deco::quiet_danger)
         .on_press(on_press)
         .into()
 }
 
-/// A form field with its `label` above it.
+/// A form field with its `label` above it as a [`column_heading`].
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn labeled<'a, Message: 'a>(
     label: &str,
     field: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let label = text(label.to_owned())
-        .size(constants::SMALL_TEXT)
-        .style(muted);
-    column![label, field.into()].spacing(4).into()
+    column![column_heading(label), field.into()]
+        .spacing(4)
+        .into()
 }
 
-/// A small, muted, upper-case heading, as on cards and stat tiles.
+/// A small, muted heading in capitals in the heading face, over a field
+/// or a column of a table.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn column_heading<'a>(label: &str) -> Text<'a> {
+    deco::caps(label).size(constants::SMALL_TEXT).style(muted)
+}
+
+/// A small heading in capitals in the heading face and the accent colour,
+/// as on cards and stat tiles.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn caption<'a>(label: &str) -> Text<'a> {
-    text(label.to_uppercase())
+    deco::caps(label)
         .size(constants::SMALL_TEXT)
-        .style(muted)
+        .style(deco::accented)
 }
 
 /// A small, muted note, e.g. explaining why something is missing.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn hint<'a>(note: impl text::IntoFragment<'a>) -> Text<'a> {
     text(note).size(constants::SMALL_TEXT).style(muted)
-}
-
-/// A button for a destructive action that is less loud than
-/// [`button::danger`] until hovered: danger-coloured text and outline on
-/// no background, filling in on hover.
-pub fn quiet_danger(theme: &Theme, status: button::Status) -> button::Style {
-    let danger = theme.extended_palette().danger;
-    let border = Border {
-        width: 1.0,
-        radius: 2.0.into(),
-        color: danger.base.color,
-    };
-    match status {
-        button::Status::Active | button::Status::Disabled => button::Style {
-            background: None,
-            text_color: danger.base.color,
-            border,
-            ..button::Style::default()
-        },
-        button::Status::Hovered | button::Status::Pressed => button::Style {
-            border,
-            ..button::danger(theme, status)
-        },
-    }
 }
 
 /// Text in a fainter shade of the theme's text colour, for secondary
@@ -311,7 +349,7 @@ fn card_style(theme: &Theme) -> container::Style {
         text_color: Some(palette.background.weakest.text),
         border: Border {
             width: 1.0,
-            radius: CARD_RADIUS.into(),
+            radius: 0.0.into(),
             color: palette.background.weak.color,
         },
         ..container::Style::default()
@@ -323,10 +361,7 @@ fn chip_style(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(pair.color.into()),
         text_color: Some(pair.text),
-        border: Border {
-            radius: f32::MAX.into(),
-            ..Border::default()
-        },
+        border: Border::default(),
         ..container::Style::default()
     }
 }
@@ -362,6 +397,38 @@ fn toned_card_style(theme: &Theme, tone: Tone) -> container::Style {
     }
 }
 
+/// The colour of the inner line of a card of `tone`: a faint wash of the
+/// accent on a plain card, or the base colour of the tone, as its outer
+/// line is.
+fn inner_line(theme: &Theme, tone: Tone) -> Color {
+    match tone_shades(theme, tone) {
+        Some(shade) => shade.base.color,
+        None => deco::accent(theme).scale_alpha(INNER_LINE_ALPHA),
+    }
+}
+
+/// A [`toned_card_button`]: a [`deco::secondary`] button in the text
+/// colour of a `tone` card, with a faint wash of it on hover. A neutral
+/// one is a plain secondary button.
+fn on_tone(theme: &Theme, status: button::Status, tone: Tone) -> button::Style {
+    let style = deco::secondary(theme, status);
+    let Some(shade) = tone_shades(theme, tone) else {
+        return style;
+    };
+    let ink = shade.weak.text;
+    let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
+        .then(|| ink.scale_alpha(ON_TONE_WASH).into());
+    button::Style {
+        background,
+        text_color: ink,
+        border: Border {
+            color: ink,
+            ..style.border
+        },
+        ..style
+    }
+}
+
 /// The base and weak shades of `tone`'s colour in the theme, or `None`
 /// when neutral.
 fn tone_shades(theme: &Theme, tone: Tone) -> Option<Shades> {
@@ -382,20 +449,19 @@ struct Shades {
     weak: Pair,
 }
 
-fn gauge_style(theme: &Theme, level: StockLevel) -> progress_bar::Style {
+/// One segment of the stock gauge: in the colour of `level` when `lit`,
+/// or the shade of cards' borders when not.
+fn segment_style(theme: &Theme, level: StockLevel, lit: bool) -> container::Style {
     let palette = theme.extended_palette();
-    let bar = match level {
-        StockLevel::Healthy => palette.success.base.color,
-        StockLevel::Low => palette.warning.base.color,
-        StockLevel::Critical => palette.danger.base.color,
+    let color = match (lit, level) {
+        (false, _) => palette.background.weak.color,
+        (true, StockLevel::Healthy) => palette.success.base.color,
+        (true, StockLevel::Low) => palette.warning.base.color,
+        (true, StockLevel::Critical) => palette.danger.base.color,
     };
-    progress_bar::Style {
-        background: palette.background.weak.color.into(),
-        bar: bar.into(),
-        border: Border {
-            radius: (GAUGE_GIRTH / 2.0).into(),
-            ..Border::default()
-        },
+    container::Style {
+        background: Some(color.into()),
+        ..container::Style::default()
     }
 }
 
@@ -404,6 +470,7 @@ mod tests {
     use iced::Background;
 
     use super::*;
+    use crate::presentation::theme::Themes;
 
     #[test]
     fn percentages_round_down() {
@@ -416,7 +483,7 @@ mod tests {
 
     #[test]
     fn gauge_colour_follows_the_stock_level_in_every_theme() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             let cases = [
                 (StockLevel::Healthy, palette.success.base.color),
@@ -424,19 +491,55 @@ mod tests {
                 (StockLevel::Critical, palette.danger.base.color),
             ];
             for (level, expected) in cases {
-                let style = gauge_style(theme, level);
-                assert_eq!(style.bar, Background::Color(expected), "{theme} {level:?}");
+                let lit = segment_style(theme, level, true);
+                assert_eq!(lit.background, Some(expected.into()), "{theme} {level:?}");
                 assert_eq!(
-                    style.background,
-                    Background::Color(palette.background.weak.color)
+                    segment_style(theme, level, false).background,
+                    Some(Background::Color(palette.background.weak.color))
                 );
             }
         }
     }
 
     #[test]
+    fn gauge_segments_light_up_rounding_up() {
+        assert_eq!(lit_segments(0.0), 0);
+        assert_eq!(lit_segments(-0.5), 0);
+        assert_eq!(lit_segments(0.001), 1);
+        assert_eq!(lit_segments(0.05), 1);
+        assert_eq!(lit_segments(0.051), 2);
+        assert_eq!(lit_segments(0.15), 3);
+        assert_eq!(lit_segments(0.75), 15);
+        assert_eq!(lit_segments(0.999), 20);
+        assert_eq!(lit_segments(1.0), 20);
+        assert_eq!(lit_segments(1.5), 20);
+    }
+
+    #[test]
+    fn cards_and_chips_are_square() {
+        for theme in Themes::new().options() {
+            assert_eq!(card_style(theme).border.radius, 0.0.into());
+            assert_eq!(chip_style(theme).border.radius, 0.0.into());
+        }
+    }
+
+    #[test]
+    fn inner_lines_are_faint_accent_or_the_tone_colour() {
+        for theme in Themes::new().options() {
+            let palette = theme.extended_palette();
+            assert_eq!(
+                inner_line(theme, Tone::Neutral),
+                theme.palette().primary.scale_alpha(INNER_LINE_ALPHA)
+            );
+            assert_eq!(inner_line(theme, Tone::Success), palette.success.base.color);
+            assert_eq!(inner_line(theme, Tone::Warning), palette.warning.base.color);
+            assert_eq!(inner_line(theme, Tone::Danger), palette.danger.base.color);
+        }
+    }
+
+    #[test]
     fn cards_and_chips_use_the_theme_background() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let palette = theme.extended_palette();
 
             let card = card_style(theme);
@@ -453,25 +556,8 @@ mod tests {
     }
 
     #[test]
-    fn quiet_danger_is_outlined_until_hovered() {
-        for theme in Theme::ALL {
-            let danger = theme.extended_palette().danger.base.color;
-
-            let active = quiet_danger(theme, button::Status::Active);
-            assert_eq!(active.background, None, "{theme}");
-            assert_eq!(active.text_color, danger);
-            assert_eq!(active.border.color, danger);
-
-            let hovered = quiet_danger(theme, button::Status::Hovered);
-            let loud = button::danger(theme, button::Status::Hovered);
-            assert_eq!(hovered.background, loud.background, "{theme}");
-            assert_eq!(hovered.text_color, loud.text_color);
-        }
-    }
-
-    #[test]
     fn muted_text_is_a_fainter_theme_text_colour() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let text = theme.palette().text;
             let color = muted(theme).color.unwrap();
             assert_eq!([color.r, color.g, color.b], [text.r, text.g, text.b]);
@@ -481,7 +567,7 @@ mod tests {
 
     #[test]
     fn toned_chips_use_the_weak_shade_of_their_tone() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             assert_eq!(toned_chip_style(theme, Tone::Neutral), chip_style(theme));
             let cases = [
@@ -504,7 +590,7 @@ mod tests {
 
     #[test]
     fn toned_cards_are_filled_with_the_weak_shade_and_outlined_in_the_base() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             assert_eq!(toned_card_style(theme, Tone::Neutral), card_style(theme));
             let cases = [
@@ -527,8 +613,31 @@ mod tests {
     }
 
     #[test]
+    fn buttons_on_toned_cards_are_in_the_cards_text_colour() {
+        for theme in Themes::new().options() {
+            let active = button::Status::Active;
+            let hovered = button::Status::Hovered;
+            assert_eq!(
+                on_tone(theme, active, Tone::Neutral),
+                deco::secondary(theme, active)
+            );
+            for tone in [Tone::Success, Tone::Warning, Tone::Danger] {
+                let ink = tone_shades(theme, tone).unwrap().weak.text;
+                let style = on_tone(theme, active, tone);
+                assert_eq!(style.text_color, ink, "{theme} {tone:?}");
+                assert_eq!(style.border.color, ink);
+                assert_eq!(style.background, None);
+                assert_eq!(
+                    on_tone(theme, hovered, tone).background,
+                    Some(ink.scale_alpha(ON_TONE_WASH).into())
+                );
+            }
+        }
+    }
+
+    #[test]
     fn toned_text_is_muted_or_the_tone_colour() {
-        for theme in Theme::ALL {
+        for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             assert_eq!(toned_text(theme, Tone::Neutral).color, muted(theme).color);
             let cases = [

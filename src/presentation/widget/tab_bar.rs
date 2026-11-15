@@ -3,27 +3,47 @@
 //! between metric and imperial amounts.
 
 use iced::{
+    Alignment::Center,
     Element,
     Length::Fill,
     Theme,
-    widget::{button, container, row, space, stack, text},
+    widget::{Stack, button, container, row, space, text},
 };
 
 use crate::{
     models::UnitSystem,
-    presentation::{application::Message, constants, screen::ScreenKind, widget::frame},
+    presentation::{
+        application::Message,
+        constants,
+        screen::ScreenKind,
+        widget::{deco, frame},
+    },
 };
 
 /// Height of the bar.
 const HEIGHT: f32 = 48.0;
-/// Thickness of the line under the active tab.
-const UNDERLINE: f32 = 3.0;
+/// Size of the app's name in the corner.
+const BRAND_SIZE: f32 = 22.0;
+/// Size of the diamonds either side of the app's name.
+const BRAND_DIAMOND: f32 = 8.0;
+/// Size of a tab's label.
+const TAB_SIZE: f32 = 15.0;
+/// Size of the diamond at the centre of the active tab's underline.
+const TAB_DIAMOND: f32 = 7.0;
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn tab_bar<'a>(active: ScreenKind, units: UnitSystem) -> Element<'a, Message> {
-    let brand = container(text("Bartend 🍸").size(22))
+    let name = deco::caps("Bartend").size(BRAND_SIZE).style(deco::accented);
+    let brand = row![
+        deco::diamond(BRAND_DIAMOND),
+        name,
+        deco::diamond(BRAND_DIAMOND)
+    ]
+    .spacing(10)
+    .align_y(Center);
+    let brand = container(brand)
         .width(constants::MASTER_WIDTH)
-        .padding([0, constants::PADDING])
+        .center_x(constants::MASTER_WIDTH)
         .center_y(Fill);
 
     let tabs = row(ScreenKind::ALL
@@ -39,25 +59,33 @@ pub fn tab_bar<'a>(active: ScreenKind, units: UnitSystem) -> Element<'a, Message
     container(bar).width(Fill).style(frame::surface).into()
 }
 
-/// One screen's tab: its name, underlined in the accent colour while it is
-/// the `active` one.
+/// One screen's tab: its name in capitals, and while it is the `active`
+/// one, underlined in the accent colour with a diamond at the centre.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn tab<'a>(kind: ScreenKind, active: bool) -> Element<'a, Message> {
-    let label = button(container(text(kind.label())).center_y(Fill))
+    let name = deco::caps(kind.label()).size(TAB_SIZE);
+    let label = button(container(name).center_y(Fill))
         .height(Fill)
         .padding([0, 16])
         .style(move |theme: &Theme, status| frame::tab(theme, status, active))
         .on_press(Message::OpenScreen(kind));
-    let underline = container(space())
-        .width(Fill)
-        .height(UNDERLINE)
-        .style(move |theme: &Theme| frame::marker(theme, active));
-    // Laid over the tab, so that it takes the tab's width.
-    let underline = container(underline)
-        .padding([0, 10])
-        .width(Fill)
-        .align_bottom(Fill);
-    stack![label, underline].into()
+    let mut layers = Stack::new().push(label);
+    if active {
+        let underline = row![
+            frame::underline(),
+            deco::diamond(TAB_DIAMOND),
+            frame::underline()
+        ]
+        .spacing(4)
+        .align_y(Center);
+        // Laid over the tab, so that it takes the tab's width.
+        let underline = container(underline)
+            .padding([0, 10])
+            .width(Fill)
+            .align_bottom(Fill);
+        layers = layers.push(underline);
+    }
+    layers.into()
 }
 
 /// Two segments, one per unit system, with the one in use tinted. Picking

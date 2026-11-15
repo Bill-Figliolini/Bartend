@@ -2,7 +2,7 @@ use iced::{
     Element,
     Length::{Fill, Shrink},
     Task,
-    widget::{Column, Container, column, row, scrollable},
+    widget::{Column, column, row},
 };
 
 use crate::{
@@ -20,6 +20,8 @@ use crate::{
             },
         },
         widget::{
+            controls,
+            deco_card::DecoCard,
             detail::{card, gauge, hint, link_row, stat_tile},
             master_list::{Entry, master_list},
         },
@@ -165,7 +167,7 @@ impl Inventory {
         let used_in = self.used_in_card(&uses, category.is_some());
         let header = header(item, body.name, breadcrumb, category);
 
-        scrollable(column![header, tiles, used_in].spacing(16)).into()
+        controls::scrolling(column![header, tiles, used_in].spacing(16)).into()
     }
 
     /// The new- or edit-item form, laid out like the item's details: the
@@ -292,7 +294,7 @@ fn header<'a>(
 
 /// How many recipes the item can go into.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn uses_tile<'a>(uses: &[RecipeUse]) -> Container<'a, application::Message> {
+fn uses_tile<'a>(uses: &[RecipeUse]) -> DecoCard<'a, application::Message> {
     stat_tile("Used in", counted(uses.len(), "recipe"), None)
 }
 

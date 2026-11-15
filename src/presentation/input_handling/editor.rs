@@ -1,13 +1,13 @@
 //! [`Editor`]: the add-or-edit flow that every entry screen shares.
 
-use iced::{
-    Element,
-    widget::{button, row},
-};
+use iced::{Element, widget::row};
 
 use crate::{
     models::UnitSystem,
-    presentation::input_handling::{Form, FormError},
+    presentation::{
+        input_handling::{Form, FormError},
+        widget::deco,
+    },
 };
 
 /// A message for an [`Editor`]. Edits are started by the screen with
@@ -140,11 +140,10 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
     /// Save, plus Cancel while editing.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn buttons(&self) -> Element<'_, EditorMessage<F::Message>> {
-        let mut buttons = row![button("Save").on_press(EditorMessage::Save)].spacing(10);
+        let save = deco::primary_button("Save").on_press(EditorMessage::Save);
+        let mut buttons = row![save].spacing(10);
         if self.editing.is_some() {
-            let cancel = button("Cancel")
-                .style(button::secondary)
-                .on_press(EditorMessage::Cancel);
+            let cancel = deco::secondary_button("Cancel").on_press(EditorMessage::Cancel);
             buttons = buttons.push(cancel);
         }
         buttons.into()
