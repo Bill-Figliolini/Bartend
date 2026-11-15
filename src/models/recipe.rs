@@ -55,6 +55,18 @@ impl RecipeBody {
     }
 }
 
+impl VolumeSummary {
+    /// The summary for `servings` of the recipe: every total multiplied by
+    /// it.
+    #[must_use]
+    pub fn scaled(&self, servings: f32) -> Self {
+        Self {
+            volume: self.volume.map(|volume| volume * servings),
+            others: self.others.iter().map(|&other| other * servings).collect(),
+        }
+    }
+}
+
 impl Display for Recipe {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.body.name)
@@ -142,6 +154,25 @@ mod tests {
                 Quantity::new(5.0, Unit::Gram)
             ]
         );
+    }
+
+    #[test]
+    fn scaling_a_volume_summary_multiplies_every_total() {
+        use crate::models::Unit;
+        let summary = recipe_of(&[
+            Quantity::new(30.0, Unit::Milliliter),
+            Quantity::new(2.0, Unit::Dash),
+        ])
+        .volume_summary();
+        assert_eq!(
+            summary.scaled(1.5),
+            VolumeSummary {
+                volume: Some(Quantity::new(45.0, Unit::Milliliter)),
+                others: vec![Quantity::new(3.0, Unit::Dash)],
+            }
+        );
+        let empty = recipe_of(&[]).volume_summary();
+        assert_eq!(empty.scaled(2.0), empty);
     }
 
     #[test]

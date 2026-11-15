@@ -1,18 +1,16 @@
 use crate::{
     logic::{CategoryService, IngredientStatus, ItemService, RecipeService, ingredient_statuses},
-    models::{
-        CategoryFilter, CategoryID, Config, Recipe, RecipeBody, RecipeID, UnitSystem, VolumeSummary,
-    },
+    models::{CategoryFilter, CategoryID, Config, Recipe, RecipeBody, RecipeID, UnitSystem},
     presentation::{
         application::{self, Context},
         constants,
         input_handling::{Editor, EditorMessage, RecipeInput, RecipeMessage, Saved, show_quantity},
         screen::{
             Panels,
-            shared::{counted, detail_header, form_page_with_cards},
+            shared::{Availability, counted, detail_header, form_page_with_cards, volume_figure},
         },
         widget::{
-            detail::{Tone, card, hint, stat_tile, status_link_row, toned_chip},
+            detail::{Tone, card, hint, stat_tile, status_link_row},
             footer::footer,
             master_list::{Entry, master_list},
         },
@@ -154,7 +152,7 @@ impl Recipes {
             .into();
         let header = detail_header(
             body.name.clone(),
-            availability(&statuses),
+            Availability::of(&statuses).view(),
             Some(serve),
             recipes_msg(Message::BeginEdit(Recipe {
                 id,
@@ -259,47 +257,12 @@ fn recipes_msg(msg: Message) -> application::Message {
 fn editor_msg(msg: EditorMessage<RecipeMessage>) -> application::Message {
     recipes_msg(Message::Editor(msg))
 }
-/// Under the recipe's name: whether it can be made from what is in stock
-/// (every ingredient [`IngredientStatus::InStock`], as Serving judges it),
-/// or a note that it is still a draft with no ingredients.
-#[cfg_attr(coverage_nightly, coverage(off))]
-fn availability<'a>(statuses: &[IngredientStatus]) -> Element<'a, application::Message> {
-    if statuses.is_empty() {
-        hint("Draft: no ingredients yet").into()
-    } else if statuses
-        .iter()
-        .all(|&status| status == IngredientStatus::InStock)
-    {
-        toned_chip("Ready to make", Tone::Success)
-    } else {
-        toned_chip("Missing ingredients", Tone::Warning)
-    }
-}
-
 /// How an ingredient's stock status reads on its row.
 fn status_label(status: IngredientStatus) -> (&'static str, Tone) {
     match status {
         IngredientStatus::InStock => ("In stock", Tone::Neutral),
         IngredientStatus::Short => ("Short", Tone::Warning),
         IngredientStatus::NoneInStock => ("None in stock", Tone::Danger),
-    }
-}
-
-/// The drink volume tile's figure, and any line under it: the amounts that
-/// can't join the volume, or why there is no volume to show.
-fn volume_figure(summary: &VolumeSummary, units: UnitSystem) -> (String, Option<String>) {
-    let others: Vec<String> = summary
-        .others
-        .iter()
-        .map(|&quantity| show_quantity(quantity, units))
-        .collect();
-    let plus = (!others.is_empty()).then(|| format!("plus {}", others.join(", ")));
-    match summary.volume {
-        Some(volume) => (show_quantity(volume, units), plus),
-        None => (
-            "—".to_string(),
-            Some(plus.unwrap_or_else(|| "No ingredients measured by volume".to_string())),
-        ),
     }
 }
 
@@ -547,51 +510,6 @@ mod tests {
         assert_eq!(
             status_label(IngredientStatus::NoneInStock),
             ("None in stock", Tone::Danger)
-        );
-    }
-
-    #[test]
-    fn volume_figure_shows_the_volume_and_whatever_cannot_join_it() {
-        use crate::models::{Quantity, Unit};
-        let summary = |volume, others| VolumeSummary { volume, others };
-        let ml = |amount| Quantity::new(amount, Unit::Milliliter);
-        let dashes = Quantity::new(2.0, Unit::Dash);
-        let grams = Quantity::new(5.0, Unit::Gram);
-
-        assert_eq!(
-            volume_figure(&summary(Some(ml(90.0)), vec![]), UnitSystem::Metric),
-            ("90 ml".to_string(), None)
-        );
-        assert_eq!(
-            volume_figure(
-                &summary(Some(ml(90.0)), vec![dashes, grams]),
-                UnitSystem::Metric
-            ),
-            ("90 ml".to_string(), Some("plus 2 dash, 5 g".to_string()))
-        );
-        assert_eq!(
-            volume_figure(&summary(None, vec![dashes]), UnitSystem::Metric),
-            ("—".to_string(), Some("plus 2 dash".to_string()))
-        );
-        assert_eq!(
-            volume_figure(&summary(None, vec![]), UnitSystem::Metric),
-            (
-                "—".to_string(),
-                Some("No ingredients measured by volume".to_string())
-            )
-        );
-    }
-
-    #[test]
-    fn volume_figure_follows_the_unit_system() {
-        use crate::models::{Quantity, Unit};
-        let summary = VolumeSummary {
-            volume: Some(Quantity::new(2.0, Unit::FluidOunce)),
-            others: Vec::new(),
-        };
-        assert_eq!(
-            volume_figure(&summary, UnitSystem::Imperial).0,
-            "2 fl oz".to_string()
         );
     }
 }

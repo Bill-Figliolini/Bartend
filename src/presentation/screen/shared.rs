@@ -1,7 +1,8 @@
 //! Pieces the detail panels and forms of several screens share, so that
-//! items, categories and recipes read alike: the header with a name, a
-//! subtitle and Edit / Delete, the form page with Save / Cancel, and counts in
-//! words.
+//! items, categories, recipes and servings read alike: the header with a
+//! name, a subtitle and buttons such as Edit / Delete, the form page with
+//! Save / Cancel, whether a recipe can be made, its drink volume, and counts
+//! in words.
 
 use iced::{
     Alignment::Center,
@@ -11,12 +12,13 @@ use iced::{
 };
 
 use crate::{
-    logic::CategoryService,
-    models::CategoryID,
+    logic::{CategoryService, IngredientStatus},
+    models::{CategoryID, UnitSystem, VolumeSummary},
     presentation::{
         application::Message,
         constants,
-        widget::detail::{card, chip, hint, quiet_danger},
+        input_handling::show_quantity,
+        widget::detail::{Tone, card, chip, hint, quiet_danger, toned_chip},
     },
 };
 
@@ -34,11 +36,82 @@ pub(super) fn detail_header<'a>(
     edit: Message,
     delete: Message,
 ) -> Element<'a, Message> {
-    let title = column![text(name).size(NAME_SIZE), subtitle].spacing(6);
     let edit = button("Edit").on_press(edit);
     let delete = button("Delete").style(quiet_danger).on_press(delete);
     let buttons = row![lead, edit, delete].spacing(constants::SPACING);
+    page_header(name, subtitle, buttons.into())
+}
+
+/// A panel's header: `name` in large type over a `subtitle` line on the
+/// left, and `buttons` on the right. [`detail_header`] is this with Edit
+/// and Delete.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub(super) fn page_header<'a>(
+    name: String,
+    subtitle: Element<'a, Message>,
+    buttons: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let title = column![text(name).size(NAME_SIZE), subtitle].spacing(6);
     row![title, space().width(Fill), buttons].into()
+}
+
+/// Whether a recipe can be made from what is in stock, as shown under its
+/// name on Recipes and Serving.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Availability {
+    /// The recipe has no ingredients yet.
+    Draft,
+    Ready,
+    Missing,
+}
+
+impl Availability {
+    /// Ready when every ingredient is [`IngredientStatus::InStock`], as
+    /// Serving's list judges it.
+    pub(super) fn of(statuses: &[IngredientStatus]) -> Self {
+        if statuses.is_empty() {
+            Self::Draft
+        } else if statuses
+            .iter()
+            .all(|&status| status == IngredientStatus::InStock)
+        {
+            Self::Ready
+        } else {
+            Self::Missing
+        }
+    }
+
+    /// The line under the recipe's name: a chip saying whether it can be
+    /// made, or a note that it is still a draft.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub(super) fn view<'a>(self) -> Element<'a, Message> {
+        match self {
+            Self::Draft => hint("Draft: no ingredients yet").into(),
+            Self::Ready => toned_chip("Ready to make", Tone::Success),
+            Self::Missing => toned_chip("Missing ingredients", Tone::Warning),
+        }
+    }
+}
+
+/// A drink volume tile's figure, and any line under it: the amounts that
+/// can't join the volume, or why there is no volume to show.
+pub(super) fn volume_figure(
+    summary: &VolumeSummary,
+    units: UnitSystem,
+) -> (String, Option<String>) {
+    let others: Vec<String> = summary
+        .others
+        .iter()
+        .map(|&quantity| show_quantity(quantity, units))
+        .collect();
+    let plus = (!others.is_empty()).then(|| format!("plus {}", others.join(", ")));
+    match summary.volume {
+        Some(volume) => (show_quantity(volume, units), plus),
+        None => (
+            "—".to_string(),
+            Some(plus.unwrap_or_else(|| "No ingredients measured by volume".to_string())),
+        ),
+    }
 }
 
 /// A new- or edit form laid out like a detail panel: `title` in large type
@@ -121,6 +194,60 @@ mod tests {
         assert_eq!(counted(0, "recipe"), "No recipes");
         assert_eq!(counted(1, "recipe"), "1 recipe");
         assert_eq!(counted(4, "item"), "4 items");
+    }
+
+    #[test]
+    fn a_recipe_is_ready_only_with_every_ingredient_in_stock() {
+        use IngredientStatus::{InStock, NoneInStock, Short};
+        assert_eq!(Availability::of(&[]), Availability::Draft);
+        assert_eq!(Availability::of(&[InStock, InStock]), Availability::Ready);
+        assert_eq!(Availability::of(&[InStock, Short]), Availability::Missing);
+        assert_eq!(Availability::of(&[NoneInStock]), Availability::Missing);
+    }
+
+    #[test]
+    fn volume_figure_shows_the_volume_and_whatever_cannot_join_it() {
+        use crate::models::{Quantity, Unit};
+        let summary = |volume, others| VolumeSummary { volume, others };
+        let ml = |amount| Quantity::new(amount, Unit::Milliliter);
+        let dashes = Quantity::new(2.0, Unit::Dash);
+        let grams = Quantity::new(5.0, Unit::Gram);
+
+        assert_eq!(
+            volume_figure(&summary(Some(ml(90.0)), vec![]), UnitSystem::Metric),
+            ("90 ml".to_string(), None)
+        );
+        assert_eq!(
+            volume_figure(
+                &summary(Some(ml(90.0)), vec![dashes, grams]),
+                UnitSystem::Metric
+            ),
+            ("90 ml".to_string(), Some("plus 2 dash, 5 g".to_string()))
+        );
+        assert_eq!(
+            volume_figure(&summary(None, vec![dashes]), UnitSystem::Metric),
+            ("—".to_string(), Some("plus 2 dash".to_string()))
+        );
+        assert_eq!(
+            volume_figure(&summary(None, vec![]), UnitSystem::Metric),
+            (
+                "—".to_string(),
+                Some("No ingredients measured by volume".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn volume_figure_follows_the_unit_system() {
+        use crate::models::{Quantity, Unit};
+        let summary = VolumeSummary {
+            volume: Some(Quantity::new(2.0, Unit::FluidOunce)),
+            others: Vec::new(),
+        };
+        assert_eq!(
+            volume_figure(&summary, UnitSystem::Imperial).0,
+            "2 fl oz".to_string()
+        );
     }
 
     #[test]

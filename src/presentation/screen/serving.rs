@@ -1,20 +1,24 @@
 use iced::{
     Alignment::Center,
     Element,
-    Length::Fill,
+    Length::{Fill, Shrink},
     Task,
-    widget::{button, column, container, row, space, text},
+    widget::{button, column, container, row, scrollable, space, text},
 };
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService, can_make, totals_by_key},
-    models::{Config, ItemUse, Quantity, Recipe, UnitSystem},
+    models::{CategoryID, Config, ItemUse, Quantity, Recipe, RecipeBody, UnitSystem},
     presentation::{
         application::{self, Context},
         constants,
         input_handling::{ServingInput, ServingMessage, format_number, show_quantity},
-        screen::Panels,
+        screen::{
+            Panels,
+            shared::{Availability, page_header, volume_figure},
+        },
         widget::{
+            detail::{Tone, card, control_tile, hint, stat_tile, toned_card},
             footer::footer,
             master_list::{Entry, master_list},
         },
@@ -35,6 +39,8 @@ pub(in crate::presentation) enum Message {
 pub(in crate::presentation) enum Command {
     /// Takes `uses` out of stock, then reports `served`.
     UseItems { uses: Vec<ItemUse>, served: Served },
+    /// Opens the category on the Categories screen.
+    ShowCategory(CategoryID),
 }
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
@@ -46,6 +52,7 @@ impl Command {
                     Err(e) => Task::done(application::Message::Error(e)),
                 }
             }
+            Command::ShowCategory(id) => Task::done(application::Message::ShowCategory(id)),
         }
     }
 }
@@ -117,8 +124,10 @@ impl Serving {
         }
     }
     /// The recipes on the left, faded if there is not enough in stock to
-    /// make one; choosing one fills the right with the number of servings,
-    /// and a table of its ingredients with an item picker for each.
+    /// make one. Choosing one fills the right with its name, whether it can
+    /// be made, and Serve; then tiles for the number of servings and the
+    /// drink volume, and a table of its ingredients with an item picker for
+    /// each.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
@@ -141,24 +150,10 @@ impl Serving {
         });
         let master = master_list(None, entries);
 
-        let form: Element<'_, _> = match self.input.recipe_name() {
-            None => text("Choose a recipe from the list to serve it.").into(),
-            Some(name) => {
-                let header = row![
-                    text(name).size(24),
-                    space().width(Fill),
-                    self.input.servings_view().map(input_msg),
-                ]
-                .spacing(constants::SPACING)
-                .align_y(Center);
-                let table = self.input.table_view(category_service).map(input_msg);
-                let save = self.input.servable().then(|| serving_msg(Message::Save));
-                let serve = row![space().width(Fill), button("Serve").on_press_maybe(save)];
-                column![header, table, serve].spacing(16).into()
-            }
+        let detail = match self.input.recipe() {
+            None => Self::empty_view(),
+            Some(recipe) => self.recipe_view(recipe, category_service),
         };
-        let notice = self.notice.as_ref().map(|served| self.notice_view(served));
-        let detail = column![form, notice].spacing(16);
 
         let unit_swap_button = button(text(self.input.units().to_string()))
             .style(button::secondary)
@@ -172,17 +167,79 @@ impl Serving {
         Panels { master, detail }
     }
 
+    /// What the panel shows before a recipe is chosen.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn empty_view<'a>() -> Element<'a, application::Message> {
+        let note = hint("Choose a recipe from the list. Faded recipes are missing ingredients.");
+        page_header("Serve a drink".to_string(), note.into(), row![].into())
+    }
+
+    /// The chosen recipe: its header with Serve, any notice of what was
+    /// just served, the servings and drink volume tiles, then the pours in
+    /// a card.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn recipe_view<'a>(
+        &'a self,
+        recipe: &'a Recipe,
+        category_service: &CategoryService,
+    ) -> Element<'a, application::Message> {
+        let save = self.input.servable().then(|| serving_msg(Message::Save));
+        let serve = button("Serve").on_press_maybe(save);
+        let view_recipe = button("View recipe")
+            .style(button::secondary)
+            .on_press(application::Message::ShowRecipe(recipe.id));
+        let header = page_header(
+            recipe.body.name.clone(),
+            availability(&recipe.body, self.input.ready()).view(),
+            row![serve, view_recipe].spacing(constants::SPACING).into(),
+        );
+
+        let notice = self.notice.as_ref().map(|served| self.notice_view(served));
+
+        // A fixed-width tile with a filling height is laid out after the
+        // others, so it takes the volume tile's height wherever it sits
+        // (see `stat_tile`). The volume tile always has a line under its
+        // figure while the servings show an error, so it is never the
+        // shorter one.
+        let servings_tile = control_tile("Servings", self.input.servings_view().map(input_msg))
+            .width(SERVINGS_TILE_WIDTH)
+            .height(Fill);
+        let (volume, below) = drink_volume(&recipe.body, self.input.servings(), self.input.units());
+        let volume_tile = stat_tile(
+            "Drink volume",
+            volume,
+            below.map(|below| hint(below).into()),
+        );
+        let tiles = row![servings_tile, volume_tile]
+            .spacing(constants::SPACING)
+            .height(Shrink);
+
+        let pours = card(
+            Some("Pours"),
+            self.input.table_view(category_service).map(input_msg),
+        );
+
+        let content = column![header]
+            .push(notice)
+            .push(tiles)
+            .push(pours)
+            .spacing(16);
+        scrollable(content).into()
+    }
+
+    /// What the last serving used, in a success card with Dismiss.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn notice_view(&self, served: &Served) -> Element<'_, application::Message> {
         let dismiss = button("Dismiss")
-            .style(button::text)
+            .style(button::secondary)
             .on_press(serving_msg(Message::DismissNotice));
-        let message = text(served.describe(self.input.units())).style(text::success);
-        container(row![message, space().width(Fill), dismiss].align_y(Center))
-            .padding(constants::PADDING)
-            .width(Fill)
-            .style(container::rounded_box)
-            .into()
+        let message = text(served.describe(self.input.units()));
+        toned_card(
+            Tone::Success,
+            row![message, space().width(Fill), dismiss]
+                .spacing(constants::SPACING)
+                .align_y(Center),
+        )
     }
 
     pub fn update(
@@ -203,6 +260,7 @@ impl Serving {
                 self.input.swap_units();
                 None
             }
+            Message::Input(ServingMessage::ShowCategory(id)) => Some(Command::ShowCategory(id)),
             Message::Input(input_message) => {
                 if matches!(input_message, ServingMessage::Recipe(_)) {
                     self.notice = None;
@@ -229,6 +287,38 @@ impl Serving {
                 None
             }
         }
+    }
+}
+
+/// Width of the servings tile: room for the stepper and its error.
+const SERVINGS_TILE_WIDTH: f32 = 240.0;
+
+/// Whether `recipe` can be made: `ready` when its ingredients are all in
+/// stock for the servings chosen (see [`ServingInput::ready`]).
+fn availability(recipe: &RecipeBody, ready: bool) -> Availability {
+    if recipe.ingredients.is_empty() {
+        Availability::Draft
+    } else if ready {
+        Availability::Ready
+    } else {
+        Availability::Missing
+    }
+}
+
+/// The drink volume tile's figure and the line under it: the recipe's
+/// volume for `servings`, or a dash and a note while they are not a valid
+/// number.
+fn drink_volume(
+    recipe: &RecipeBody,
+    servings: Option<f32>,
+    units: UnitSystem,
+) -> (String, Option<String>) {
+    match servings {
+        Some(servings) => volume_figure(&recipe.volume_summary().scaled(servings), units),
+        None => (
+            "—".to_string(),
+            Some("Enter a number of servings above 0".to_string()),
+        ),
     }
 }
 
@@ -476,6 +566,60 @@ mod tests {
         assert_eq!(
             served("Draft", 2.0, &[]).describe(UnitSystem::Metric),
             "Served Draft ×2"
+        );
+    }
+
+    #[test]
+    fn a_category_link_opens_the_category_and_leaves_the_form_alone() {
+        let (mut world, _, shot) = gin_world();
+        let mut screen = Serving::new(&world.config);
+        select_recipe(&mut screen, &world, shot);
+        let gin = world.recipes.get(shot).unwrap().ingredients[0].category;
+
+        let link = Message::Input(ServingMessage::ShowCategory(gin));
+        let command = update(&mut screen, &world, link).expect("the link opens something");
+        let messages = drain(command.apply(&mut world.ctx()));
+
+        assert!(
+            matches!(
+                messages.as_slice(),
+                [application::Message::ShowCategory(id)] if *id == gin
+            ),
+            "{messages:?}"
+        );
+        assert_eq!(screen.chosen_recipe(), Some(shot));
+    }
+
+    #[test]
+    fn a_recipe_is_a_draft_without_ingredients_else_ready_or_missing() {
+        let (world, _, shot) = gin_world();
+        let body = world.recipes.get(shot).unwrap();
+        assert_eq!(availability(&body, true), Availability::Ready);
+        assert_eq!(availability(&body, false), Availability::Missing);
+        let draft = RecipeBody {
+            name: "Draft".to_string(),
+            ingredients: Vec::new(),
+        };
+        assert_eq!(availability(&draft, true), Availability::Draft);
+    }
+
+    #[test]
+    fn drink_volume_scales_with_the_servings() {
+        let (world, _, shot) = gin_world();
+        let body = world.recipes.get(shot).unwrap();
+        assert_eq!(
+            drink_volume(&body, Some(1.0), UnitSystem::Metric),
+            ("50 ml".to_string(), None)
+        );
+        assert_eq!(
+            drink_volume(&body, Some(2.5), UnitSystem::Metric),
+            ("125 ml".to_string(), None)
+        );
+        let (figure, below) = drink_volume(&body, None, UnitSystem::Metric);
+        assert_eq!(figure, "—");
+        assert!(
+            below.is_some(),
+            "explains the dash, and keeps the tile tall"
         );
     }
 

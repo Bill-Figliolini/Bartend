@@ -4,18 +4,22 @@ use iced::{
     Alignment::Center,
     Element,
     Length::FillPortion,
+    Theme,
     widget::{Column, button, column, container, row, space, text},
 };
 
 use crate::{
-    logic::{CategoryService, ItemService, RecipeService, totals_by_key},
+    logic::{CategoryService, ItemService, RecipeService, StockLevel, totals_by_key},
     models::{
         CategoryID, Ingredient, Item, ItemID, ItemUse, Quantity, Recipe, RecipeID, UnitSystem,
     },
     presentation::{
         constants,
         input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
-        widget::input::{Error, PositiveField, RequiredPick, error_text},
+        widget::{
+            detail::{Tone, hint, row_danger_button, toned_text},
+            input::{Error, PositiveField, RequiredPick, error_text},
+        },
     },
 };
 
@@ -46,6 +50,9 @@ pub enum ServingMessage {
     /// Splits the ingredient across another item.
     AddPour(RowKey),
     RemovePour(PourKey),
+    /// Asks to open the category on the Categories screen. The form leaves
+    /// this to the screen showing it.
+    ShowCategory(CategoryID),
 }
 
 /// A field of a [`ServingInput`], as named in its [`FormError`].
@@ -117,6 +124,11 @@ impl ServingInput {
         }
     }
 
+    /// The chosen recipe, as of the last refresh.
+    pub fn recipe(&self) -> Option<&Recipe> {
+        self.recipe.as_ref()
+    }
+
     /// The chosen recipe's id, if one is chosen.
     pub fn recipe_id(&self) -> Option<RecipeID> {
         self.recipe.as_ref().map(|recipe| recipe.id)
@@ -158,9 +170,14 @@ impl ServingInput {
     /// Each ingredient is checked on its own; two that draw on the same
     /// bottle can still turn out short when served.
     pub fn servable(&self) -> bool {
-        let Some(servings) = self.servings() else {
-            return true;
-        };
+        self.servings().is_none() || self.ready()
+    }
+
+    /// Whether every ingredient has enough in stock for the servings
+    /// entered, or for one serving while they are not a valid number; see
+    /// [`Self::servable`].
+    pub fn ready(&self) -> bool {
+        let servings = self.servings().unwrap_or(1.0);
         self.ingredients
             .iter()
             .all(|(_, ingredient)| ingredient.in_stock(servings))
@@ -186,7 +203,8 @@ impl ServingInput {
         }
     }
 
-    /// The servings stepper.
+    /// The servings stepper: −, the number, +. It has no label of its own,
+    /// so it is shown under one.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn servings_view(&self) -> Element<'_, ServingMessage> {
         let errors = self.errors();
@@ -196,13 +214,14 @@ impl ServingInput {
         let step_down = self
             .can_step_down()
             .then_some(ServingMessage::StepServings(Step::Down));
+        // The error goes under the whole stepper rather than the narrow
+        // field, so it has room and the buttons stay level with the field.
         let field = container(
             self.servings
-                .view_with_error(ServingMessage::Servings, error),
+                .view_with_error(ServingMessage::Servings, None),
         )
         .width(80);
-        row![
-            text("Servings"),
+        let stepper = row![
             button(text("-").center())
                 .width(32)
                 .style(button::secondary)
@@ -214,22 +233,25 @@ impl ServingInput {
                 .on_press(ServingMessage::StepServings(Step::Up)),
         ]
         .spacing(constants::SPACING / 2)
-        .align_y(Center)
-        .into()
+        .align_y(Center);
+        column![stepper]
+            .push(error.map(error_text))
+            .spacing(4)
+            .into()
     }
 
-    /// A row per pour of each ingredient, under a heading: the ingredient,
-    /// the amount it needs for this many servings, the item to pour from,
-    /// and what that item has left afterwards.
+    /// A row per pour of each ingredient, under headings: the ingredient
+    /// (a link to its category), the amount it needs for this many
+    /// servings, the item to pour from, and what that item has left
+    /// afterwards.
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn table_view(&self, category_service: &CategoryService) -> Element<'_, ServingMessage> {
-        let heading = |label| text(label).size(14).style(text::secondary).into();
-        let headings = table_row([
-            heading("Ingredient"),
-            heading("Amount"),
-            heading("Use item"),
-            heading("Left after"),
-        ]);
+        if self.ingredients.is_empty() {
+            return hint("No ingredients to pour. Edit the recipe to add some.").into();
+        }
+        let headings = table_row(
+            ["Ingredient", "Amount", "Use item", "Left after"].map(|label| hint(label).into()),
+        );
         let errors = self.errors();
         let ingredients = self.ingredients.iter().map(|(key, ingredient)| {
             let name = category_service
@@ -237,13 +259,11 @@ impl ServingInput {
                 .map_or_else(|_| String::new(), |category| category.name.clone());
             ingredient.view(key, name, self, errors.as_ref())
         });
-        let divider = iced::widget::rule::horizontal(1);
         column![
             headings,
-            divider,
             Column::with_children(ingredients).spacing(constants::SPACING)
         ]
-        .spacing(constants::SPACING / 2)
+        .spacing(constants::SPACING)
         .into()
     }
 
@@ -290,6 +310,7 @@ impl ServingInput {
                     discard_stale_row(key.pour, &key);
                 }
             }
+            ServingMessage::ShowCategory(_) => {}
         }
     }
 
@@ -776,26 +797,25 @@ impl IngredientUseInput {
             || "—".to_string(),
             |servings| show_quantity(self.required(servings), units),
         );
+        let link = button(text(name))
+            .style(button::text)
+            .padding(0)
+            .on_press(ServingMessage::ShowCategory(self.category));
         if servings.is_some_and(|servings| !self.in_stock(servings)) {
-            let explanation = if self.candidates.is_empty() {
-                format!("No {name} in stock")
-            } else {
-                format!(
-                    "Only {} of {name} in stock",
-                    show_quantity_down(self.stock(), units)
-                )
-            };
+            let (shortage, tone) = self.shortage(units);
             return table_row([
-                text(name).into(),
+                link.into(),
                 text(amount).into(),
-                text(explanation).style(text::danger).into(),
+                text(shortage)
+                    .style(move |theme: &Theme| toned_text(theme, tone))
+                    .into(),
                 text("—").into(),
             ]);
         }
 
         let split = self.pours.len() > 1;
         let mut rows = Column::new().spacing(constants::SPACING / 2);
-        let mut labels = Some((name, amount));
+        let mut labels = Some((link, amount));
         for (pour_key, pour) in self.pours.iter() {
             let pour_key = PourKey {
                 ingredient: key,
@@ -811,13 +831,12 @@ impl IngredientUseInput {
                     error_for(ServingField::PourAmount(pour_key)),
                 );
                 let unit = self.per_serving.unit(pour.units).to_string();
+                let remove = row_danger_button("Remove", ServingMessage::RemovePour(pour_key));
                 row![
                     container(picker).width(FillPortion(3)),
                     container(amount).width(FillPortion(1)),
                     text(unit),
-                    button(text("✕").center())
-                        .style(button::text)
-                        .on_press(ServingMessage::RemovePour(pour_key)),
+                    remove,
                 ]
                 .spacing(constants::SPACING / 2)
                 .align_y(Center)
@@ -825,35 +844,26 @@ impl IngredientUseInput {
             } else {
                 picker
             };
-            let left = match form.remaining(pour_key) {
-                Some(Remaining::Left(left)) => text(show_quantity_down(left, units)),
-                Some(Remaining::Short(short)) => {
-                    text(format!("short {}", show_quantity(short, units))).style(text::danger)
-                }
-                None => text("—"),
+            let left = pour.left_after_view(form.remaining(pour_key), units);
+            let (name, amount): (Element<'_, _>, Element<'_, _>) = match labels.take() {
+                Some((link, amount)) => (link.into(), text(amount).into()),
+                None => (space().into(), space().into()),
             };
-            let (name, amount) = labels.take().unwrap_or_default();
-            rows = rows.push(table_row([
-                text(name).into(),
-                text(amount).into(),
-                item_cell,
-                left.into(),
-            ]));
+            rows = rows.push(table_row([name, amount, item_cell, left]));
         }
 
         // Another bottle only helps while some candidate is not yet poured.
         let add = (self.candidates.len() > self.pours.len()).then(|| {
-            button(text("+ Add bottle").size(14))
-                .style(button::text)
-                .padding(0)
+            button(text("+ Add bottle").size(constants::SMALL_TEXT))
+                .style(button::secondary)
                 .on_press(ServingMessage::AddPour(key))
         });
         let error = error_for(ServingField::Ingredient(key)).map(error_text);
         if add.is_some() || error.is_some() {
             let notes = row![]
                 .push(add)
-                .push(space().width(constants::SPACING))
                 .push(error)
+                .spacing(constants::SPACING)
                 .align_y(Center);
             rows = rows.push(table_row([
                 space().into(),
@@ -863,6 +873,28 @@ impl IngredientUseInput {
             ]));
         }
         rows.into()
+    }
+
+    /// Why the ingredient can't be poured, and how bad that is: there is
+    /// none of it at all, or only so much.
+    fn shortage(&self, units: UnitSystem) -> (String, Tone) {
+        if self.candidates.is_empty() {
+            ("None in stock".to_string(), Tone::Danger)
+        } else {
+            let stock = show_quantity_down(self.stock(), units);
+            (format!("Only {stock} in stock"), Tone::Warning)
+        }
+    }
+}
+
+/// How what is `left` of an item after the serving reads: in the warning
+/// or danger colour once it is low against the item's `full_size`, as on
+/// the Inventory gauge, or plain without one.
+fn remainder_tone(left: Quantity, full_size: Option<Quantity>) -> Option<Tone> {
+    match StockLevel::of_remainder(left, full_size?)? {
+        StockLevel::Healthy => None,
+        StockLevel::Low => Some(Tone::Warning),
+        StockLevel::Critical => Some(Tone::Danger),
     }
 }
 
@@ -933,6 +965,37 @@ impl PourInput {
             None => None,
         };
         self.item = offers(candidates, picked, units);
+    }
+
+    /// The Left after cell: what is `remaining` of this pour's item, toned
+    /// once it runs low against the item's full size, or how far short it
+    /// falls.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn left_after_view<'a>(
+        &self,
+        remaining: Option<Remaining>,
+        units: UnitSystem,
+    ) -> Element<'a, ServingMessage> {
+        match remaining {
+            Some(Remaining::Left(left)) => {
+                let full_size = self
+                    .item
+                    .value()
+                    .ok()
+                    .and_then(|offer| offer.item.body.full_size);
+                let shown = text(show_quantity_down(left, units));
+                match remainder_tone(left, full_size) {
+                    Some(tone) => shown
+                        .style(move |theme: &Theme| toned_text(theme, tone))
+                        .into(),
+                    None => shown.into(),
+                }
+            }
+            Some(Remaining::Short(short)) => text(format!("short {}", show_quantity(short, units)))
+                .style(text::danger)
+                .into(),
+            None => text("—").into(),
+        }
     }
 
     /// The amount entered, as the same kind of quantity as `like`.
@@ -1673,11 +1736,92 @@ mod tests {
 
         servings(&mut input, &world, "abc");
         assert!(input.servable(), "left to serving to report");
+        assert!(input.ready(), "judged for one serving meanwhile");
 
         let vermouth = world.add_category("Vermouth");
         let martini = world.add_recipe("Martini", &[(gin, 60.0), (vermouth, 10.0)]);
         choose(&mut input, &world, martini);
         assert!(!input.servable(), "no vermouth at all");
+    }
+
+    #[test]
+    fn ready_judges_the_servings_entered_or_else_one() {
+        let GinBar {
+            mut world, shot, ..
+        } = gin_bar();
+        let mut input = ServingInput::new(UnitSystem::Metric);
+        choose(&mut input, &world, shot);
+        assert!(input.ready());
+
+        servings(&mut input, &world, "26");
+        assert!(!input.ready(), "770 ml for 780 ml");
+
+        servings(&mut input, &world, "0");
+        assert!(input.ready(), "30 ml for one serving");
+
+        let gin = world.add_category("Rare Gin");
+        let big = world.add_recipe("Big Shot", &[(gin, 30.0)]);
+        choose(&mut input, &world, big);
+        servings(&mut input, &world, "x");
+        assert!(!input.ready(), "none in stock even for one");
+    }
+
+    #[test]
+    fn a_shortage_says_how_much_there_is_and_how_bad_it_is() {
+        let GinBar {
+            mut world, shot, ..
+        } = gin_bar();
+        let mut input = ServingInput::new(UnitSystem::Metric);
+        choose(&mut input, &world, shot);
+        let (_, gin) = input.ingredients.iter().next().unwrap();
+        assert_eq!(
+            gin.shortage(UnitSystem::Metric),
+            ("Only 770 ml in stock".to_string(), Tone::Warning)
+        );
+        assert_eq!(
+            gin.shortage(UnitSystem::Imperial).0,
+            "Only 26.03 fl oz in stock",
+            "rounded down, in the current units"
+        );
+
+        let rare = world.add_category("Rare Gin");
+        let none = world.add_recipe("Rare Shot", &[(rare, 30.0)]);
+        choose(&mut input, &world, none);
+        let (_, rare) = input.ingredients.iter().next().unwrap();
+        assert_eq!(
+            rare.shortage(UnitSystem::Metric),
+            ("None in stock".to_string(), Tone::Danger)
+        );
+    }
+
+    #[test]
+    fn what_is_left_is_toned_by_its_share_of_the_full_size() {
+        let full = Some(ml(1000.0));
+        assert_eq!(remainder_tone(ml(250.0), full), None);
+        assert_eq!(remainder_tone(ml(249.0), full), Some(Tone::Warning));
+        assert_eq!(remainder_tone(ml(99.0), full), Some(Tone::Danger));
+        assert_eq!(remainder_tone(ml(0.0), None), None, "no full size");
+    }
+
+    #[test]
+    fn a_category_link_leaves_the_form_as_it_was() {
+        let GinBar {
+            world,
+            gin,
+            full,
+            shot,
+            ..
+        } = gin_bar();
+        let mut input = ServingInput::new(UnitSystem::Metric);
+        choose(&mut input, &world, shot);
+        let key = input.pour_key(0, 0);
+        pick(&mut input, &world, key, full);
+        let before = uses(&input);
+
+        send(&mut input, &world, ServingMessage::ShowCategory(gin));
+
+        assert_eq!(input.recipe().map(|recipe| recipe.id), Some(shot));
+        assert_eq!(uses(&input), before);
     }
 
     #[test]

@@ -1,5 +1,6 @@
-//! Building blocks for detail panels: cards, stat tiles, a stock gauge,
-//! chips (plain or [toned](Tone)), link rows (optionally with a row action
+//! Building blocks for detail panels: cards (plain or [toned](Tone)), stat
+//! tiles (showing a figure or holding a control), a stock gauge, chips
+//! (plain or toned), link rows (optionally with a row action
 //! or a toned status) and labelled fields.
 //! Every colour comes from the theme's palette, so they suit whichever
 //! theme is chosen.
@@ -10,6 +11,7 @@ use iced::{
     Length::{Fill, Fixed},
     Theme,
     alignment::Horizontal::Right,
+    theme::palette::Pair,
     widget::{Column, Container, Text, button, column, container, progress_bar, row, space, text},
 };
 
@@ -69,7 +71,9 @@ fn card_box<'a, Message: 'a>(
 /// grow to match the tallest tile that keeps its own height and comes
 /// before them in the row. So put a tile that keeps its own height first:
 /// a `.height(Fill)` tile with none before it has nothing to match and
-/// collapses to nothing.
+/// collapses to nothing. The exception is a tile with a fixed width: it is
+/// laid out after all the others, so it matches the row's height wherever
+/// it sits.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn stat_tile<'a, Message: 'a>(
     label: &str,
@@ -80,6 +84,33 @@ pub fn stat_tile<'a, Message: 'a>(
         .push(below)
         .spacing(constants::SPACING / 2);
     card_box(None, body)
+}
+
+/// A [`stat_tile`] whose figure is a control, such as a stepper, rather
+/// than a value: a small `label` over the `control`. Lines up in a row the
+/// same way.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn control_tile<'a, Message: 'a>(
+    label: &str,
+    control: impl Into<Element<'a, Message>>,
+) -> Container<'a, Message> {
+    let body = column![caption(label), control.into()].spacing(constants::SPACING / 2);
+    card_box(None, body)
+}
+
+/// A card filled with the weak shade of `tone`'s colour and outlined in
+/// it, for a message about the whole page, such as what was just served.
+/// A neutral one is a plain [`card`].
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn toned_card<'a, Message: 'a>(
+    tone: Tone,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    container(content)
+        .width(Fill)
+        .padding(constants::PADDING)
+        .style(move |theme: &Theme| toned_card_style(theme, tone))
+        .into()
 }
 
 /// A bar filled to `fraction` (0 to 1), coloured by `level`, followed by
@@ -303,18 +334,52 @@ fn chip_style(theme: &Theme) -> container::Style {
 /// A [`chip_style`] filled with the weak shade of `tone`'s colour, or the
 /// plain chip when neutral.
 fn toned_chip_style(theme: &Theme, tone: Tone) -> container::Style {
-    let palette = theme.extended_palette();
-    let pair = match tone {
-        Tone::Neutral => return chip_style(theme),
-        Tone::Success => palette.success.weak,
-        Tone::Warning => palette.warning.weak,
-        Tone::Danger => palette.danger.weak,
+    let Some(shade) = tone_shades(theme, tone) else {
+        return chip_style(theme);
     };
     container::Style {
-        background: Some(pair.color.into()),
-        text_color: Some(pair.text),
+        background: Some(shade.weak.color.into()),
+        text_color: Some(shade.weak.text),
         ..chip_style(theme)
     }
+}
+
+/// A [`card_style`] filled with the weak shade of `tone`'s colour and
+/// outlined in its base colour, or the plain card when neutral.
+fn toned_card_style(theme: &Theme, tone: Tone) -> container::Style {
+    let card = card_style(theme);
+    let Some(shade) = tone_shades(theme, tone) else {
+        return card;
+    };
+    container::Style {
+        background: Some(shade.weak.color.into()),
+        text_color: Some(shade.weak.text),
+        border: Border {
+            color: shade.base.color,
+            ..card.border
+        },
+        ..card
+    }
+}
+
+/// The base and weak shades of `tone`'s colour in the theme, or `None`
+/// when neutral.
+fn tone_shades(theme: &Theme, tone: Tone) -> Option<Shades> {
+    let palette = theme.extended_palette();
+    let (base, weak) = match tone {
+        Tone::Neutral => return None,
+        Tone::Success => (palette.success.base, palette.success.weak),
+        Tone::Warning => (palette.warning.base, palette.warning.weak),
+        Tone::Danger => (palette.danger.base, palette.danger.weak),
+    };
+    Some(Shades { base, weak })
+}
+
+/// Two shades of one of the theme's colours, each with the text colour
+/// that reads on it.
+struct Shades {
+    base: Pair,
+    weak: Pair,
 }
 
 fn gauge_style(theme: &Theme, level: StockLevel) -> progress_bar::Style {
@@ -433,6 +498,30 @@ mod tests {
                 );
                 assert_eq!(style.text_color, Some(pair.text));
                 assert_eq!(style.border, chip_style(theme).border);
+            }
+        }
+    }
+
+    #[test]
+    fn toned_cards_are_filled_with_the_weak_shade_and_outlined_in_the_base() {
+        for theme in Theme::ALL {
+            let palette = theme.extended_palette();
+            assert_eq!(toned_card_style(theme, Tone::Neutral), card_style(theme));
+            let cases = [
+                (Tone::Success, palette.success.base, palette.success.weak),
+                (Tone::Warning, palette.warning.base, palette.warning.weak),
+                (Tone::Danger, palette.danger.base, palette.danger.weak),
+            ];
+            for (tone, base, weak) in cases {
+                let style = toned_card_style(theme, tone);
+                assert_eq!(
+                    style.background,
+                    Some(weak.color.into()),
+                    "{theme} {tone:?}"
+                );
+                assert_eq!(style.text_color, Some(weak.text));
+                assert_eq!(style.border.color, base.color);
+                assert_eq!(style.border.radius, card_style(theme).border.radius);
             }
         }
     }

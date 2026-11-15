@@ -28,7 +28,16 @@ impl StockLevel {
     /// [fill fraction](ItemBody::fill_fraction) to judge by.
     #[must_use]
     pub fn of(item: &ItemBody) -> Option<Self> {
-        let fraction = item.fill_fraction()?;
+        Self::of_remainder(item.quantity, item.full_size?)
+    }
+
+    /// The level an item of `full_size` is at with `left` in it, e.g. what
+    /// a bottle will be down to once a serving is poured from it. `None` if
+    /// the two are different kinds of quantity, or `full_size` is not
+    /// positive.
+    #[must_use]
+    pub fn of_remainder(left: Quantity, full_size: Quantity) -> Option<Self> {
+        let fraction = left.fraction_of(full_size)?;
         Some(if fraction < CRITICAL_BELOW {
             Self::Critical
         } else if fraction < LOW_BELOW {
@@ -249,6 +258,35 @@ mod tests {
         let mut item = bottle_at(10.0);
         item.full_size = None;
         assert_eq!(StockLevel::of(&item), None);
+    }
+
+    #[test]
+    fn stock_level_of_a_remainder_uses_the_same_thresholds() {
+        let full = ml(1000.0);
+        assert_eq!(
+            StockLevel::of_remainder(ml(250.0), full),
+            Some(StockLevel::Healthy)
+        );
+        assert_eq!(
+            StockLevel::of_remainder(ml(249.0), full),
+            Some(StockLevel::Low)
+        );
+        assert_eq!(
+            StockLevel::of_remainder(ml(99.0), full),
+            Some(StockLevel::Critical)
+        );
+        assert_eq!(
+            StockLevel::of_remainder(ml(1500.0), full),
+            Some(StockLevel::Healthy),
+            "more than a full size is still healthy"
+        );
+    }
+
+    #[test]
+    fn no_stock_level_of_a_remainder_that_cannot_be_compared() {
+        let grams = Quantity::new(100.0, Unit::Gram);
+        assert_eq!(StockLevel::of_remainder(grams, ml(1000.0)), None);
+        assert_eq!(StockLevel::of_remainder(ml(10.0), ml(0.0)), None);
     }
 
     #[test]
