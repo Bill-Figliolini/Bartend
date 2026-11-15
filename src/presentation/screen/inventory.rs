@@ -1,5 +1,4 @@
 use iced::{
-    Alignment::Center,
     Element,
     Length::{Fill, Shrink},
     Task,
@@ -13,17 +12,17 @@ use crate::{
         application::{self, Context},
         constants,
         input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved, show_quantity},
-        screen::Panels,
+        screen::{
+            Panels,
+            shared::{breadcrumb_label, breadcrumb_line, counted, detail_header, form_page},
+        },
         widget::{
-            detail::{card, chip, gauge, hint, link_row, quiet_danger, stat_tile},
+            detail::{card, gauge, hint, link_row, stat_tile},
             footer::footer,
             master_list::{Entry, master_list},
         },
     },
 };
-
-/// Size of the item's name at the top of its details.
-const NAME_SIZE: f32 = 28.0;
 
 #[derive(Debug)]
 pub struct Inventory {
@@ -188,11 +187,12 @@ impl Inventory {
         } else {
             "Add something you stock, then Save."
         };
-        let title = column![text(self.editor.title()).size(NAME_SIZE), hint(note)].spacing(6);
-        let buttons = self.editor.buttons().map(editor_msg);
-        let header = row![title, space().width(Fill), buttons];
-        let fields = card(None, self.editor.form_view().map(editor_msg));
-        scrollable(column![header, fields].spacing(16)).into()
+        form_page(
+            self.editor.title(),
+            note,
+            self.editor.buttons().map(editor_msg),
+            self.editor.form_view().map(editor_msg),
+        )
     }
 
     /// How much is in stock, with a gauge against the full size if the
@@ -291,53 +291,18 @@ fn header<'a>(
     breadcrumb: Option<(String, usize)>,
     category: Option<Category>,
 ) -> Element<'a, application::Message> {
-    let category_line: Element<'a, _> = match breadcrumb {
-        Some((path, others)) => row![chip(path)]
-            .push((others > 0).then(|| hint(format!("+{others} more"))))
-            .spacing(constants::SPACING)
-            .align_y(Center)
-            .into(),
-        None => hint("No category").into(),
-    };
-    let title = column![text(name).size(NAME_SIZE), category_line].spacing(6);
-
-    let edit = button("Edit").on_press(inventory_msg(Message::BeginEdit(item, category)));
-    let delete = button("Delete")
-        .style(quiet_danger)
-        .on_press(inventory_msg(Message::DeleteItem(item)));
-    let buttons = row![edit, delete].spacing(constants::SPACING);
-
-    row![title, space().width(Fill), buttons].into()
+    detail_header(
+        name,
+        breadcrumb_line(breadcrumb, "No category"),
+        inventory_msg(Message::BeginEdit(item, category)),
+        inventory_msg(Message::DeleteItem(item)),
+    )
 }
 
 /// How many recipes the item can go into.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn uses_tile<'a>(uses: &[RecipeUse]) -> Container<'a, application::Message> {
-    stat_tile("Used in", recipe_count(uses.len()), None)
-}
-
-/// `count` recipes, in words.
-fn recipe_count(count: usize) -> String {
-    match count {
-        0 => "No recipes".to_string(),
-        1 => "1 recipe".to_string(),
-        n => format!("{n} recipes"),
-    }
-}
-
-/// The path down to `category`, as names joined by `›`, and how many other
-/// paths lead to it.
-fn breadcrumb_label(
-    category: CategoryID,
-    category_service: &CategoryService,
-) -> Option<(String, usize)> {
-    let breadcrumb = category_service.breadcrumb(category)?;
-    let names: Vec<String> = breadcrumb
-        .path
-        .iter()
-        .map(|id| category_service.get(*id).cloned().unwrap_or_default().name)
-        .collect();
-    Some((names.join(" › "), breadcrumb.other_paths))
+    stat_tile("Used in", counted(uses.len(), "recipe"), None)
 }
 
 fn inventory_msg(msg: Message) -> application::Message {
@@ -555,33 +520,6 @@ mod tests {
         assert_reloads(&apply(&mut world, command.unwrap()));
 
         assert_eq!(world.items.item_count(), 0);
-    }
-
-    #[test]
-    fn recipe_counts_read_naturally() {
-        assert_eq!(recipe_count(0), "No recipes");
-        assert_eq!(recipe_count(1), "1 recipe");
-        assert_eq!(recipe_count(4), "4 recipes");
-    }
-
-    #[test]
-    fn breadcrumb_label_joins_names_down_the_tree() {
-        let mut world = World::new();
-        let spirit = world.add_category("Spirit");
-        let gin = world.add_category("Gin");
-        let botanical = world.add_category("Botanical");
-        world.relate(spirit, gin);
-        world.relate(botanical, gin);
-
-        assert_eq!(
-            breadcrumb_label(gin, &world.categories),
-            Some(("Botanical › Gin".to_string(), 1))
-        );
-        assert_eq!(
-            breadcrumb_label(spirit, &world.categories),
-            Some(("Spirit".to_string(), 0))
-        );
-        assert_eq!(breadcrumb_label(CategoryID(99), &world.categories), None);
     }
 
     #[test]

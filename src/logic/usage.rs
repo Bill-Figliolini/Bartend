@@ -1,8 +1,8 @@
-//! Which recipes an inventory item can go into.
+//! Which recipes an inventory item, or anything in a category, can go into.
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{ItemID, Quantity, RecipeID},
+    models::{CategoryID, ItemID, Quantity, RecipeID},
 };
 
 /// A recipe that `item` can be poured into, from [`recipes_using`].
@@ -52,13 +52,38 @@ pub fn recipes_using(
         .collect()
 }
 
+/// The recipes something filed under `category` could go into: those
+/// calling for `category` itself or any category above it, ordered by name.
+/// Empty for an unknown category.
+pub fn recipes_for_category(
+    category: CategoryID,
+    category_service: &CategoryService,
+    recipe_service: &RecipeService,
+) -> Vec<RecipeID> {
+    let fills = category_service.self_and_ancestors(category);
+    if fills.is_empty() {
+        return Vec::new();
+    }
+    recipe_service
+        .sorted_ids()
+        .into_iter()
+        .filter(|&recipe| {
+            recipe_service.get(recipe).is_ok_and(|body| {
+                body.ingredients
+                    .iter()
+                    .any(|ingredient| fills.contains(&ingredient.category))
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
 
     use super::*;
     use crate::{
-        models::{CategoryBody, CategoryID, Ingredient, ItemBody, RecipeBody, Unit},
+        models::{CategoryBody, Ingredient, ItemBody, RecipeBody, Unit},
         persistence::Database,
     };
 
@@ -178,6 +203,29 @@ mod tests {
         );
 
         assert_eq!(bar.uses(syrup), vec![("Both".to_string(), ml(10.0))]);
+    }
+
+    #[test]
+    fn a_category_is_used_by_recipes_calling_for_it_or_its_parents() {
+        let mut bar = Bar::new();
+        let spirit = bar.category("Spirit");
+        let gin = bar.category("Gin");
+        let old_tom = bar.category("Old Tom");
+        let vodka = bar.category("Vodka");
+        bar.relate(spirit, gin);
+        bar.relate(gin, old_tom);
+        bar.relate(spirit, vodka);
+        let negroni = bar.recipe("Negroni", &[(gin, ml(30.0))]);
+        let any_shot = bar.recipe("Any Shot", &[(spirit, ml(45.0))]);
+        let martinez = bar.recipe("Martinez", &[(old_tom, ml(45.0)), (gin, ml(5.0))]);
+        bar.recipe("Vodka Shot", &[(vodka, ml(45.0))]);
+        bar.recipe("Water", &[]);
+
+        let for_category = |category| recipes_for_category(category, &bar.categories, &bar.recipes);
+        assert_eq!(for_category(gin), vec![any_shot, martinez, negroni]);
+        assert_eq!(for_category(old_tom), vec![any_shot, martinez, negroni]);
+        assert_eq!(for_category(spirit), vec![any_shot]);
+        assert_eq!(for_category(CategoryID(999)), Vec::new());
     }
 
     #[test]

@@ -1,19 +1,25 @@
 use crate::{
-    logic::CategoryService,
+    logic::{CategoryService, ItemCounts, RecipeService, recipes_for_category},
     models::{Category, CategoryBody, CategoryID, UnitSystem},
     presentation::{
         application::{self, Context},
         constants,
         input_handling::{CategoryInput, CategoryMessage, Editor, EditorMessage, Saved},
-        screen::Panels,
-        widget::master_list::{Entry, master_list},
+        screen::{
+            Panels,
+            shared::{breadcrumb_label, breadcrumb_line, counted, detail_header, form_page},
+        },
+        widget::{
+            detail::{card, hint, link_row, link_row_with_action, row_danger_button, stat_tile},
+            master_list::{Entry, master_list},
+        },
     },
 };
 use iced::{
-    Alignment, Element,
-    Length::Fill,
+    Element,
+    Length::{Fill, Shrink},
     Task,
-    widget::{Column, button, column, pick_list, row, text},
+    widget::{Column, column, pick_list, row, scrollable},
 };
 
 #[derive(Debug)]
@@ -108,7 +114,11 @@ impl Categories {
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self, category_service: &CategoryService) -> Panels<'_> {
+    pub fn view(
+        &self,
+        category_service: &CategoryService,
+        recipe_service: &RecipeService,
+    ) -> Panels<'_> {
         let entries = category_service.sorted_ids().into_iter().map(|id| Entry {
             label: category_name(category_service, id),
             selected: self.selected == Some(id),
@@ -123,61 +133,121 @@ impl Categories {
 
         let detail = match self.selected {
             Some(category) if self.editor.editing().is_none() => {
-                Self::category_details(category, category_service)
+                Self::category_details(category, category_service, recipe_service)
             }
-            _ => self.editor.view().map(editor_msg),
+            _ => self.form_view(),
         };
 
         Panels { master, detail }
     }
 
-    /// The read-only view of `category`: its subcategories, a picker to add
-    /// more, and buttons to edit or delete it.
+    /// The new- or edit-category form, laid out like the category's
+    /// details: the heading with Save and Cancel to its right, then the
+    /// name in a card.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn form_view(&self) -> Element<'_, application::Message> {
+        let note = if self.editor.editing().is_some() {
+            "Change the name, then Save."
+        } else {
+            "Add a category, then Save."
+        };
+        form_page(
+            self.editor.title(),
+            note,
+            self.editor.buttons().map(editor_msg),
+            self.editor.form_view().map(editor_msg),
+        )
+    }
+
+    /// The read-only view of `category`: its name and where it sits,
+    /// tiles counting its items and the recipes it can go into, then its
+    /// subcategories (which can be added and removed here) and the
+    /// categories it is part of.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn category_details(
         category: CategoryID,
         service: &CategoryService,
+        recipe_service: &RecipeService,
     ) -> Element<'static, application::Message> {
-        let name = text(category_name(service, category)).size(24);
+        let parents = service.parents_by_name(category);
+        // A top-level category's breadcrumb is just its own name.
+        let breadcrumb = if parents.is_empty() {
+            None
+        } else {
+            breadcrumb_label(category, service)
+        };
+        let header = detail_header(
+            category_name(service, category),
+            breadcrumb_line(breadcrumb, "Top-level category"),
+            categories_msg(Message::Edit(category)),
+            categories_msg(Message::DeleteCategory(category)),
+        );
 
-        let mut children: Vec<CategoryID> = service
-            .child_categories(category)
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
-        children.sort_by_cached_key(|&child| category_name(service, child).to_lowercase());
-        let subcategories: Element<'_, _> = if children.is_empty() {
-            text("No subcategories").into()
+        let counts = service.item_counts(category);
+        let items_tile = stat_tile(
+            "Items",
+            counted(counts.total, "item"),
+            Some(hint(item_split(counts)).into()),
+        );
+        let recipes = recipes_for_category(category, service, recipe_service);
+        // The items tile always has a line under its figure, so it is the
+        // taller one and sets the row's height.
+        let uses_tile = stat_tile("Used in", counted(recipes.len(), "recipe"), None).height(Fill);
+        let tiles = row![items_tile, uses_tile]
+            .spacing(constants::SPACING)
+            .height(Shrink);
+
+        let subcategories = Self::subcategories_card(category, service);
+        let part_of = Self::part_of_card(&parents, service);
+
+        scrollable(column![header, tiles, subcategories, part_of].spacing(16)).into()
+    }
+
+    /// `category`'s subcategories, each opening when clicked and with a
+    /// button to remove it, then a picker to add another.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn subcategories_card(
+        category: CategoryID,
+        service: &CategoryService,
+    ) -> Element<'static, application::Message> {
+        let children = service.children_by_name(category);
+        let list: Element<'_, _> = if children.is_empty() {
+            hint("No subcategories yet.").into()
         } else {
             Column::with_children(children.into_iter().map(|child| {
-                let remove = button(text("Remove"))
-                    .style(button::secondary)
-                    .on_press(category_remove_msg(category, child));
-                row![text(category_name(service, child)).width(Fill), remove]
-                    .spacing(constants::SPACING)
-                    .align_y(Alignment::Center)
-                    .into()
+                link_row_with_action(
+                    category_name(service, child),
+                    "",
+                    categories_msg(Message::Select(Some(child))),
+                    row_danger_button("Remove", category_remove_msg(category, child)),
+                )
             }))
-            .spacing(constants::SPACING / 2)
-            .width(400)
             .into()
         };
+        let content =
+            column![list, Self::relation_add_view(category, service)].spacing(constants::SPACING);
+        card(Some("Subcategories"), content)
+    }
 
-        let edit = button("Edit").on_press(categories_msg(Message::Edit(category)));
-        let delete = button("Delete")
-            .style(button::danger)
-            .on_press(categories_msg(Message::DeleteCategory(category)));
-        let buttons = row![edit, delete].spacing(constants::SPACING);
-
-        column![
-            name,
-            text("Subcategories").size(18),
-            subcategories,
-            Self::relation_add_view(category, service),
-            buttons
-        ]
-        .spacing(16)
-        .into()
+    /// The categories directly above this one, each opening when clicked.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn part_of_card(
+        parents: &[CategoryID],
+        service: &CategoryService,
+    ) -> Element<'static, application::Message> {
+        let content: Element<'_, _> = if parents.is_empty() {
+            hint("Not part of any other category.").into()
+        } else {
+            Column::with_children(parents.iter().map(|&parent| {
+                link_row(
+                    category_name(service, parent),
+                    "",
+                    categories_msg(Message::Select(Some(parent))),
+                )
+            }))
+            .into()
+        };
+        card(Some("Part of"), content)
     }
 
     pub fn update(
@@ -235,8 +305,19 @@ impl Categories {
             category_add_msg(id, category.id)
         })
         .placeholder("Add a subcategory")
-        .width(400)
+        .width(Fill)
         .into()
+    }
+}
+
+/// Where a category's items are filed, for under its item count.
+fn item_split(counts: ItemCounts) -> String {
+    let via = counts.via_subcategories();
+    match (counts.direct, via) {
+        (0, 0) => "None here or in its subcategories".to_string(),
+        (_, 0) => "All filed here directly".to_string(),
+        (0, _) => "All from subcategories".to_string(),
+        (direct, via) => format!("{direct} directly, {via} from subcategories"),
     }
 }
 
@@ -383,20 +464,11 @@ mod tests {
 
         let add = screen.update(Message::AddRelation(spirit, gin), &world.categories);
         assert!(apply(&mut world, add.unwrap()).is_empty());
-        assert_eq!(
-            world.categories.child_categories(spirit).unwrap(),
-            [gin].into()
-        );
+        assert_eq!(world.categories.children_by_name(spirit), [gin]);
 
         let remove = screen.update(Message::RemoveRelation(spirit, gin), &world.categories);
         assert!(apply(&mut world, remove.unwrap()).is_empty());
-        assert!(
-            world
-                .categories
-                .child_categories(spirit)
-                .unwrap()
-                .is_empty()
-        );
+        assert_eq!(world.categories.children_by_name(spirit), []);
     }
 
     #[test]
@@ -504,6 +576,15 @@ mod tests {
 
         screen.update(Message::Select(None), &world.categories);
         assert_eq!(screen.selected, None);
+    }
+
+    #[test]
+    fn item_split_says_where_items_are_filed() {
+        let split = |direct, total| item_split(ItemCounts { direct, total });
+        assert_eq!(split(0, 0), "None here or in its subcategories");
+        assert_eq!(split(2, 2), "All filed here directly");
+        assert_eq!(split(0, 3), "All from subcategories");
+        assert_eq!(split(2, 5), "2 directly, 3 from subcategories");
     }
 
     #[test]

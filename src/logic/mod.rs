@@ -8,12 +8,12 @@ mod usage;
 use crate::models::{CategoryID, ItemID, Quantity, RecipeID};
 
 pub use self::{
-    category_service::CategoryService,
+    category_service::{CategoryService, ItemCounts},
     graph::GraphPatch,
     item_service::ItemService,
     recipe_service::RecipeService,
     stock::{StockLevel, can_make, totals_by_key},
-    usage::{RecipeUse, recipes_using},
+    usage::{RecipeUse, recipes_for_category, recipes_using},
 };
 #[derive(Debug, Clone)]
 pub enum LogicError {

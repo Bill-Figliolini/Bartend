@@ -3,6 +3,7 @@ pub(super) mod inventory;
 pub(super) mod recipes;
 pub(super) mod serving;
 pub(super) mod settings;
+mod shared;
 
 use iced::{Element, Task};
 
@@ -113,7 +114,7 @@ impl Screen {
                 inventory.view(item_service, category_service, recipe_service)
             }
             Self::Settings(settings) => settings.view(),
-            Self::Categories(categories) => categories.view(category_service),
+            Self::Categories(categories) => categories.view(category_service, recipe_service),
             Self::Recipes(recipes) => recipes.view(category_service, recipe_service),
             Self::Serving(serving) => serving.view(item_service, category_service, recipe_service),
         }

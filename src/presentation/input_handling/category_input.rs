@@ -6,7 +6,7 @@ use crate::{
     models::{CategoryBody, UnitSystem},
     presentation::{
         input_handling::{Form, FormError, Validator},
-        widget::input::StringField,
+        widget::{detail::labeled, input::StringField},
     },
 };
 
@@ -39,7 +39,7 @@ pub struct CategoryInput {
 impl CategoryInput {
     pub fn new() -> Self {
         Self {
-            name_input: StringField::new("Name"),
+            name_input: StringField::new(""),
         }
     }
 }
@@ -75,7 +75,10 @@ impl Form for CategoryInput {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self, show_errors: bool) -> Element<'_, CategoryMessage> {
-        self.name_input.view(CategoryMessage::Name, show_errors)
+        labeled(
+            "Name",
+            self.name_input.view(CategoryMessage::Name, show_errors),
+        )
     }
 }
 

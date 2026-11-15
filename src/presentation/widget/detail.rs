@@ -1,6 +1,7 @@
 //! Building blocks for detail panels: cards, stat tiles, a stock gauge,
-//! chips, link rows and labelled fields. Every colour comes from the theme's palette,
-//! so they suit whichever theme is chosen.
+//! chips, link rows (optionally with a row action) and labelled fields.
+//! Every colour comes from the theme's palette, so they suit whichever
+//! theme is chosen.
 
 use iced::{
     Alignment::Center,
@@ -102,6 +103,36 @@ pub fn link_row<'a, Message: Clone + 'a>(
     button(content)
         .width(Fill)
         .style(button::text)
+        .on_press(on_press)
+        .into()
+}
+
+/// A [`link_row`] with a separate `action` control, such as a Remove
+/// button, at its right end. The action sits outside the link, so
+/// pressing it does not also follow the link.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn link_row_with_action<'a, Message: Clone + 'a>(
+    label: impl text::IntoFragment<'a>,
+    detail: impl text::IntoFragment<'a>,
+    on_press: Message,
+    action: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    row![link_row(label, detail, on_press), action.into()]
+        .spacing(constants::SPACING)
+        .align_y(Center)
+        .into()
+}
+
+/// A compact [`quiet_danger`] button in small type, for an action on one
+/// row of a list rather than on the whole page.
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub fn row_danger_button<'a, Message: Clone + 'a>(
+    label: &str,
+    on_press: Message,
+) -> Element<'a, Message> {
+    button(text(label.to_owned()).size(constants::SMALL_TEXT))
+        .padding([2, 8])
+        .style(quiet_danger)
         .on_press(on_press)
         .into()
 }
