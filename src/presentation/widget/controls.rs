@@ -296,6 +296,21 @@ mod tests {
                 accent(theme).into()
             );
             assert_eq!(dragged.horizontal_rail.scroller.background, faint);
+
+            let hovered = scrollbar(&DECO)(
+                theme,
+                scrollable::Status::Hovered {
+                    is_horizontal_scrollbar_hovered: true,
+                    is_vertical_scrollbar_hovered: false,
+                    is_horizontal_scrollbar_disabled: false,
+                    is_vertical_scrollbar_disabled: false,
+                },
+            );
+            assert_eq!(
+                hovered.horizontal_rail.scroller.background,
+                accent(theme).into()
+            );
+            assert_eq!(hovered.vertical_rail.scroller.background, faint);
         }
     }
 }
