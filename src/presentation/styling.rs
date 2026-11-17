@@ -1,8 +1,8 @@
 //! Maps the [`StylingChoice`] saved in the config to a [`Styling`]: the
 //! shapes, type and ornaments the app is drawn with.
 //!
-//! A styling never names a colour. It only says which of the palette's
-//! colours goes where, so every styling works with every
+//! A styling never names a color. It only says which of the palette's
+//! colors goes where, so every styling works with every
 //! [theme](super::theme), and the two are picked separately.
 
 use std::fmt::{self, Display};
@@ -29,7 +29,7 @@ const GRENZE_GOTISCH: Font = Font {
     ..Font::with_name("Grenze Gotisch")
 };
 
-/// How the app is drawn, whatever its colours. Spacing is the same under
+/// How the app is drawn, whatever its colors. Spacing is the same under
 /// every styling, so screens keep their layout; only the decoration
 /// changes.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -82,7 +82,7 @@ impl CardFrame {
     }
 }
 
-/// What marks the corners of stat tiles, drawn in the accent colour along
+/// What marks the corners of stat tiles, drawn in the accent color along
 /// the card's inner line (where a double-edged card has one).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TileCorners {

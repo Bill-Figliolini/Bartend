@@ -41,7 +41,7 @@ const STUD: f32 = 5.0;
 /// within the card's usual padding.
 pub const FRAME_PADDING: f32 = 4.0;
 
-/// Picks the colour of a card's inner line, and of its corner marks, from
+/// Picks the color of a card's inner line, and of its corner marks, from
 /// the theme.
 type Ink<'a> = Box<dyn Fn(&Theme) -> Color + 'a>;
 
@@ -61,7 +61,7 @@ pub struct FramedCard<'a, M> {
 impl<'a, M: 'a> FramedCard<'a, M> {
     /// `container` styled with its fill and outer line, and padded to
     /// clear the inner line (see [`FRAME_PADDING`]); the inner line is
-    /// drawn in the colour `line` picks, with corners to match the
+    /// drawn in the color `line` picks, with corners to match the
     /// `styling`'s, if the styling's cards have one.
     pub fn new(
         styling: &Styling,
@@ -77,7 +77,7 @@ impl<'a, M: 'a> FramedCard<'a, M> {
         }
     }
 
-    /// Marks the corners as `corners` says, in the colour `ink` picks.
+    /// Marks the corners as `corners` says, in the color `ink` picks.
     #[must_use]
     pub fn corners(mut self, corners: TileCorners, ink: impl Fn(&Theme) -> Color + 'a) -> Self {
         self.corners = Some((corners, Box::new(ink)));

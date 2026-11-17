@@ -533,7 +533,7 @@ fn within(total: Quantity, required: Quantity, slack: Quantity) -> bool {
         .all(|gap| gap.is_some_and(|gap| slack.covers(gap) == Some(true)))
 }
 
-/// An item on offer for a pour, labelled with its stock.
+/// An item on offer for a pour, labeled with its stock.
 #[derive(Debug, Clone)]
 struct Offer {
     item: Item,
@@ -620,7 +620,7 @@ impl IngredientUseInput {
         self.reoffer(units);
     }
 
-    /// Offers the candidates again, labelled in `units`.
+    /// Offers the candidates again, labeled in `units`.
     fn reoffer(&mut self, units: UnitSystem) {
         let lone = self.pours.len() == 1;
         for (_, pour) in self.pours.iter_mut() {
@@ -872,7 +872,7 @@ impl IngredientUseInput {
 }
 
 /// How what is `left` of an item after the serving reads: in the warning
-/// or danger colour once it is low against the item's `full_size`, as on
+/// or danger color once it is low against the item's `full_size`, as on
 /// the Inventory gauge, or plain without one.
 fn remainder_tone(left: Quantity, full_size: Option<Quantity>) -> Option<Tone> {
     match StockLevel::of_remainder(left, full_size?)? {
@@ -933,7 +933,7 @@ impl PourInput {
         }
     }
 
-    /// Offers `candidates`, labelled in `units`. The pick is kept, with its
+    /// Offers `candidates`, labeled in `units`. The pick is kept, with its
     /// new stock level, if it is still among them. A `lone` pour with
     /// nothing picked takes the only candidate, as a new row would.
     fn reoffer(&mut self, candidates: &[Item], units: UnitSystem, lone: bool) {
@@ -991,7 +991,7 @@ impl PourInput {
     }
 }
 
-/// A picker offering `candidates`, labelled in `units`, with `picked`
+/// A picker offering `candidates`, labeled in `units`, with `picked`
 /// chosen.
 fn offers(candidates: &[Item], picked: Option<Item>, units: UnitSystem) -> RequiredPick<Offer> {
     let offers = candidates

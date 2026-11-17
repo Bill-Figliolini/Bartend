@@ -2,8 +2,8 @@
 //! combo box), pick lists, the menus they open, and scrollbars. Each
 //! starts from iced's own style and gives it the [`Styling`]'s corners,
 //! edged in the shade of cards' borders, and picked out in the accent
-//! colour when hovered, focused or open.
-//! Every colour comes from the theme's palette, so they suit whichever
+//! color when hovered, focused or open.
+//! Every color comes from the theme's palette, so they suit whichever
 //! theme is chosen.
 
 use iced::{
@@ -19,9 +19,9 @@ use iced::{
 use super::styled::accent;
 use crate::presentation::styling::Styling;
 
-/// How much of the accent colour edges a hovered control.
+/// How much of the accent color edges a hovered control.
 const HOVER_ALPHA: f32 = 0.6;
-/// How much of the accent colour a scrollbar's handle keeps when it is
+/// How much of the accent color a scrollbar's handle keeps when it is
 /// not hovered or dragged.
 const SCROLLER_ALPHA: f32 = 0.75;
 /// Width of a scrollbar, and of its handle.
@@ -54,7 +54,7 @@ fn edge(color: Color, radius: f32) -> Border {
     }
 }
 
-/// The colour that edges a control: the shade of cards' borders at rest,
+/// The color that edges a control: the shade of cards' borders at rest,
 /// a wash of the accent when `hovered`, and the accent when `engaged`
 /// (focused or open).
 fn edge_color(theme: &Theme, hovered: bool, engaged: bool) -> Color {

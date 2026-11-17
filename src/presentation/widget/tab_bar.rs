@@ -29,7 +29,7 @@ const BRAND_SIZE: f32 = 22.0;
 const BRAND_ORNAMENT: f32 = 8.0;
 /// Size of a tab's label.
 const TAB_SIZE: f32 = 15.0;
-/// Size of the ornament at the centre of the active tab's underline, and
+/// Size of the ornament at the center of the active tab's underline, and
 /// the underline's height with or without one.
 const TAB_ORNAMENT: f32 = 7.0;
 
@@ -67,8 +67,8 @@ pub fn tab_bar<'a>(
 }
 
 /// One screen's tab: its name in capitals, and while it is the `active`
-/// one, underlined in the accent colour with the styling's ornament, if
-/// any, at the centre.
+/// one, underlined in the accent color with the styling's ornament, if
+/// any, at the center.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn tab<'a>(styling: &Styling, kind: ScreenKind, active: bool) -> Element<'a, Message> {
     let name = styled::label(styling, kind.label(), TAB_SIZE);

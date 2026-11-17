@@ -3,9 +3,9 @@
 //! styling has them (showing a figure or holding a control), a stock gauge (segmented
 //! or one bar, as the styling says),
 //! chips (plain or toned), link rows (optionally with a row action or a
-//! toned status), column headings and labelled fields. Cards, tiles and
+//! toned status), column headings and labeled fields. Cards, tiles and
 //! chips have the styling's corners.
-//! Every colour comes from the theme's palette, so they suit whichever
+//! Every color comes from the theme's palette, so they suit whichever
 //! theme is chosen.
 
 use iced::{
@@ -32,22 +32,22 @@ use crate::{
     },
 };
 
-/// How much of the accent colour the inner line of a plain card keeps.
+/// How much of the accent color the inner line of a plain card keeps.
 const INNER_LINE_ALPHA: f32 = 0.35;
 /// Space between a card's inner line and its content.
 const CARD_PADDING: f32 = constants::PADDING as f32 + FRAME_PADDING;
 /// Size of the headline figure in a stat tile.
 const VALUE_SIZE: f32 = 28.0;
-/// How much of a toned card's text colour fills a button on it when
+/// How much of a toned card's text color fills a button on it when
 /// hovered.
 const ON_TONE_WASH: f32 = 0.12;
-/// How much of the text colour muted text keeps.
+/// How much of the text color muted text keeps.
 const MUTED_ALPHA: f32 = 0.65;
 /// Width of the status column of a [`status_link_row`], so the details
 /// before it line up from row to row. Fits "None in stock" in small type.
 const STATUS_WIDTH: f32 = 100.0;
 
-/// How a chip or a status reads: plain, or in the theme's colour for good
+/// How a chip or a status reads: plain, or in the theme's color for good
 /// news, a warning, or a problem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tone {
@@ -86,7 +86,7 @@ fn card_box<'a, Message: 'a>(
     FramedCard::new(styling, box_, |theme| inner_line(theme, Tone::Neutral))
 }
 
-/// A [`card_box`] for a tile, with its corners marked in the accent colour
+/// A [`card_box`] for a tile, with its corners marked in the accent color
 /// if the styling marks them.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn tile_box<'a, Message: 'a>(
@@ -132,7 +132,7 @@ pub fn control_tile<'a, Message: 'a>(
     tile_box(styling, body)
 }
 
-/// A card filled with the weak shade of `tone`'s colour and double
+/// A card filled with the weak shade of `tone`'s color and double
 /// outlined in it, for a message about the whole page, such as what was
 /// just served. A neutral one is a plain [`card`].
 #[cfg_attr(coverage_nightly, coverage(off))]
@@ -151,7 +151,7 @@ pub fn toned_card<'a, Message: 'a>(
 
 /// A button for a [`toned_card`] of the same `tone`, such as Dismiss: a
 /// [secondary button](styled::secondary_button) outlined in the card's text
-/// colour, which reads on the card where the accent may not.
+/// color, which reads on the card where the accent may not.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn toned_card_button<'a, Message: 'a>(
     styling: &Styling,
@@ -164,7 +164,7 @@ pub fn toned_card_button<'a, Message: 'a>(
 }
 
 /// How full something is: `fraction` (0 to 1) of the gauge filled in the
-/// colour of `level`, followed by the share as a percentage. The gauge is
+/// color of `level`, followed by the share as a percentage. The gauge is
 /// a row of square segments (see [`lit_segments`]) or one bar with the
 /// styling's corners, as thick as the styling says.
 #[cfg_attr(coverage_nightly, coverage(off))]
@@ -232,7 +232,7 @@ pub fn chip<'a, Message: 'a>(
         .into()
 }
 
-/// A [`chip`] coloured by `tone`, e.g. to say whether a recipe can be
+/// A [`chip`] colored by `tone`, e.g. to say whether a recipe can be
 /// made.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn toned_chip<'a, Message: 'a>(
@@ -279,7 +279,7 @@ pub fn link_row_with_action<'a, Message: Clone + 'a>(
         .into()
 }
 
-/// A [`link_row`] that ends in a short `status` coloured by its tone, such
+/// A [`link_row`] that ends in a short `status` colored by its tone, such
 /// as whether an ingredient is in stock. The status sits in a fixed-width
 /// column so each row's `detail` lines up with the others.
 #[cfg_attr(coverage_nightly, coverage(off))]
@@ -342,7 +342,7 @@ pub fn column_heading<'a>(styling: &Styling, label: &str) -> Text<'a> {
     styled::label(styling, label, constants::SMALL_TEXT).style(muted)
 }
 
-/// A small [label](styled::label) in the accent colour, as on cards and
+/// A small [label](styled::label) in the accent color, as on cards and
 /// stat tiles.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn caption<'a>(styling: &Styling, label: &str) -> Text<'a> {
@@ -355,7 +355,7 @@ pub fn hint<'a>(note: impl text::IntoFragment<'a>) -> Text<'a> {
     text(note).size(constants::SMALL_TEXT).style(muted)
 }
 
-/// Text in a fainter shade of the theme's text colour, for secondary
+/// Text in a fainter shade of the theme's text color, for secondary
 /// details.
 pub fn muted(theme: &Theme) -> text::Style {
     text::Style {
@@ -363,8 +363,8 @@ pub fn muted(theme: &Theme) -> text::Style {
     }
 }
 
-/// Text coloured by `tone`: [muted](muted) when neutral, otherwise in the
-/// theme's success, warning or danger colour.
+/// Text colored by `tone`: [muted](muted) when neutral, otherwise in the
+/// theme's success, warning or danger color.
 pub fn toned_text(theme: &Theme, tone: Tone) -> text::Style {
     let palette = theme.extended_palette();
     let color = match tone {
@@ -408,7 +408,7 @@ fn chip_style(theme: &Theme, radius: f32) -> container::Style {
     }
 }
 
-/// A [`chip_style`] filled with the weak shade of `tone`'s colour, or the
+/// A [`chip_style`] filled with the weak shade of `tone`'s color, or the
 /// plain chip when neutral.
 fn toned_chip_style(theme: &Theme, tone: Tone, radius: f32) -> container::Style {
     let chip = chip_style(theme, radius);
@@ -422,8 +422,8 @@ fn toned_chip_style(theme: &Theme, tone: Tone, radius: f32) -> container::Style 
     }
 }
 
-/// A [`card_style`] filled with the weak shade of `tone`'s colour and
-/// outlined in its base colour, or the plain card when neutral.
+/// A [`card_style`] filled with the weak shade of `tone`'s color and
+/// outlined in its base color, or the plain card when neutral.
 fn toned_card_style(theme: &Theme, tone: Tone, radius: f32, frame: CardFrame) -> container::Style {
     let card = card_style(theme, radius, frame);
     let Some(shade) = tone_shades(theme, tone) else {
@@ -440,8 +440,8 @@ fn toned_card_style(theme: &Theme, tone: Tone, radius: f32, frame: CardFrame) ->
     }
 }
 
-/// The colour of the inner line of a card of `tone`: a faint wash of the
-/// accent on a plain card, or the base colour of the tone, as its outer
+/// The color of the inner line of a card of `tone`: a faint wash of the
+/// accent on a plain card, or the base color of the tone, as its outer
 /// line is.
 fn inner_line(theme: &Theme, tone: Tone) -> Color {
     match tone_shades(theme, tone) {
@@ -450,8 +450,8 @@ fn inner_line(theme: &Theme, tone: Tone) -> Color {
     }
 }
 
-/// A [`toned_card_button`]: its [`styled::secondary`] `style` recoloured
-/// in the text colour of a `tone` card, with a faint wash of it on hover.
+/// A [`toned_card_button`]: its [`styled::secondary`] `style` recolored
+/// in the text color of a `tone` card, with a faint wash of it on hover.
 /// A neutral one keeps the plain secondary style.
 fn on_tone(
     mut style: button::Style,
@@ -469,7 +469,7 @@ fn on_tone(
     style
 }
 
-/// The base and weak shades of `tone`'s colour in the theme, or `None`
+/// The base and weak shades of `tone`'s color in the theme, or `None`
 /// when neutral.
 fn tone_shades(theme: &Theme, tone: Tone) -> Option<Shades> {
     let palette = theme.extended_palette();
@@ -482,14 +482,14 @@ fn tone_shades(theme: &Theme, tone: Tone) -> Option<Shades> {
     Some(Shades { base, weak })
 }
 
-/// Two shades of one of the theme's colours, each with the text colour
+/// Two shades of one of the theme's colors, each with the text color
 /// that reads on it.
 struct Shades {
     base: Pair,
     weak: Pair,
 }
 
-/// One segment of the stock gauge: in the colour of `level` when `lit`,
+/// One segment of the stock gauge: in the color of `level` when `lit`,
 /// or the shade of cards' borders when not.
 fn segment_style(theme: &Theme, level: StockLevel, lit: bool) -> container::Style {
     let color = if lit {
@@ -503,7 +503,7 @@ fn segment_style(theme: &Theme, level: StockLevel, lit: bool) -> container::Styl
     }
 }
 
-/// The stock gauge as one bar: filled in the colour of `level` on a track
+/// The stock gauge as one bar: filled in the color of `level` on a track
 /// in the shade of cards' borders, with corners of `radius`.
 fn bar_style(theme: &Theme, level: StockLevel, radius: f32) -> progress_bar::Style {
     progress_bar::Style {
@@ -513,7 +513,7 @@ fn bar_style(theme: &Theme, level: StockLevel, radius: f32) -> progress_bar::Sty
     }
 }
 
-/// The colour of the filled part of the stock gauge at `level`.
+/// The color of the filled part of the stock gauge at `level`.
 fn level_color(theme: &Theme, level: StockLevel) -> Color {
     let palette = theme.extended_palette();
     match level {
@@ -523,7 +523,7 @@ fn level_color(theme: &Theme, level: StockLevel) -> Color {
     }
 }
 
-/// The colour of the empty part of the stock gauge.
+/// The color of the empty part of the stock gauge.
 fn unlit(theme: &Theme) -> Color {
     theme.extended_palette().background.weak.color
 }
@@ -552,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn gauge_colour_follows_the_stock_level_in_every_theme() {
+    fn gauge_color_follows_the_stock_level_in_every_theme() {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             let cases = [
@@ -632,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn inner_lines_are_faint_accent_or_the_tone_colour() {
+    fn inner_lines_are_faint_accent_or_the_tone_color() {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             assert_eq!(
@@ -664,7 +664,7 @@ mod tests {
     }
 
     #[test]
-    fn muted_text_is_a_fainter_theme_text_colour() {
+    fn muted_text_is_a_fainter_theme_text_color() {
         for theme in Themes::new().options() {
             let text = theme.palette().text;
             let color = muted(theme).color.unwrap();
@@ -730,7 +730,7 @@ mod tests {
     }
 
     #[test]
-    fn buttons_on_toned_cards_are_in_the_cards_text_colour() {
+    fn buttons_on_toned_cards_are_in_the_cards_text_color() {
         for theme in Themes::new().options() {
             let active = button::Status::Active;
             let hovered = button::Status::Hovered;
@@ -752,7 +752,7 @@ mod tests {
     }
 
     #[test]
-    fn toned_text_is_muted_or_the_tone_colour() {
+    fn toned_text_is_muted_or_the_tone_color() {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             assert_eq!(toned_text(theme, Tone::Neutral).color, muted(theme).color);

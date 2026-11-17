@@ -10,14 +10,14 @@ use iced::{
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{Config, EditableConfig, UnitSystem},
+    models::{Config, ConfigError, EditableConfig, PaletteFile, UnitSystem},
     persistence::Database,
     presentation::{
         application::{self, Context},
         constants,
         screen::{Panels, shared::form_page},
         styling::{self, Styling, StylingOption, Stylings},
-        theme::{self, Themes},
+        theme::Themes,
         widget::{
             controls,
             detail::labeled,
@@ -32,6 +32,8 @@ pub struct Settings {
     config: EditableConfig,
     /// The group of settings shown in the detail panel.
     section: Section,
+    /// The built-in themes and the user's custom palettes, read from the
+    /// palettes file when Settings opens.
     themes: Themes,
     stylings: Stylings,
 }
@@ -142,14 +144,30 @@ impl Command {
 }
 
 impl Settings {
-    pub fn new(current_config: &Config, themes: &Themes, stylings: &Stylings) -> Self {
-        let config = current_config.editable();
-        Self {
-            config,
+    /// Opens Settings on `current_config`, reading the user's palettes
+    /// from the palettes file beside it.
+    ///
+    /// Also gives back what went wrong reading the palettes, if anything:
+    /// [`ConfigError::UnreadablePalettes`] (only the built-in themes are
+    /// offered), or [`ConfigError::SkippedPalettes`] naming palettes that
+    /// were malformed or named like a built-in theme.
+    pub fn new(current_config: &Config, stylings: &Stylings) -> (Self, Option<ConfigError>) {
+        let (themes, notice) = match PaletteFile::load(current_config.palettes_path()) {
+            Ok(file) => {
+                let (themes, clashing) = Themes::with_custom(file.palettes());
+                let skipped: Vec<String> = file.skipped().iter().cloned().chain(clashing).collect();
+                let notice = (!skipped.is_empty()).then_some(ConfigError::SkippedPalettes(skipped));
+                (themes, notice)
+            }
+            Err(error) => (Themes::new(), Some(error)),
+        };
+        let settings = Self {
+            config: current_config.editable(),
             section: Section::Database,
-            themes: themes.clone(),
+            themes,
             stylings: stylings.clone(),
-        }
+        };
+        (settings, notice)
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -246,7 +264,7 @@ impl Settings {
                 None
             }
             Message::UpdateTheme(theme) => {
-                self.config.theme = theme::choice_for(&theme);
+                self.config.theme = self.themes.choice_for(&theme);
                 None
             }
             Message::UpdateStyling(option) => {
@@ -269,13 +287,19 @@ fn settings_msg(msg: Message) -> application::Message {
 mod tests {
     use super::*;
     use crate::{
-        models::{BartendError, ConfigError, StylingChoice, ThemeChoice},
+        models::{BartendError, ConfigError, StylingChoice, ThemeChoice, palette_sample as sample},
         persistence::DBError,
         presentation::{
             screen::test_support::{World, drain},
             styling::PLAIN_OPTION,
+            theme::custom_theme,
         },
     };
+
+    /// Settings opened on `config`, with the test styling registered.
+    fn open(config: &Config) -> Settings {
+        Settings::new(config, &Stylings::with_plain()).0
+    }
 
     fn save(settings: &mut Settings) -> Config {
         match settings.update(Message::Save) {
@@ -298,7 +322,7 @@ mod tests {
     #[test]
     fn saving_updates_and_persists_the_config() {
         let mut world = World::new();
-        let mut settings = Settings::new(&world.config, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&world.config);
         assert!(
             settings
                 .update(Message::UpdateUnitSystem(UnitSystem::Imperial))
@@ -316,7 +340,7 @@ mod tests {
     #[test]
     fn saving_persists_the_chosen_theme() {
         let mut world = World::new();
-        let mut settings = Settings::new(&world.config, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&world.config);
         assert!(settings.update(Message::UpdateTheme(Theme::Nord)).is_none());
 
         let config = save(&mut settings);
@@ -331,7 +355,7 @@ mod tests {
     #[test]
     fn saving_persists_the_chosen_styling() {
         let mut world = World::new();
-        let mut settings = Settings::new(&world.config, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&world.config);
         assert!(
             settings
                 .update(Message::UpdateStyling(PLAIN_OPTION))
@@ -350,7 +374,7 @@ mod tests {
     #[test]
     fn opens_on_database_and_switches_sections_keeping_edits() {
         let world = World::new();
-        let mut settings = Settings::new(&world.config, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&world.config);
         assert_eq!(settings.section, Section::Database);
         settings.update(Message::UpdateUnitSystem(UnitSystem::Imperial));
 
@@ -375,7 +399,7 @@ mod tests {
     #[test]
     fn reset_discards_unsaved_edits() {
         let world = World::new();
-        let mut settings = Settings::new(&world.config, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&world.config);
         settings.update(Message::UpdateUnitSystem(UnitSystem::Imperial));
         settings.update(Message::UpdateDBPath(PathBuf::from("elsewhere.db")));
         settings.update(Message::UpdateTheme(Theme::Dracula));
@@ -395,7 +419,7 @@ mod tests {
         let mut world = World::new();
         world.add_item("Tanqueray", 750.0);
         let new_db = world.dir.path().join("other.db");
-        let mut settings = Settings::new(&world.config, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&world.config);
         settings.update(Message::UpdateDBPath(new_db.clone()));
 
         let config = save(&mut settings);
@@ -414,7 +438,7 @@ mod tests {
         world.add_item("Tanqueray", 750.0);
         let bad_db = world.dir.path().join("not_a_db.db");
         std::fs::write(&bad_db, "this is not a sqlite database at all").unwrap();
-        let mut settings = Settings::new(&world.config, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&world.config);
         settings.update(Message::UpdateDBPath(bad_db));
 
         let config = save(&mut settings);
@@ -444,7 +468,7 @@ mod tests {
         )
         .unwrap();
         drop(gone);
-        let mut settings = Settings::new(&unsaveable, &Themes::new(), &Stylings::with_plain());
+        let mut settings = open(&unsaveable);
         settings.update(Message::UpdateUnitSystem(UnitSystem::Imperial));
 
         let config = save(&mut settings);
@@ -460,5 +484,94 @@ mod tests {
             "{messages:?}"
         );
         assert_eq!(world.config.default_units(), UnitSystem::Metric);
+    }
+
+    /// Writes `palettes` as the palettes file beside `config`.
+    fn write_palettes(config: &Config, palettes: &serde_json::Value) {
+        std::fs::write(config.palettes_path(), palettes.to_string()).unwrap();
+    }
+
+    fn palette_json(name: &str) -> serde_json::Value {
+        serde_json::to_value(sample(name)).unwrap()
+    }
+
+    #[test]
+    fn opening_offers_the_saved_custom_palettes() {
+        let world = World::new();
+        write_palettes(&world.config, &serde_json::json!([palette_json("Harbor")]));
+
+        let (settings, notice) = Settings::new(&world.config, &Stylings::with_plain());
+
+        assert_eq!(notice, None);
+        assert!(
+            settings
+                .themes
+                .options()
+                .contains(&custom_theme(&sample("Harbor")))
+        );
+    }
+
+    #[test]
+    fn without_a_palettes_file_only_built_in_themes_are_offered() {
+        let world = World::new();
+
+        let (settings, notice) = Settings::new(&world.config, &Stylings::with_plain());
+
+        assert_eq!(notice, None);
+        assert_eq!(settings.themes.options(), Themes::new().options());
+    }
+
+    #[test]
+    fn saving_a_custom_palette_keeps_a_copy_of_it_in_the_config() {
+        let mut world = World::new();
+        write_palettes(&world.config, &serde_json::json!([palette_json("Harbor")]));
+        let mut settings = open(&world.config);
+        settings.update(Message::UpdateTheme(custom_theme(&sample("Harbor"))));
+
+        let config = save(&mut settings);
+        assert_reloads(&apply(&mut world, config));
+
+        let harbor = ThemeChoice::Custom(sample("Harbor"));
+        assert_eq!(world.config.theme(), &harbor);
+        let on_disk = Config::load(Some(world.config.path().clone()), None).unwrap();
+        assert_eq!(on_disk.theme(), &harbor);
+    }
+
+    #[test]
+    fn palettes_that_cannot_be_offered_are_reported_together() {
+        let world = World::new();
+        write_palettes(
+            &world.config,
+            &serde_json::json!([
+                palette_json("Harbor"),
+                {"name": "Broken"},
+                palette_json("Nord"),
+            ]),
+        );
+
+        let (settings, notice) = Settings::new(&world.config, &Stylings::with_plain());
+
+        assert_eq!(
+            notice,
+            Some(ConfigError::SkippedPalettes(vec![
+                "Broken".to_string(),
+                "Nord".to_string()
+            ]))
+        );
+        assert_eq!(
+            settings.themes.options().len(),
+            Themes::new().options().len() + 1
+        );
+    }
+
+    #[test]
+    fn an_unreadable_palettes_file_is_reported_and_only_built_ins_are_offered() {
+        let world = World::new();
+        std::fs::write(world.config.palettes_path(), "{ not a list").unwrap();
+
+        let (settings, notice) = Settings::new(&world.config, &Stylings::with_plain());
+
+        assert_eq!(notice, Some(ConfigError::UnreadablePalettes));
+        assert_eq!(settings.themes.options(), Themes::new().options());
     }
 }

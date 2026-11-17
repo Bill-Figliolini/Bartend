@@ -221,7 +221,13 @@ impl Bartend {
             ScreenKind::Inventory => {
                 Screen::inventory(&self.config, &self.category_service, self.units)
             }
-            ScreenKind::Settings => Screen::settings(&self.config, &self.themes, &self.stylings),
+            ScreenKind::Settings => {
+                let (settings, notice) = Screen::settings(&self.config, &self.stylings);
+                if let Some(notice) = notice {
+                    self.error = Some(BartendError::Config(notice));
+                }
+                settings
+            }
             ScreenKind::Categories => Screen::categories(),
             ScreenKind::Recipes => {
                 Screen::recipes(&self.config, &self.category_service, self.units)
@@ -462,7 +468,9 @@ mod tests {
     use super::*;
     use crate::{
         logic::LogicError,
-        models::{CategoryID, ItemID, StylingChoice, ThemeChoice, UnitSystem},
+        models::{
+            CategoryID, ItemID, StylingChoice, ThemeChoice, UnitSystem, palette_sample as sample,
+        },
         presentation::{
             input_handling::{CategoryMessage, EditorMessage, ItemMessage},
             screen::{
@@ -470,7 +478,7 @@ mod tests {
                 test_support::{World, drain},
             },
             styling::{PLAIN, PLAIN_OPTION},
-            theme::navy_and_champagne,
+            theme::{custom_theme, navy_and_champagne},
         },
     };
 
@@ -974,6 +982,33 @@ mod tests {
     /// The startup notice for `config`, from the app's own registries.
     fn notice(app: &Bartend, config: &Config) -> Option<BartendError> {
         appearance_notice(config, &app.themes, &app.stylings)
+    }
+
+    #[test]
+    fn a_saved_custom_palette_is_drawn_from_its_copy_without_a_notice() {
+        let (mut app, _dir) = app();
+        let mut config = app.config.editable();
+        config.theme = ThemeChoice::Custom(sample("Harbor"));
+        app.config = config.commit();
+
+        // No palettes file exists: the config's copy is enough.
+        assert!(!app.config.palettes_path().exists());
+        assert_eq!(app.theme(), custom_theme(&sample("Harbor")));
+        assert!(notice(&app, &app.config).is_none());
+    }
+
+    #[test]
+    fn opening_settings_reports_an_unreadable_palettes_file() {
+        let (mut app, _dir) = app();
+        std::fs::write(app.config.palettes_path(), "{ not a list").unwrap();
+
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+
+        assert_eq!(app.screen.kind(), ScreenKind::Settings);
+        assert!(matches!(
+            app.error,
+            Some(BartendError::Config(ConfigError::UnreadablePalettes))
+        ));
     }
 
     #[test]

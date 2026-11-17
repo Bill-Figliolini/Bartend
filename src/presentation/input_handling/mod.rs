@@ -23,7 +23,7 @@
 //!   complaints. After it, each error is worked out afresh on every view, so
 //!   it disappears as soon as the field is fixed. Any reset hides them again.
 //! - **Editing.** [`Editor::toggle_edit`] clears the form and fills it from
-//!   an existing value with [`Form::fill`]; cancelling clears it again, so a
+//!   an existing value with [`Form::fill`]; canceling clears it again, so a
 //!   later save cannot add a copy of the value that was being edited.
 //!
 //! [`ServingInput`] is the exception: it has no edit mode and needs the

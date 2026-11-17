@@ -1,6 +1,6 @@
 //! The touches every screen shares, drawn as the [`Styling`] says: titles
 //! and labels in its heading face, its ornament, the rule under page
-//! headers, and buttons labelled in its heading face. Every colour comes
+//! headers, and buttons labeled in its heading face. Every color comes
 //! from the theme's palette, so they suit whichever theme is chosen.
 
 use iced::{
@@ -24,10 +24,10 @@ pub const TITLE_SIZE: f32 = 28.0;
 const DIAMOND: &[u8] = include_bytes!("../../../assets/diamond.svg");
 /// A candle flame, which no font has.
 const FLAME: &[u8] = include_bytes!("../../../assets/flame.svg");
-/// Size of the ornament at the centre of a [`header_rule`], and the
+/// Size of the ornament at the center of a [`header_rule`], and the
 /// rule's height with or without one.
 const RULE_ORNAMENT: f32 = 7.0;
-/// How much of the accent colour the lines of a [`header_rule`] keep.
+/// How much of the accent color the lines of a [`header_rule`] keep.
 const RULE_ALPHA: f32 = 0.45;
 /// Thickness of the lines of a [`header_rule`].
 const RULE_GIRTH: u32 = 1;
@@ -47,7 +47,7 @@ const SMALL_BUTTON_PADDING: Padding = Padding {
     left: 10.0,
     right: 10.0,
 };
-/// How much of its colour a disabled button keeps.
+/// How much of its color a disabled button keeps.
 const DISABLED_ALPHA: f32 = 0.5;
 /// Width of an outlined button's border.
 const OUTLINE: f32 = 1.0;
@@ -79,7 +79,7 @@ fn cased(styling: &Styling, label: &str) -> String {
     }
 }
 
-/// The styling's ornament in the accent colour, `size` pixels across as
+/// The styling's ornament in the accent color, `size` pixels across as
 /// [scaled](Styling::ornament_size) by the styling, or `None` if it has
 /// none.
 pub fn ornament<'a, Message: 'a>(styling: &Styling, size: f32) -> Option<Element<'a, Message>> {
@@ -97,7 +97,7 @@ fn ornament_svg(ornament: Ornament) -> &'static [u8] {
     }
 }
 
-/// The SVG `image`, `size` pixels square, in the accent colour.
+/// The SVG `image`, `size` pixels square, in the accent color.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn mark<'a, Message: 'a>(image: &'static [u8], size: f32) -> Element<'a, Message> {
     svg(svg::Handle::from_memory(image))
@@ -110,7 +110,7 @@ fn mark<'a, Message: 'a>(image: &'static [u8], size: f32) -> Element<'a, Message
 }
 
 /// The faint accent line across the panel under a page's header, with the
-/// styling's ornament at its centre, ── ◆ ──, if it has one. It takes the
+/// styling's ornament at its center, ── ◆ ──, if it has one. It takes the
 /// same height either way, so pages keep their layout.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn header_rule<'a, Message: 'a>(styling: &Styling) -> Element<'a, Message> {
@@ -128,10 +128,10 @@ pub fn header_rule<'a, Message: 'a>(styling: &Styling) -> Element<'a, Message> {
 }
 
 /// The main action on a page, such as Save, Edit or Serve: a solid block
-/// of the accent colour with its `label`. Give each page one.
+/// of the accent color with its `label`. Give each page one.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn primary_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Button<'a, Message> {
-    labelled(styling, label, BUTTON_TEXT)
+    labeled(styling, label, BUTTON_TEXT)
         .padding(BUTTON_PADDING)
         .style(primary(styling))
 }
@@ -140,7 +140,7 @@ pub fn primary_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Button
 /// an accent outline.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn secondary_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Button<'a, Message> {
-    labelled(styling, label, BUTTON_TEXT)
+    labeled(styling, label, BUTTON_TEXT)
         .padding(BUTTON_PADDING)
         .style(secondary(styling))
 }
@@ -149,7 +149,7 @@ pub fn secondary_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Butt
 /// a [`quiet_danger`] outline.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn danger_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Button<'a, Message> {
-    labelled(styling, label, BUTTON_TEXT)
+    labeled(styling, label, BUTTON_TEXT)
         .padding(BUTTON_PADDING)
         .style(quiet_danger(styling))
 }
@@ -159,15 +159,15 @@ pub fn danger_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Button<
 /// [`quiet_danger`].
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn small_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Button<'a, Message> {
-    labelled(styling, label, constants::SMALL_TEXT).padding(SMALL_BUTTON_PADDING)
+    labeled(styling, label, constants::SMALL_TEXT).padding(SMALL_BUTTON_PADDING)
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn labelled<'a, Message: 'a>(styling: &Styling, text: &str, size: f32) -> Button<'a, Message> {
+fn labeled<'a, Message: 'a>(styling: &Styling, text: &str, size: f32) -> Button<'a, Message> {
     button(label(styling, text, size))
 }
 
-/// A [`primary_button`]: filled with the accent colour, a shade stronger
+/// A [`primary_button`]: filled with the accent color, a shade stronger
 /// on hover, faded when disabled.
 pub fn primary(styling: &Styling) -> impl Fn(&Theme, button::Status) -> button::Style + use<> {
     let radius = styling.radius;
@@ -216,7 +216,7 @@ pub fn secondary(styling: &Styling) -> impl Fn(&Theme, button::Status) -> button
 }
 
 /// A button for a destructive action that is less loud than
-/// [`button::danger`] until hovered: danger-coloured text and outline on
+/// [`button::danger`] until hovered: danger-colored text and outline on
 /// no background, filling in on hover.
 pub fn quiet_danger(styling: &Styling) -> impl Fn(&Theme, button::Status) -> button::Style + use<> {
     let radius = styling.radius;
@@ -251,19 +251,19 @@ fn fade(style: &mut button::Style) {
     style.border.color = style.border.color.scale_alpha(DISABLED_ALPHA);
 }
 
-/// Text in the accent colour, as captions are.
+/// Text in the accent color, as captions are.
 pub fn accented(theme: &Theme) -> text::Style {
     text::Style {
         color: Some(accent(theme)),
     }
 }
 
-/// The theme's accent colour.
+/// The theme's accent color.
 pub fn accent(theme: &Theme) -> Color {
     theme.palette().primary
 }
 
-/// A line of a [`header_rule`]: a faint wash of the accent colour.
+/// A line of a [`header_rule`]: a faint wash of the accent color.
 fn rule_line(theme: &Theme) -> rule::Style {
     rule::Style {
         color: accent(theme).scale_alpha(RULE_ALPHA),
@@ -286,7 +286,7 @@ mod tests {
     type ButtonStyle = dyn Fn(&Theme, button::Status) -> button::Style;
 
     #[test]
-    fn ornaments_are_in_the_accent_colour() {
+    fn ornaments_are_in_the_accent_color() {
         for theme in Themes::new().options() {
             let primary = theme.palette().primary;
             assert_eq!(accented(theme).color, Some(primary));

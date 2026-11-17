@@ -3,7 +3,7 @@
 //! faint accent one under the top bar), and mark what is chosen in them
 //! with a faint accent tint. Entries and the unit switch have the
 //! [`Styling`]'s corners.
-//! Every colour comes from the theme's palette, like the panels' own.
+//! Every color comes from the theme's palette, like the panels' own.
 
 use iced::{
     Border, Color, Element, Theme,
@@ -15,11 +15,11 @@ use crate::presentation::styling::Styling;
 
 /// Thickness of the lines between the frame and the detail panel.
 const HAIRLINE: u32 = 1;
-/// How much of the accent colour the tint behind a chosen entry keeps.
+/// How much of the accent color the tint behind a chosen entry keeps.
 const TINT_ALPHA: f32 = 0.16;
-/// How much of the text colour an unchosen tab keeps.
+/// How much of the text color an unchosen tab keeps.
 const QUIET_ALPHA: f32 = 0.7;
-/// How much of the accent colour the line under the top bar keeps.
+/// How much of the accent color the line under the top bar keeps.
 const ACROSS_ALPHA: f32 = 0.45;
 /// Thickness of the line under the active tab.
 const UNDERLINE: u32 = 1;
@@ -36,13 +36,13 @@ pub fn surface(theme: &Theme) -> container::Style {
 }
 
 /// A line across the window, under the top bar: a faint wash of the
-/// accent colour.
+/// accent color.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn hairline_across<'a, Message: 'a>() -> Element<'a, Message> {
     rule::horizontal(HAIRLINE).style(accent_hairline).into()
 }
 
-/// A line in the accent colour under the active tab, either side of its
+/// A line in the accent color under the active tab, either side of its
 /// ornament if it has one.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn underline<'a, Message: 'a>() -> Element<'a, Message> {
@@ -55,7 +55,7 @@ pub fn hairline_down<'a, Message: 'a>() -> Element<'a, Message> {
     rule::vertical(HAIRLINE).style(hairline).into()
 }
 
-/// A [`hairline_across`]: a faint wash of the accent colour.
+/// A [`hairline_across`]: a faint wash of the accent color.
 fn accent_hairline(theme: &Theme) -> rule::Style {
     rule::Style {
         color: accent(theme).scale_alpha(ACROSS_ALPHA),
@@ -63,7 +63,7 @@ fn accent_hairline(theme: &Theme) -> rule::Style {
     }
 }
 
-/// An [`underline`]: the accent colour.
+/// An [`underline`]: the accent color.
 fn underline_style(theme: &Theme) -> rule::Style {
     rule::Style {
         color: accent(theme),
@@ -71,7 +71,7 @@ fn underline_style(theme: &Theme) -> rule::Style {
     }
 }
 
-/// A [`hairline_down`]: in the colour of cards' borders.
+/// A [`hairline_down`]: in the color of cards' borders.
 fn hairline(theme: &Theme) -> rule::Style {
     rule::Style {
         color: theme.extended_palette().background.weak.color,
@@ -81,7 +81,7 @@ fn hairline(theme: &Theme) -> rule::Style {
     }
 }
 
-/// The faint wash of the accent colour behind a chosen entry, tab segment
+/// The faint wash of the accent color behind a chosen entry, tab segment
 /// or hovered [outlined button](super::styled::secondary).
 pub fn tint(theme: &Theme) -> Color {
     theme.palette().primary.scale_alpha(TINT_ALPHA)
@@ -128,7 +128,7 @@ fn entry_style(
 }
 
 /// A tab in the top bar: plain, slightly faded text, full strength when
-/// hovered, and in the accent colour when `active`. The active tab is also
+/// hovered, and in the accent color when `active`. The active tab is also
 /// underlined, separately.
 pub fn tab(theme: &Theme, status: button::Status, active: bool) -> button::Style {
     let text = theme.extended_palette().background.weakest.text;
@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn the_active_tab_is_in_the_accent_colour_and_others_are_quieter() {
+    fn the_active_tab_is_in_the_accent_color_and_others_are_quieter() {
         for theme in Themes::new().options() {
             let text = theme.extended_palette().background.weakest.text;
             assert_eq!(tab(theme, ACTIVE, true).text_color, accent(theme));

@@ -57,7 +57,7 @@ fn with_error<'a, M: 'a>(field: Element<'a, M>, error: Option<Error>) -> Element
         .into()
 }
 
-/// `error` as shown under a field: small, in the theme's danger colour.
+/// `error` as shown under a field: small, in the theme's danger color.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn error_text<'a>(error: Error) -> Text<'a> {
     text(error.to_string())

@@ -41,7 +41,7 @@ pub struct NonNegative;
 impl Rule for NonNegative {
     type Output = f32;
 
-    /// `-0` passes the `>= 0.0` check, so `abs` normalises it to `0.0`.
+    /// `-0` passes the `>= 0.0` check, so `abs` normalizes it to `0.0`.
     fn apply(raw: &str) -> Result<f32, Error> {
         raw.trim()
             .parse::<f32>()

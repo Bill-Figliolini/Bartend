@@ -434,7 +434,7 @@ mod tests {
         assert_eq!(screen.editor.editing(), None);
         assert!(
             screen.update(SAVE, &world.categories).is_none(),
-            "cancelling should clear the form"
+            "canceling should clear the form"
         );
     }
 

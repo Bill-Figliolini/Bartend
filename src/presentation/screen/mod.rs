@@ -9,13 +9,12 @@ use iced::{Element, Task};
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{Config, UnitSystem},
+    models::{Config, ConfigError, UnitSystem},
     presentation::{
         application::{Context, Message},
         input_handling::EditorMessage::{Cancel, Save},
         screen::{recipes::Recipes, serving::Serving},
         styling::{Styling, Stylings},
-        theme::Themes,
     },
 };
 
@@ -212,8 +211,11 @@ impl Screen {
         Self::Inventory(Box::new(inventory))
     }
 
-    pub fn settings(current_config: &Config, themes: &Themes, stylings: &Stylings) -> Self {
-        Self::Settings(settings::Settings::new(current_config, themes, stylings))
+    /// Settings, and what went wrong reading the user's palettes, if
+    /// anything (see [`settings::Settings::new`]).
+    pub fn settings(current_config: &Config, stylings: &Stylings) -> (Self, Option<ConfigError>) {
+        let (settings, notice) = settings::Settings::new(current_config, stylings);
+        (Self::Settings(settings), notice)
     }
     pub fn categories() -> Self {
         Self::Categories(categories::Categories::new())
@@ -395,7 +397,7 @@ mod tests {
     fn screens(world: &World) -> Vec<Screen> {
         vec![
             Screen::inventory(&world.config, &world.categories, UnitSystem::Metric),
-            Screen::settings(&world.config, &Themes::new(), &Stylings::new()),
+            Screen::settings(&world.config, &Stylings::new()).0,
             Screen::categories(),
             Screen::recipes(&world.config, &world.categories, UnitSystem::Metric),
             Screen::serving(UnitSystem::Metric),

@@ -104,7 +104,7 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
     /// Starts editing `id`, filling the form from `load()`. Asking for the
     /// value already being edited cancels the edit instead. While another
     /// value is being edited, nothing happens: that edit must be saved or
-    /// cancelled first.
+    /// canceled first.
     pub fn toggle_edit(&mut self, id: Id, load: impl FnOnce() -> F::Value, units: UnitSystem) {
         match self.editing {
             None => {

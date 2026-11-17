@@ -29,7 +29,7 @@ pub struct Entry {
     pub dimmed: bool,
 }
 
-/// How much of the text colour a dimmed entry keeps.
+/// How much of the text color a dimmed entry keeps.
 const DIMMED_ALPHA: f32 = 0.45;
 /// Size of the ornament before the selected entry, and the room kept for
 /// it before every entry.

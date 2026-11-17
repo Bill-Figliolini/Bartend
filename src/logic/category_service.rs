@@ -327,7 +327,7 @@ impl CategoryService {
     }
 
     /// The [`breadcrumb`](Self::breadcrumb) path to `category` and the
-    /// number of paths there are to it, memoised in `seen` so that shared
+    /// number of paths there are to it, memoized in `seen` so that shared
     /// ancestors are only walked once.
     fn best_path(
         &self,

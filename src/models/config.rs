@@ -6,10 +6,13 @@ use std::{
     fmt::Display,
     fs::{self, File, OpenOptions},
     io::{BufReader, BufWriter},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
-use crate::models::quantity::UnitSystem;
+use crate::models::{
+    palette::{CustomPalette, PaletteColors},
+    quantity::UnitSystem,
+};
 
 //TODO:
 // Going to try a restructuring of this to see how well it works.
@@ -32,12 +35,48 @@ pub struct Config {
     styling: StylingChoice,
 }
 
-/// The palette the user picked, by name. iced calls a palette a theme. Tagged so that user-defined themes can
-/// be added later as their own variant without changing the file format.
+/// The palette the user picked. iced calls a palette a theme.
+///
+/// Saved tagged by kind: `{"kind": "BuiltIn", "name": …}`, or for a
+/// custom palette `{"kind": "Custom", "name": …, "colors": {…}}`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "name")]
+#[serde(from = "SavedThemeChoice", into = "SavedThemeChoice")]
 pub enum ThemeChoice {
+    /// One of the app's own palettes or one of iced's, by name.
     BuiltIn(String),
+    /// A palette the user made. The config keeps its own copy, so the app
+    /// can start in it without reading the palettes file (see
+    /// [`PaletteFile`](crate::models::PaletteFile)); saving a palette
+    /// from the editor refreshes this copy.
+    Custom(CustomPalette),
+}
+
+/// How a [`ThemeChoice`] is written in the config file.
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "kind")]
+enum SavedThemeChoice {
+    BuiltIn { name: String },
+    Custom { name: String, colors: PaletteColors },
+}
+impl From<SavedThemeChoice> for ThemeChoice {
+    fn from(saved: SavedThemeChoice) -> Self {
+        match saved {
+            SavedThemeChoice::BuiltIn { name } => ThemeChoice::BuiltIn(name),
+            SavedThemeChoice::Custom { name, colors } => {
+                ThemeChoice::Custom(CustomPalette { name, colors })
+            }
+        }
+    }
+}
+impl From<ThemeChoice> for SavedThemeChoice {
+    fn from(choice: ThemeChoice) -> Self {
+        match choice {
+            ThemeChoice::BuiltIn(name) => SavedThemeChoice::BuiltIn { name },
+            ThemeChoice::Custom(CustomPalette { name, colors }) => {
+                SavedThemeChoice::Custom { name, colors }
+            }
+        }
+    }
 }
 impl Default for ThemeChoice {
     fn default() -> Self {
@@ -47,13 +86,15 @@ impl Default for ThemeChoice {
 impl Display for ThemeChoice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ThemeChoice::BuiltIn(name) => write!(f, "{name}"),
+            ThemeChoice::BuiltIn(name) | ThemeChoice::Custom(CustomPalette { name, .. }) => {
+                write!(f, "{name}")
+            }
         }
     }
 }
 
 /// The styling the user picked, by name: the shapes, type and ornaments
-/// the app is drawn with, whichever palette colours them. Tagged like
+/// the app is drawn with, whichever palette colors them. Tagged like
 /// [`ThemeChoice`], so user-defined stylings can be added later.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "name")]
@@ -73,7 +114,7 @@ impl Display for StylingChoice {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigError {
     UnableToAccessSystemConfigDir,
     UnableToAccessSystemDataDir,
@@ -89,6 +130,12 @@ pub enum ConfigError {
     /// Neither the saved theme nor the saved styling exists; the defaults
     /// are used instead.
     UnknownThemeAndStyling(ThemeChoice, StylingChoice),
+    /// The palettes file exists but is not a list of palettes.
+    UnreadablePalettes,
+    /// The palettes file could not be written.
+    UnableToSavePalettes,
+    /// Saved palettes, by name, that could not be read and were left out.
+    SkippedPalettes(Vec<String>),
 }
 impl Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -112,6 +159,21 @@ impl Display for ConfigError {
                      using {DEFAULT_THEME_NAME} and {DEFAULT_STYLING_NAME}"
                 );
             }
+            ConfigError::SkippedPalettes(names) => {
+                let quoted: Vec<String> = names.iter().map(|name| format!("'{name}'")).collect();
+                let (noun, verb) = if names.len() == 1 {
+                    ("palette", "was")
+                } else {
+                    ("palettes", "were")
+                };
+                return write!(
+                    f,
+                    "Config Error: Saved {noun} {} could not be read and {verb} skipped",
+                    quoted.join(", ")
+                );
+            }
+            ConfigError::UnreadablePalettes => "Unable to read palettes file",
+            ConfigError::UnableToSavePalettes => "Unable to save palettes file",
             ConfigError::UnableToAccessSystemConfigDir => {
                 "Unable to access system configuration folder"
             }
@@ -221,6 +283,12 @@ impl Config {
     pub const fn styling(&self) -> &StylingChoice {
         &self.styling
     }
+    /// Where the user's palettes are kept: beside the config, named after
+    /// it (`Bartend.json` keeps them in `Bartend-palettes.json`).
+    #[must_use]
+    pub fn palettes_path(&self) -> PathBuf {
+        palettes_path_for(&self.path)
+    }
 
     #[must_use]
     pub fn editable(&self) -> EditableConfig {
@@ -232,6 +300,14 @@ impl Config {
             styling: self.styling.clone(),
         }
     }
+}
+
+/// The palettes file that goes with the config at `config_path`.
+fn palettes_path_for(config_path: &Path) -> PathBuf {
+    let stem = config_path
+        .file_stem()
+        .map_or_else(|| "Bartend".into(), |stem| stem.to_string_lossy());
+    config_path.with_file_name(format!("{stem}-palettes.json"))
 }
 
 /// Builds the default config file path
@@ -294,6 +370,7 @@ impl EditableConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::palette::sample;
     use tempfile::tempdir;
     mod open {
         use super::*;
@@ -318,7 +395,7 @@ mod tests {
                 path: test_dir.path().join("existing.json"),
                 db_path: test_dir.path().join("existing.db"),
                 default_unit_system: UnitSystem::Imperial,
-                theme: ThemeChoice::BuiltIn("Nord".to_string()),
+                theme: ThemeChoice::Custom(sample("Harbor")),
                 styling: StylingChoice::BuiltIn("Modern".to_string()),
             };
             config.save().unwrap();
@@ -329,7 +406,7 @@ mod tests {
             assert_eq!(loaded.path(), config.path());
             assert_eq!(loaded.db_path(), config.db_path());
             assert_eq!(loaded.default_units(), UnitSystem::Imperial);
-            assert_eq!(loaded.theme(), &ThemeChoice::BuiltIn("Nord".to_string()));
+            assert_eq!(loaded.theme(), &ThemeChoice::Custom(sample("Harbor")));
             assert_eq!(
                 loaded.styling(),
                 &StylingChoice::BuiltIn("Modern".to_string())
@@ -374,6 +451,40 @@ mod tests {
         fn the_theme_is_saved_tagged_by_kind() {
             let json = serde_json::to_value(ThemeChoice::BuiltIn("Nord".to_string())).unwrap();
             assert_eq!(json, serde_json::json!({"kind": "BuiltIn", "name": "Nord"}));
+        }
+
+        #[test]
+        fn a_built_in_theme_saved_before_custom_palettes_still_loads() {
+            let json = serde_json::json!({"kind": "BuiltIn", "name": "Nord"});
+            let choice: ThemeChoice = serde_json::from_value(json).unwrap();
+            assert_eq!(choice, ThemeChoice::BuiltIn("Nord".to_string()));
+        }
+
+        #[test]
+        fn a_custom_theme_is_saved_with_its_colors() {
+            let json = serde_json::to_value(ThemeChoice::Custom(sample("Harbor"))).unwrap();
+            let mut expected = serde_json::to_value(sample("Harbor")).unwrap();
+            expected["kind"] = serde_json::json!("Custom");
+            assert_eq!(json, expected);
+        }
+
+        #[test]
+        fn a_custom_theme_round_trips() {
+            let choice = ThemeChoice::Custom(sample("Harbor"));
+            let json = serde_json::to_string(&choice).unwrap();
+            assert_eq!(serde_json::from_str::<ThemeChoice>(&json).unwrap(), choice);
+        }
+
+        #[test]
+        fn a_custom_theme_with_a_bad_color_will_not_load() {
+            let mut json = serde_json::to_value(ThemeChoice::Custom(sample("Harbor"))).unwrap();
+            json["colors"]["text"] = serde_json::json!("white");
+            serde_json::from_value::<ThemeChoice>(json).unwrap_err();
+        }
+
+        #[test]
+        fn a_custom_theme_shows_its_name() {
+            assert_eq!(ThemeChoice::Custom(sample("Harbor")).to_string(), "Harbor");
         }
 
         #[test]
@@ -455,6 +566,9 @@ mod tests {
                 ThemeChoice::BuiltIn("Nope".to_string()),
                 StylingChoice::BuiltIn("Nope".to_string()),
             ),
+            ConfigError::UnreadablePalettes,
+            ConfigError::UnableToSavePalettes,
+            ConfigError::SkippedPalettes(vec!["Nope".to_string()]),
         ];
         let messages: std::collections::HashSet<String> =
             errors.iter().map(ToString::to_string).collect();
@@ -487,6 +601,46 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "Config Error: Saved style 'Nope' not found; using Art Deco"
+        );
+    }
+    #[test]
+    fn skipped_palettes_are_named() {
+        assert_eq!(
+            ConfigError::SkippedPalettes(vec!["Harbor".to_string()]).to_string(),
+            "Config Error: Saved palette 'Harbor' could not be read and was skipped"
+        );
+        assert_eq!(
+            ConfigError::SkippedPalettes(vec!["Harbor".to_string(), "palette 3".to_string()])
+                .to_string(),
+            "Config Error: Saved palettes 'Harbor', 'palette 3' could not be read and were skipped"
+        );
+    }
+    #[test]
+    fn palettes_are_kept_beside_the_config_and_named_after_it() {
+        assert_eq!(
+            palettes_path_for(Path::new("/conf/Bartend/Bartend.json")),
+            Path::new("/conf/Bartend/Bartend-palettes.json")
+        );
+        assert_eq!(
+            palettes_path_for(Path::new("/tmp/test.json")),
+            Path::new("/tmp/test-palettes.json")
+        );
+        assert_eq!(
+            palettes_path_for(Path::new("")),
+            Path::new("Bartend-palettes.json")
+        );
+    }
+    #[test]
+    fn a_configs_palettes_path_sits_beside_it() {
+        let test_dir = tempdir().unwrap();
+        let config = Config::load(
+            Some(test_dir.path().join("c.json")),
+            Some(test_dir.path().join("c.db")),
+        )
+        .unwrap();
+        assert_eq!(
+            config.palettes_path(),
+            test_dir.path().join("c-palettes.json")
         );
     }
     mod save {
