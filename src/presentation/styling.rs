@@ -5,16 +5,6 @@
 //! colours goes where, so every styling works with every
 //! [theme](super::theme), and the two are picked separately.
 
-// Settings doesn't offer a choice yet (phase 4), and no built-in styling
-// has single-edged cards or a plain gauge until the second one (phase 5).
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "parts of the styling are not drawn or offered yet"
-    )
-)]
-
 use std::fmt::{self, Display};
 
 use iced::Font;
@@ -23,7 +13,7 @@ use crate::models::{ConfigError, DEFAULT_STYLING_NAME, StylingChoice};
 
 /// Federo (SIL Open Font License; see `assets/fonts/Federo-OFL.txt`), the
 /// [Art Deco](Styling::ART_DECO) heading face. Loaded into iced at
-/// startup.
+/// startup, with the other [fonts](Stylings::fonts).
 pub const FEDERO_BYTES: &[u8] = include_bytes!("../../assets/fonts/Federo-Regular.ttf");
 /// Federo, by the family name its file declares.
 const FEDERO: Font = Font::with_name("Federo");
@@ -105,10 +95,23 @@ impl Styling {
             },
         },
     };
-}
 
-/// Used whenever the saved styling can't be found.
-const FALLBACK: Styling = Styling::ART_DECO;
+    /// Clean and contemporary: rounded corners, single-edged cards, no
+    /// brackets or ornaments, headings in the body face as typed, and a
+    /// continuous gauge as thick as Art Deco's, so pages keep their layout.
+    pub const MODERN: Styling = Styling {
+        heading: Font::DEFAULT,
+        caps: false,
+        radius: 8.0,
+        card_frame: CardFrame::Single,
+        tile_brackets: false,
+        ornament: None,
+        gauge: Gauge {
+            girth: 8.0,
+            kind: GaugeKind::Bar,
+        },
+    };
+}
 
 /// A styling offered in the picker, under the name it's saved by.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -123,21 +126,37 @@ impl Display for StylingOption {
     }
 }
 
+/// The app's own styling, and the one used whenever the saved styling
+/// can't be found.
+const FALLBACK: StylingOption = StylingOption {
+    name: DEFAULT_STYLING_NAME,
+    styling: Styling::ART_DECO,
+};
+
 /// Every styling the user can pick from, the app's own
-/// [Art Deco](Styling::ART_DECO) first. User-defined stylings would be
-/// added here as well.
+/// [Art Deco](Styling::ART_DECO) first, then [Modern](Styling::MODERN),
+/// and the font files their heading
+/// faces come from. User-defined stylings would be added here as well.
 #[derive(Debug, Clone)]
 pub struct Stylings {
     options: Vec<StylingOption>,
+    /// Kept apart from the options, so that comparing options (as the
+    /// picker does) never compares font files.
+    fonts: Vec<&'static [u8]>,
 }
 
 impl Stylings {
     pub fn new() -> Self {
         Self {
-            options: vec![StylingOption {
-                name: DEFAULT_STYLING_NAME,
-                styling: Styling::ART_DECO,
-            }],
+            options: vec![
+                FALLBACK,
+                StylingOption {
+                    name: "Modern",
+                    styling: Styling::MODERN,
+                },
+            ],
+            // Modern's heading face is the body face, already loaded.
+            fonts: vec![FEDERO_BYTES],
         }
     }
 
@@ -146,22 +165,28 @@ impl Stylings {
         &self.options
     }
 
+    /// The font files the stylings' heading faces come from, to load at
+    /// startup.
+    pub fn fonts(&self) -> &[&'static [u8]] {
+        &self.fonts
+    }
+
     /// The styling `choice` names.
     ///
     /// # Errors
     ///
     /// [`ConfigError::UnknownStyling`] if no styling has that name.
-    pub fn lookup(&self, choice: &StylingChoice) -> Result<Styling, ConfigError> {
+    pub fn lookup(&self, choice: &StylingChoice) -> Result<StylingOption, ConfigError> {
         let StylingChoice::BuiltIn(name) = choice;
         self.options
             .iter()
             .find(|option| option.name == name)
-            .map(|option| option.styling)
+            .copied()
             .ok_or_else(|| ConfigError::UnknownStyling(choice.clone()))
     }
 
     /// The styling `choice` names, or the fallback if there is none.
-    pub fn resolve(&self, choice: &StylingChoice) -> Styling {
+    pub fn resolve(&self, choice: &StylingChoice) -> StylingOption {
         self.lookup(choice).unwrap_or(FALLBACK)
     }
 }
@@ -187,8 +212,39 @@ pub const PLAIN: Styling = Styling {
     },
 };
 
+/// [`PLAIN`] as it would be offered in the picker.
+#[cfg(test)]
+pub const PLAIN_OPTION: StylingOption = StylingOption {
+    name: "Plain",
+    styling: PLAIN,
+};
+
+/// Every built-in styling and [`PLAIN`], for tests that check the views
+/// follow whichever styling they're given.
+#[cfg(test)]
+pub fn every_styling() -> Vec<Styling> {
+    Stylings::with_plain()
+        .options()
+        .iter()
+        .map(|option| option.styling)
+        .collect()
+}
+
+#[cfg(test)]
+impl Stylings {
+    /// The built-in stylings and [`PLAIN`], so tests can pick and save a
+    /// styling other than the default.
+    pub fn with_plain() -> Self {
+        let mut stylings = Self::new();
+        stylings.options.push(PLAIN_OPTION);
+        stylings
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use iced::font::Family;
+
     use super::*;
 
     #[test]
@@ -206,12 +262,27 @@ mod tests {
     }
 
     #[test]
-    fn offers_art_deco_first() {
+    fn offers_art_deco_first_then_modern() {
         let stylings = Stylings::new();
-        let first = stylings.options().first().unwrap();
-        assert_eq!(first.name, DEFAULT_STYLING_NAME);
+        let names: Vec<String> = stylings.options().iter().map(ToString::to_string).collect();
+        assert_eq!(names, [DEFAULT_STYLING_NAME, "Modern"]);
+        let first = stylings.options()[0];
         assert_eq!(first.styling, Styling::ART_DECO);
-        assert_eq!(first.to_string(), DEFAULT_STYLING_NAME);
+        assert_eq!(stylings.options()[1].styling, Styling::MODERN);
+    }
+
+    #[test]
+    fn modern_is_rounded_plain_and_keeps_art_decos_layout() {
+        let modern = Styling::MODERN;
+        assert_eq!(modern.heading, Font::DEFAULT);
+        assert!(!modern.caps);
+        assert!((modern.radius - 8.0).abs() < f32::EPSILON);
+        assert_eq!(modern.card_frame, CardFrame::Single);
+        assert!(!modern.tile_brackets);
+        assert_eq!(modern.ornament, None);
+        assert_eq!(modern.gauge.kind, GaugeKind::Bar);
+        // Girth is the one field that moves layout; Modern matches.
+        assert!((modern.gauge.girth - Styling::ART_DECO.gauge.girth).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -272,11 +343,33 @@ mod tests {
     fn every_styling_round_trips_through_its_choice() {
         let stylings = Stylings::new();
         for option in stylings.options() {
-            assert_eq!(
-                stylings.lookup(&choice_for(option)).ok(),
-                Some(option.styling)
-            );
+            assert_eq!(stylings.lookup(&choice_for(option)).ok(), Some(*option));
         }
+    }
+
+    #[test]
+    fn every_heading_face_is_the_default_or_has_its_font_loaded() {
+        let stylings = Stylings::new();
+        for option in stylings.options() {
+            match option.styling.heading.family {
+                Family::Name(family) => assert!(
+                    stylings
+                        .fonts()
+                        .iter()
+                        .any(|font| font.windows(family.len()).any(|w| w == family.as_bytes())),
+                    "{family} is not loaded for {option}"
+                ),
+                other => assert_eq!(other, Font::DEFAULT.family, "{option}"),
+            }
+        }
+    }
+
+    #[test]
+    fn the_test_registry_adds_plain_after_the_built_in_stylings() {
+        let stylings = Stylings::with_plain();
+        assert_eq!(stylings.options().last(), Some(&PLAIN_OPTION));
+        let plain = choice_for(&PLAIN_OPTION);
+        assert_eq!(stylings.resolve(&plain), PLAIN_OPTION);
     }
 
     #[test]

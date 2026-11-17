@@ -86,6 +86,9 @@ pub enum ConfigError {
     UnknownTheme(ThemeChoice),
     /// The saved styling does not exist; the default is used instead.
     UnknownStyling(StylingChoice),
+    /// Neither the saved theme nor the saved styling exists; the defaults
+    /// are used instead.
+    UnknownThemeAndStyling(ThemeChoice, StylingChoice),
 }
 impl Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -100,6 +103,13 @@ impl Display for ConfigError {
                 return write!(
                     f,
                     "Config Error: Saved style '{styling}' not found; using {DEFAULT_STYLING_NAME}"
+                );
+            }
+            ConfigError::UnknownThemeAndStyling(theme, styling) => {
+                return write!(
+                    f,
+                    "Config Error: Saved theme '{theme}' and style '{styling}' not found; \
+                     using {DEFAULT_THEME_NAME} and {DEFAULT_STYLING_NAME}"
                 );
             }
             ConfigError::UnableToAccessSystemConfigDir => {
@@ -441,6 +451,10 @@ mod tests {
             ConfigError::UnableToCreateDataDir,
             ConfigError::UnknownTheme(ThemeChoice::BuiltIn("Nope".to_string())),
             ConfigError::UnknownStyling(StylingChoice::BuiltIn("Nope".to_string())),
+            ConfigError::UnknownThemeAndStyling(
+                ThemeChoice::BuiltIn("Nope".to_string()),
+                StylingChoice::BuiltIn("Nope".to_string()),
+            ),
         ];
         let messages: std::collections::HashSet<String> =
             errors.iter().map(ToString::to_string).collect();
@@ -453,6 +467,18 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "Config Error: Saved theme 'Nope' not found; using Navy & Champagne"
+        );
+    }
+    #[test]
+    fn an_unknown_theme_and_styling_name_both_and_both_fallbacks() {
+        let error = ConfigError::UnknownThemeAndStyling(
+            ThemeChoice::BuiltIn("Old".to_string()),
+            StylingChoice::BuiltIn("Gone".to_string()),
+        );
+        assert_eq!(
+            error.to_string(),
+            "Config Error: Saved theme 'Old' and style 'Gone' not found; \
+             using Navy & Champagne and Art Deco"
         );
     }
     #[test]

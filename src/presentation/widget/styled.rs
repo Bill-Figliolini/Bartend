@@ -260,7 +260,7 @@ fn rule_line(theme: &Theme) -> rule::Style {
 mod tests {
     use super::*;
     use crate::presentation::{
-        styling::{PLAIN, Styling},
+        styling::{PLAIN, Styling, every_styling},
         theme::Themes,
     };
 
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn buttons_have_the_stylings_corners() {
-        for styling in [DECO, PLAIN] {
+        for styling in every_styling() {
             let styles: [&ButtonStyle; 3] = [
                 &primary(&styling),
                 &secondary(&styling),

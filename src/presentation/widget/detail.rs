@@ -543,7 +543,7 @@ mod tests {
 
     use super::*;
     use crate::presentation::{
-        styling::{PLAIN, Styling},
+        styling::{PLAIN, Styling, every_styling},
         theme::Themes,
     };
 
@@ -610,7 +610,7 @@ mod tests {
 
     #[test]
     fn cards_and_chips_have_the_given_corners() {
-        for radius in [SQUARE, PLAIN.radius] {
+        for radius in every_styling().iter().map(|styling| styling.radius) {
             for theme in Themes::new().options() {
                 assert_eq!(card_style(theme, radius).border.radius, radius.into());
                 assert_eq!(chip_style(theme, radius).border.radius, radius.into());

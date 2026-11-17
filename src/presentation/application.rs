@@ -14,13 +14,13 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, CategoryID, Config, Recipe, RecipeID, UnitSystem},
+    models::{BartendError, CategoryID, Config, ConfigError, Recipe, RecipeID, UnitSystem},
     persistence::Database,
     presentation::{
         constants,
         input_handling::ServingMessage,
         screen::{self, Panels, Screen, ScreenKind},
-        styling::{self, Styling, Stylings},
+        styling::{Styling, StylingOption, Stylings},
         theme::Themes,
         widget::{
             detail::{Tone, toned_card, toned_card_button},
@@ -31,12 +31,16 @@ use crate::{
 };
 
 pub fn run() -> iced::Result {
-    iced::application(Bartend::start, Bartend::update, Bartend::view)
+    let app = iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title("Bartend")
         .theme(Bartend::theme)
-        .font(styling::FEDERO_BYTES)
         .subscription(Bartend::subscription)
-        .window_size((1100.0, 720.0))
+        .window_size((1100.0, 720.0));
+    // Every styling's heading face, so any of them can be picked.
+    Stylings::new()
+        .fonts()
+        .iter()
+        .fold(app, |app, &font| app.font(font))
         .run()
 }
 
@@ -54,6 +58,9 @@ struct Bartend {
     /// saved theme until the edit is saved or discarded.
     preview_theme: Option<Theme>,
     stylings: Stylings,
+    /// A styling picked in Settings but not yet saved, shown in place of
+    /// the saved one like [`preview_theme`](Self::preview_theme).
+    preview_styling: Option<Styling>,
     /// The unit system amounts are shown in on every screen, picked in the
     /// top bar. Starts as, and follows changes to, the saved default.
     units: UnitSystem,
@@ -81,6 +88,9 @@ pub(in crate::presentation) enum Message {
     OpenDBPicker(PathBuf),
     /// A theme was picked in Settings: show it now, and stage it as an edit.
     PreviewTheme(Theme),
+    /// A styling was picked in Settings: show it now, and stage it as an
+    /// edit.
+    PreviewStyling(StylingOption),
 
     /// Tab: focus the next field.
     FocusNext,
@@ -147,7 +157,8 @@ impl Bartend {
         };
         let screen = Screen::start(&config, &category_service);
         let themes = Themes::new();
-        let error = theme_notice(&config, &themes);
+        let stylings = Stylings::new();
+        let error = appearance_notice(&config, &themes, &stylings);
         let units = config.default_units();
 
         Self {
@@ -160,7 +171,8 @@ impl Bartend {
             error,
             themes,
             preview_theme: None,
-            stylings: Stylings::new(),
+            stylings,
+            preview_styling: None,
             units,
         }
     }
@@ -171,9 +183,11 @@ impl Bartend {
         }
     }
 
-    /// How the app is drawn: the saved styling.
+    /// How the app is drawn: the styling being previewed in Settings, or
+    /// else the saved one.
     fn styling(&self) -> Styling {
-        self.stylings.resolve(self.config.styling())
+        self.preview_styling
+            .unwrap_or_else(|| self.stylings.resolve(self.config.styling()).styling)
     }
 
     /// Keyboard navigation; see [`shortcut`].
@@ -200,19 +214,26 @@ impl Bartend {
         if self.screen.kind() == kind {
             return;
         }
-        // Leaving Settings discards its unsaved edits, including a previewed theme.
-        self.preview_theme = None;
+        // Leaving Settings discards its unsaved edits, including a previewed
+        // theme and styling.
+        self.clear_previews();
         self.screen = match kind {
             ScreenKind::Inventory => {
                 Screen::inventory(&self.config, &self.category_service, self.units)
             }
-            ScreenKind::Settings => Screen::settings(&self.config, &self.themes),
+            ScreenKind::Settings => Screen::settings(&self.config, &self.themes, &self.stylings),
             ScreenKind::Categories => Screen::categories(),
             ScreenKind::Recipes => {
                 Screen::recipes(&self.config, &self.category_service, self.units)
             }
             ScreenKind::Serving => Screen::serving(self.units),
         };
+    }
+
+    /// Stops showing any theme or styling picked in Settings but not saved.
+    fn clear_previews(&mut self) {
+        self.preview_theme = None;
+        self.preview_styling = None;
     }
 
     /// Switches every screen to `units`: the active one now, and the
@@ -230,8 +251,8 @@ impl Bartend {
             Message::NoOp => Task::none(),
             Message::ReloadScreen => {
                 // On Settings this follows a successful save, so the saved
-                // theme already matches the preview.
-                self.preview_theme = None;
+                // theme and styling already match the previews.
+                self.clear_previews();
                 let reload_message = self.screen.reload_message(&self.config);
                 self.update(reload_message)
             }
@@ -270,7 +291,7 @@ impl Bartend {
             }
 
             Message::ResetSettings => {
-                self.preview_theme = None;
+                self.clear_previews();
                 let reset_message =
                     Message::Settings(screen::settings::Message::ResetConfig(self.config.clone()));
                 self.update(reset_message)
@@ -293,6 +314,15 @@ impl Bartend {
                 self.preview_theme = Some(theme.clone());
                 self.update(Message::Settings(screen::settings::Message::UpdateTheme(
                     theme,
+                )))
+            }
+            Message::PreviewStyling(option) => {
+                if self.screen.kind() != ScreenKind::Settings {
+                    return Task::none();
+                }
+                self.preview_styling = Some(option.styling);
+                self.update(Message::Settings(screen::settings::Message::UpdateStyling(
+                    option,
                 )))
             }
 
@@ -407,13 +437,24 @@ fn shortcut(event: Event, status: event::Status, _window: window::Id) -> Option<
     }
 }
 
-/// The error to show at startup if the saved theme can't be found. The app
-/// falls back to the default theme either way.
-fn theme_notice(config: &Config, themes: &Themes) -> Option<BartendError> {
-    themes
-        .lookup(config.theme())
-        .err()
-        .map(BartendError::Config)
+/// The error to show at startup if the saved theme or styling can't be
+/// found, naming both in one notice if neither can. The app falls back to
+/// the defaults either way.
+fn appearance_notice(
+    config: &Config,
+    themes: &Themes,
+    stylings: &Stylings,
+) -> Option<BartendError> {
+    let theme = themes.lookup(config.theme()).err();
+    let styling = stylings.lookup(config.styling()).err();
+    let error = match (theme, styling) {
+        (None, None) => return None,
+        (Some(_), Some(_)) => {
+            ConfigError::UnknownThemeAndStyling(config.theme().clone(), config.styling().clone())
+        }
+        (Some(error), None) | (None, Some(error)) => error,
+    };
+    Some(BartendError::Config(error))
 }
 
 #[cfg(test)]
@@ -421,13 +462,14 @@ mod tests {
     use super::*;
     use crate::{
         logic::LogicError,
-        models::{CategoryID, ConfigError, ItemID, ThemeChoice, UnitSystem},
+        models::{CategoryID, ItemID, StylingChoice, ThemeChoice, UnitSystem},
         presentation::{
             input_handling::{CategoryMessage, EditorMessage, ItemMessage},
             screen::{
                 categories, inventory, settings,
                 test_support::{World, drain},
             },
+            styling::{PLAIN, PLAIN_OPTION},
             theme::navy_and_champagne,
         },
     };
@@ -453,7 +495,8 @@ mod tests {
             error: None,
             themes: Themes::new(),
             preview_theme: None,
-            stylings: Stylings::new(),
+            stylings: Stylings::with_plain(),
+            preview_styling: None,
             units: UnitSystem::Metric,
         };
         (app, dir)
@@ -920,20 +963,141 @@ mod tests {
         assert_eq!(app.theme(), navy_and_champagne());
     }
 
+    /// The app's config with the given theme and styling names saved.
+    fn saved_as(app: &Bartend, theme: &str, styling: &str) -> Config {
+        let mut config = app.config.editable();
+        config.theme = ThemeChoice::BuiltIn(theme.to_string());
+        config.styling = StylingChoice::BuiltIn(styling.to_string());
+        config.commit()
+    }
+
+    /// The startup notice for `config`, from the app's own registries.
+    fn notice(app: &Bartend, config: &Config) -> Option<BartendError> {
+        appearance_notice(config, &app.themes, &app.stylings)
+    }
+
+    #[test]
+    fn known_saved_appearance_needs_no_notice() {
+        let (app, _dir) = app();
+        assert!(notice(&app, &app.config).is_none());
+    }
+
     #[test]
     fn an_unknown_saved_theme_is_reported_at_startup() {
         let (app, _dir) = app();
-        let themes = Themes::new();
-        assert!(theme_notice(&app.config, &themes).is_none());
-
-        let mut config = app.config.editable();
-        config.theme = ThemeChoice::BuiltIn("Not A Theme".to_string());
-        let config = config.commit();
+        let config = saved_as(&app, "Not A Theme", "Art Deco");
 
         assert!(matches!(
-            theme_notice(&config, &themes),
+            notice(&app, &config),
             Some(BartendError::Config(ConfigError::UnknownTheme(_)))
         ));
-        assert_eq!(themes.resolve(config.theme()), navy_and_champagne());
+        assert_eq!(app.themes.resolve(config.theme()), navy_and_champagne());
+    }
+
+    #[test]
+    fn an_unknown_saved_styling_is_reported_at_startup() {
+        let (app, _dir) = app();
+        let config = saved_as(&app, "Nord", "Not A Style");
+
+        assert!(matches!(
+            notice(&app, &config),
+            Some(BartendError::Config(ConfigError::UnknownStyling(_)))
+        ));
+        assert_eq!(
+            app.stylings.resolve(config.styling()).styling,
+            Styling::ART_DECO
+        );
+    }
+
+    #[test]
+    fn an_unknown_theme_and_styling_are_reported_together() {
+        let (app, _dir) = app();
+        let config = saved_as(&app, "Not A Theme", "Not A Style");
+
+        assert!(matches!(
+            notice(&app, &config),
+            Some(BartendError::Config(ConfigError::UnknownThemeAndStyling(theme, styling)))
+                if theme == *config.theme() && styling == *config.styling()
+        ));
+    }
+
+    #[test]
+    fn the_default_styling_is_art_deco() {
+        let (app, _dir) = app();
+        assert_eq!(app.styling(), Styling::ART_DECO);
+    }
+
+    /// Opens Settings and picks the plain styling, without saving.
+    fn preview_plain(app: &mut Bartend) {
+        run(app, Message::OpenScreen(ScreenKind::Settings));
+        run(app, Message::PreviewStyling(PLAIN_OPTION));
+    }
+
+    #[test]
+    fn picking_a_styling_shows_it_before_saving() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        assert_eq!(app.styling(), PLAIN);
+        assert_eq!(app.config.styling(), &StylingChoice::default());
+    }
+
+    #[test]
+    fn cancelling_settings_restores_the_saved_styling() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        run(&mut app, Message::ResetSettings);
+        assert_eq!(app.styling(), Styling::ART_DECO);
+
+        // The staged edit is discarded too.
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.config.styling(), &StylingChoice::default());
+    }
+
+    #[test]
+    fn leaving_settings_restores_the_saved_styling() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        run(&mut app, Message::OpenScreen(ScreenKind::Inventory));
+
+        assert_eq!(app.styling(), Styling::ART_DECO);
+    }
+
+    #[test]
+    fn saving_keeps_the_previewed_styling() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert!(app.preview_styling.is_none());
+        assert_eq!(app.styling(), PLAIN);
+        let on_disk = Config::load(Some(app.config.path().clone()), None).unwrap();
+        assert_eq!(
+            on_disk.styling(),
+            &StylingChoice::BuiltIn(PLAIN_OPTION.name.to_string())
+        );
+    }
+
+    #[test]
+    fn a_styling_picked_off_settings_is_ignored() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::PreviewStyling(PLAIN_OPTION));
+
+        assert_eq!(app.styling(), Styling::ART_DECO);
+    }
+
+    #[test]
+    fn the_style_and_palette_preview_together_and_save_together() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+        run(&mut app, Message::PreviewTheme(Theme::Nord));
+        assert_eq!((app.styling(), app.theme()), (PLAIN, Theme::Nord));
+
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert_eq!((app.styling(), app.theme()), (PLAIN, Theme::Nord));
     }
 }

@@ -163,7 +163,7 @@ pub fn switch_outline(styling: &Styling) -> impl Fn(&Theme) -> container::Style 
 mod tests {
     use super::*;
     use crate::presentation::{
-        styling::{PLAIN, Styling},
+        styling::{Styling, every_styling},
         theme::Themes,
     };
 
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn entries_and_the_switch_have_the_stylings_corners() {
-        for styling in [DECO, PLAIN] {
+        for styling in every_styling() {
             let radius = styling.radius.into();
             for theme in Themes::new().options() {
                 for chosen in [true, false] {
