@@ -7,7 +7,7 @@
 
 use std::fmt::{self, Display};
 
-use iced::Font;
+use iced::{Font, font::Weight};
 
 use crate::models::{ConfigError, DEFAULT_STYLING_NAME, StylingChoice};
 
@@ -18,6 +18,17 @@ pub const FEDERO_BYTES: &[u8] = include_bytes!("../../assets/fonts/Federo-Regula
 /// Federo, by the family name its file declares.
 const FEDERO: Font = Font::with_name("Federo");
 
+/// Grenze Gotisch Medium (SIL Open Font License; see
+/// `assets/fonts/GrenzeGotisch-OFL.txt`), a blackletter drawn to stay
+/// readable at small sizes: the [Gothic](Styling::GOTHIC) heading face.
+/// Medium rather than Regular, which is too thin on buttons and labels.
+const GRENZE_GOTISCH_BYTES: &[u8] = include_bytes!("../../assets/fonts/GrenzeGotisch-Medium.ttf");
+/// Grenze Gotisch Medium, by the family name and weight its file declares.
+const GRENZE_GOTISCH: Font = Font {
+    weight: Weight::Medium,
+    ..Font::with_name("Grenze Gotisch")
+};
+
 /// How the app is drawn, whatever its colours. Spacing is the same under
 /// every styling, so screens keep their layout; only the decoration
 /// changes.
@@ -25,6 +36,10 @@ const FEDERO: Font = Font::with_name("Federo");
 pub struct Styling {
     /// The face for titles, tabs, buttons, captions and field labels.
     pub heading: Font,
+    /// How much larger than the shared sizes text in the heading face is
+    /// drawn, for a face that runs small. Text that grows makes its row
+    /// taller, so a styling that sets it above 1 moves what sits below.
+    pub heading_scale: f32,
     /// Whether tabs, buttons, captions and field labels are in capitals.
     pub caps: bool,
     /// Corner radius of cards, chips, buttons, inputs, list entries, the
@@ -37,6 +52,11 @@ pub struct Styling {
     /// The mark under page headers, beside the app's name, on the active
     /// tab and before the selected list entry, if any.
     pub ornament: Option<Ornament>,
+    /// How much larger than the shared sizes the ornament is drawn, for a
+    /// mark that reads small, such as a narrow one. The room kept for it
+    /// grows too, so a styling that sets it above 1 moves what sits below
+    /// a header rule.
+    pub ornament_scale: f32,
     /// How the stock gauge is drawn.
     pub gauge: Gauge,
 }
@@ -103,16 +123,30 @@ pub enum GaugeKind {
 }
 
 impl Styling {
+    /// The size to draw heading-face text meant to be `size` at, scaled
+    /// by the styling's [`heading_scale`](Self::heading_scale).
+    pub fn heading_size(&self, size: f32) -> f32 {
+        size * self.heading_scale
+    }
+
+    /// The size to draw the ornament, and keep room for it, where it's
+    /// meant to be `size`, scaled by the styling's
+    /// [`ornament_scale`](Self::ornament_scale).
+    pub fn ornament_size(&self, size: f32) -> f32 {
+        size * self.ornament_scale
+    }
     /// The app's own styling, and the default: square corners,
     /// double-edged cards, bracketed tiles, diamonds, and headings in
     /// Federo capitals.
     pub const ART_DECO: Styling = Styling {
         heading: FEDERO,
+        heading_scale: 1.0,
         caps: true,
         radius: 0.0,
         card_frame: CardFrame::Double,
         tile_corners: TileCorners::Brackets,
         ornament: Some(Ornament::Diamond),
+        ornament_scale: 1.0,
         gauge: Gauge {
             girth: 8.0,
             kind: GaugeKind::Segments {
@@ -127,14 +161,40 @@ impl Styling {
     /// continuous gauge as thick as Art Deco's, so pages keep their layout.
     pub const MODERN: Styling = Styling {
         heading: Font::DEFAULT,
+        heading_scale: 1.0,
         caps: false,
         radius: 8.0,
         card_frame: CardFrame::Single,
         tile_corners: TileCorners::None,
         ornament: None,
+        ornament_scale: 1.0,
         gauge: Gauge {
             girth: 8.0,
             kind: GaugeKind::Bar,
+        },
+    };
+
+    /// Victorian gothic: square corners, heavy-edged cards with studded
+    /// tiles, candle flames, headings in Grenze Gotisch as typed, and a
+    /// gauge of a few tall segments, as thick as Art Deco's so pages keep
+    /// their layout.
+    pub const GOTHIC: Styling = Styling {
+        heading: GRENZE_GOTISCH,
+        // Grenze's small x-height reads tiny at the shared sizes.
+        heading_scale: 1.2,
+        caps: false,
+        radius: 0.0,
+        card_frame: CardFrame::Heavy,
+        tile_corners: TileCorners::Studs,
+        ornament: Some(Ornament::Flame),
+        // The flame is narrow, so at the diamond's size it reads as a dot.
+        ornament_scale: 1.6,
+        gauge: Gauge {
+            girth: 8.0,
+            kind: GaugeKind::Segments {
+                count: 10,
+                gap: 4.0,
+            },
         },
     };
 }
@@ -160,9 +220,9 @@ const FALLBACK: StylingOption = StylingOption {
 };
 
 /// Every styling the user can pick from, the app's own
-/// [Art Deco](Styling::ART_DECO) first, then [Modern](Styling::MODERN),
-/// and the font files their heading
-/// faces come from. User-defined stylings would be added here as well.
+/// [Art Deco](Styling::ART_DECO) first, then [Modern](Styling::MODERN)
+/// and [Gothic](Styling::GOTHIC), and the font files their heading faces
+/// come from. User-defined stylings would be added here as well.
 #[derive(Debug, Clone)]
 pub struct Stylings {
     options: Vec<StylingOption>,
@@ -180,9 +240,13 @@ impl Stylings {
                     name: "Modern",
                     styling: Styling::MODERN,
                 },
+                StylingOption {
+                    name: "Gothic",
+                    styling: Styling::GOTHIC,
+                },
             ],
             // Modern's heading face is the body face, already loaded.
-            fonts: vec![FEDERO_BYTES],
+            fonts: vec![FEDERO_BYTES, GRENZE_GOTISCH_BYTES],
         }
     }
 
@@ -227,11 +291,13 @@ pub fn choice_for(option: &StylingOption) -> StylingChoice {
 #[cfg(test)]
 pub const PLAIN: Styling = Styling {
     heading: Font::DEFAULT,
+    heading_scale: 1.1,
     caps: false,
     radius: 6.0,
     card_frame: CardFrame::Single,
     tile_corners: TileCorners::None,
     ornament: None,
+    ornament_scale: 1.3,
     gauge: Gauge {
         girth: 6.0,
         kind: GaugeKind::Bar,
@@ -287,14 +353,60 @@ mod tests {
         assert_eq!(FEDERO, Font::with_name("Federo"));
     }
 
+    /// Whether the font file `font` names `family`, in either of the
+    /// encodings a name table may use: single-byte (Mac records) or
+    /// UTF-16 big-endian (Windows records).
+    fn declares_family(font: &[u8], family: &str) -> bool {
+        let wide: Vec<u8> = family.encode_utf16().flat_map(u16::to_be_bytes).collect();
+        [family.as_bytes(), &wide]
+            .iter()
+            .any(|name| font.windows(name.len()).any(|window| window == *name))
+    }
+
     #[test]
-    fn offers_art_deco_first_then_modern() {
+    fn grenze_gotisch_is_bundled_under_its_family_name_and_weight() {
+        assert_eq!(&GRENZE_GOTISCH_BYTES[..4], &[0, 1, 0, 0]);
+        assert!(declares_family(GRENZE_GOTISCH_BYTES, "Grenze Gotisch"));
+        assert_eq!(
+            GRENZE_GOTISCH.family,
+            Font::with_name("Grenze Gotisch").family
+        );
+        assert_eq!(GRENZE_GOTISCH.weight, Weight::Medium);
+    }
+
+    #[test]
+    fn offers_art_deco_first_then_modern_then_gothic() {
         let stylings = Stylings::new();
         let names: Vec<String> = stylings.options().iter().map(ToString::to_string).collect();
-        assert_eq!(names, [DEFAULT_STYLING_NAME, "Modern"]);
-        let first = stylings.options()[0];
-        assert_eq!(first.styling, Styling::ART_DECO);
-        assert_eq!(stylings.options()[1].styling, Styling::MODERN);
+        assert_eq!(names, [DEFAULT_STYLING_NAME, "Modern", "Gothic"]);
+        let stylings: Vec<Styling> = stylings.options().iter().map(|o| o.styling).collect();
+        assert_eq!(
+            stylings,
+            [Styling::ART_DECO, Styling::MODERN, Styling::GOTHIC]
+        );
+    }
+
+    #[test]
+    fn gothic_is_square_heavy_studded_and_lit_by_flames() {
+        let gothic = Styling::GOTHIC;
+        assert_eq!(gothic.heading, GRENZE_GOTISCH);
+        assert!(!gothic.caps);
+        assert!(gothic.radius.abs() < f32::EPSILON);
+        assert_eq!(gothic.card_frame, CardFrame::Heavy);
+        assert_eq!(gothic.tile_corners, TileCorners::Studs);
+        assert_eq!(gothic.ornament, Some(Ornament::Flame));
+        assert_eq!(
+            gothic.gauge.kind,
+            GaugeKind::Segments {
+                count: 10,
+                gap: 4.0
+            }
+        );
+        // Gothic keeps Art Deco's gauge girth, but its heading text is
+        // larger, as its face runs small.
+        assert!((gothic.gauge.girth - Styling::ART_DECO.gauge.girth).abs() < f32::EPSILON);
+        assert!(gothic.heading_scale > 1.0);
+        assert!(gothic.ornament_scale > 1.0);
     }
 
     #[test]
@@ -307,8 +419,11 @@ mod tests {
         assert_eq!(modern.tile_corners, TileCorners::None);
         assert_eq!(modern.ornament, None);
         assert_eq!(modern.gauge.kind, GaugeKind::Bar);
-        // Girth is the one field that moves layout; Modern matches.
+        // Girth and the heading and ornament scales move layout; Modern
+        // matches Art Deco in both.
         assert!((modern.gauge.girth - Styling::ART_DECO.gauge.girth).abs() < f32::EPSILON);
+        assert!((modern.heading_scale - Styling::ART_DECO.heading_scale).abs() < f32::EPSILON);
+        assert!((modern.ornament_scale - Styling::ART_DECO.ornament_scale).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -347,22 +462,38 @@ mod tests {
         // differs in it too.
         let Styling {
             heading,
+            heading_scale,
             caps,
             radius,
             card_frame,
             tile_corners,
             ornament,
+            ornament_scale,
             gauge: Gauge { girth, kind },
         } = PLAIN;
         let deco = Styling::ART_DECO;
         assert_ne!(heading, deco.heading);
+        assert!((heading_scale - deco.heading_scale).abs() > f32::EPSILON);
         assert_ne!(caps, deco.caps);
         assert!((radius - deco.radius).abs() > f32::EPSILON);
         assert_ne!(card_frame, deco.card_frame);
         assert_ne!(tile_corners, deco.tile_corners);
         assert_ne!(ornament, deco.ornament);
+        assert!((ornament_scale - deco.ornament_scale).abs() > f32::EPSILON);
         assert!((girth - deco.gauge.girth).abs() > f32::EPSILON);
         assert_ne!(kind, deco.gauge.kind);
+    }
+
+    #[test]
+    fn heading_sizes_are_scaled_by_the_styling() {
+        assert!((Styling::ART_DECO.heading_size(14.0) - 14.0).abs() < f32::EPSILON);
+        assert!((Styling::GOTHIC.heading_size(10.0) - 12.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn ornament_sizes_are_scaled_by_the_styling() {
+        assert!((Styling::ART_DECO.ornament_size(7.0) - 7.0).abs() < f32::EPSILON);
+        assert!((Styling::GOTHIC.ornament_size(10.0) - 16.0).abs() < 1e-5);
     }
 
     #[test]
@@ -389,7 +520,7 @@ mod tests {
                     stylings
                         .fonts()
                         .iter()
-                        .any(|font| font.windows(family.len()).any(|w| w == family.as_bytes())),
+                        .any(|font| declares_family(font, family)),
                     "{family} is not loaded for {option}"
                 ),
                 other => assert_eq!(other, Font::DEFAULT.family, "{option}"),

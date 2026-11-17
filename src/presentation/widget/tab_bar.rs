@@ -39,9 +39,7 @@ pub fn tab_bar<'a>(
     active: ScreenKind,
     units: UnitSystem,
 ) -> Element<'a, Message> {
-    let name = styled::label(styling, "Bartend")
-        .size(BRAND_SIZE)
-        .style(styled::accented);
+    let name = styled::label(styling, "Bartend", BRAND_SIZE).style(styled::accented);
     // The name between two of the styling's ornaments, if it has one.
     let brand = row![
         styled::ornament(styling, BRAND_ORNAMENT),
@@ -73,7 +71,7 @@ pub fn tab_bar<'a>(
 /// any, at the centre.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn tab<'a>(styling: &Styling, kind: ScreenKind, active: bool) -> Element<'a, Message> {
-    let name = styled::label(styling, kind.label()).size(TAB_SIZE);
+    let name = styled::label(styling, kind.label(), TAB_SIZE);
     let label = button(container(name).center_y(Fill))
         .height(Fill)
         .padding([0, 16])
@@ -86,7 +84,7 @@ fn tab<'a>(styling: &Styling, kind: ScreenKind, active: bool) -> Element<'a, Mes
             None => row![frame::underline()],
         }
         .spacing(4)
-        .height(TAB_ORNAMENT)
+        .height(styling.ornament_size(TAB_ORNAMENT))
         .align_y(Center);
         // Laid over the tab, so that it takes the tab's width.
         let underline = container(underline)

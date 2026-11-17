@@ -339,18 +339,14 @@ pub fn labeled<'a, Message: 'a>(
 /// table.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn column_heading<'a>(styling: &Styling, label: &str) -> Text<'a> {
-    styled::label(styling, label)
-        .size(constants::SMALL_TEXT)
-        .style(muted)
+    styled::label(styling, label, constants::SMALL_TEXT).style(muted)
 }
 
 /// A small [label](styled::label) in the accent colour, as on cards and
 /// stat tiles.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn caption<'a>(styling: &Styling, label: &str) -> Text<'a> {
-    styled::label(styling, label)
-        .size(constants::SMALL_TEXT)
-        .style(styled::accented)
+    styled::label(styling, label, constants::SMALL_TEXT).style(styled::accented)
 }
 
 /// A small, muted note, e.g. explaining why something is missing.

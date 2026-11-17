@@ -55,14 +55,19 @@ const OUTLINE: f32 = 1.0;
 /// `name` as a page title: large, in the heading face, cased as typed.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn title<'a>(styling: &Styling, name: impl text::IntoFragment<'a>) -> Text<'a> {
-    text(name).font(styling.heading).size(TITLE_SIZE)
+    text(name)
+        .font(styling.heading)
+        .size(styling.heading_size(TITLE_SIZE))
 }
 
-/// `label` as on tabs, captions and buttons: in the heading face, and in
-/// capitals if the styling has them.
+/// `label` as on tabs, captions and buttons: in the heading face at
+/// `size` (scaled as the styling says), and in capitals if the styling
+/// has them.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn label<'a>(styling: &Styling, label: &str) -> Text<'a> {
-    text(cased(styling, label)).font(styling.heading)
+pub fn label<'a>(styling: &Styling, label: &str, size: f32) -> Text<'a> {
+    text(cased(styling, label))
+        .font(styling.heading)
+        .size(styling.heading_size(size))
 }
 
 /// `label` in capitals if the styling has them, otherwise as written.
@@ -74,9 +79,11 @@ fn cased(styling: &Styling, label: &str) -> String {
     }
 }
 
-/// The styling's ornament, `size` pixels across in the accent colour, or
-/// `None` if it has none.
+/// The styling's ornament in the accent colour, `size` pixels across as
+/// [scaled](Styling::ornament_size) by the styling, or `None` if it has
+/// none.
 pub fn ornament<'a, Message: 'a>(styling: &Styling, size: f32) -> Option<Element<'a, Message>> {
+    let size = styling.ornament_size(size);
     styling
         .ornament
         .map(|ornament| mark(ornament_svg(ornament), size))
@@ -114,7 +121,7 @@ pub fn header_rule<'a, Message: 'a>(styling: &Styling) -> Element<'a, Message> {
     };
     lines
         .spacing(8)
-        .height(RULE_ORNAMENT)
+        .height(styling.ornament_size(RULE_ORNAMENT))
         .align_y(Center)
         .width(Fill)
         .into()
@@ -157,7 +164,7 @@ pub fn small_button<'a, Message: 'a>(styling: &Styling, label: &str) -> Button<'
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn labelled<'a, Message: 'a>(styling: &Styling, text: &str, size: f32) -> Button<'a, Message> {
-    button(label(styling, text).size(size))
+    button(label(styling, text, size))
 }
 
 /// A [`primary_button`]: filled with the accent colour, a shade stronger

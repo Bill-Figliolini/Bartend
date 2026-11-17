@@ -58,7 +58,7 @@ pub fn master_list<'a>(
 
     let mut contents = column![].spacing(constants::SPACING);
     if let Some((label, on_press)) = new {
-        let new_button = button(styled::label(styling, &label).size(14).width(Fill).center())
+        let new_button = button(styled::label(styling, &label, 14.0).width(Fill).center())
             .width(Fill)
             .padding([7, 10])
             .style(styled::secondary(styling))
@@ -90,7 +90,7 @@ fn entry<'a>(styling: &Styling, entry: Entry) -> Element<'a, Message> {
     let marker = selected
         .then(|| styled::ornament(styling, MARKER_SIZE))
         .flatten()
-        .unwrap_or_else(|| space().width(MARKER_SIZE).into());
+        .unwrap_or_else(|| space().width(styling.ornament_size(MARKER_SIZE)).into());
     let dimmed = dimmed.then_some(DIMMED_ALPHA);
     button(row![marker, text(label)].spacing(8).align_y(Center))
         .width(Fill)
