@@ -32,8 +32,8 @@ pub struct Styling {
     pub radius: f32,
     /// How cards and tiles are edged.
     pub card_frame: CardFrame,
-    /// Whether stat tiles have brackets in their corners.
-    pub tile_brackets: bool,
+    /// What marks the corners of stat tiles.
+    pub tile_corners: TileCorners,
     /// The mark under page headers, beside the app's name, on the active
     /// tab and before the selected list entry, if any.
     pub ornament: Option<Ornament>,
@@ -48,6 +48,30 @@ pub enum CardFrame {
     Single,
     /// An outer line and a fainter inner one, a few pixels in.
     Double,
+    /// A thick outer line and a fainter thin one, a few pixels in.
+    Heavy,
+}
+
+impl CardFrame {
+    /// Thickness of the outer line.
+    pub fn outline(self) -> f32 {
+        match self {
+            CardFrame::Single | CardFrame::Double => 1.0,
+            CardFrame::Heavy => 2.0,
+        }
+    }
+}
+
+/// What marks the corners of stat tiles, drawn in the accent colour along
+/// the card's inner line (where a double-edged card has one).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TileCorners {
+    /// Nothing.
+    None,
+    /// An L-shaped bracket in each corner.
+    Brackets,
+    /// A small filled square in each corner, like a rivet.
+    Studs,
 }
 
 /// A mark used to pick things out.
@@ -55,6 +79,8 @@ pub enum CardFrame {
 pub enum Ornament {
     /// A small diamond, ◆.
     Diamond,
+    /// A candle flame: a teardrop, point up.
+    Flame,
 }
 
 /// How the stock gauge is drawn. Its `girth` sets the height of the stock
@@ -85,7 +111,7 @@ impl Styling {
         caps: true,
         radius: 0.0,
         card_frame: CardFrame::Double,
-        tile_brackets: true,
+        tile_corners: TileCorners::Brackets,
         ornament: Some(Ornament::Diamond),
         gauge: Gauge {
             girth: 8.0,
@@ -104,7 +130,7 @@ impl Styling {
         caps: false,
         radius: 8.0,
         card_frame: CardFrame::Single,
-        tile_brackets: false,
+        tile_corners: TileCorners::None,
         ornament: None,
         gauge: Gauge {
             girth: 8.0,
@@ -204,7 +230,7 @@ pub const PLAIN: Styling = Styling {
     caps: false,
     radius: 6.0,
     card_frame: CardFrame::Single,
-    tile_brackets: false,
+    tile_corners: TileCorners::None,
     ornament: None,
     gauge: Gauge {
         girth: 6.0,
@@ -278,7 +304,7 @@ mod tests {
         assert!(!modern.caps);
         assert!((modern.radius - 8.0).abs() < f32::EPSILON);
         assert_eq!(modern.card_frame, CardFrame::Single);
-        assert!(!modern.tile_brackets);
+        assert_eq!(modern.tile_corners, TileCorners::None);
         assert_eq!(modern.ornament, None);
         assert_eq!(modern.gauge.kind, GaugeKind::Bar);
         // Girth is the one field that moves layout; Modern matches.
@@ -301,7 +327,7 @@ mod tests {
         assert!(deco.caps);
         assert!(deco.radius.abs() < f32::EPSILON);
         assert_eq!(deco.card_frame, CardFrame::Double);
-        assert!(deco.tile_brackets);
+        assert_eq!(deco.tile_corners, TileCorners::Brackets);
         assert_eq!(deco.ornament, Some(Ornament::Diamond));
         assert_eq!(
             deco.gauge,
@@ -324,7 +350,7 @@ mod tests {
             caps,
             radius,
             card_frame,
-            tile_brackets,
+            tile_corners,
             ornament,
             gauge: Gauge { girth, kind },
         } = PLAIN;
@@ -333,10 +359,17 @@ mod tests {
         assert_ne!(caps, deco.caps);
         assert!((radius - deco.radius).abs() > f32::EPSILON);
         assert_ne!(card_frame, deco.card_frame);
-        assert_ne!(tile_brackets, deco.tile_brackets);
+        assert_ne!(tile_corners, deco.tile_corners);
         assert_ne!(ornament, deco.ornament);
         assert!((girth - deco.gauge.girth).abs() > f32::EPSILON);
         assert_ne!(kind, deco.gauge.kind);
+    }
+
+    #[test]
+    fn heavy_frames_have_a_thicker_outer_line() {
+        assert!((CardFrame::Single.outline() - 1.0).abs() < f32::EPSILON);
+        assert!((CardFrame::Double.outline() - 1.0).abs() < f32::EPSILON);
+        assert!(CardFrame::Heavy.outline() > CardFrame::Double.outline());
     }
 
     #[test]

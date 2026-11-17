@@ -22,6 +22,8 @@ pub const TITLE_SIZE: f32 = 28.0;
 
 /// A diamond, drawn rather than typed because Federo has no ◆.
 const DIAMOND: &[u8] = include_bytes!("../../../assets/diamond.svg");
+/// A candle flame, which no font has.
+const FLAME: &[u8] = include_bytes!("../../../assets/flame.svg");
 /// Size of the ornament at the centre of a [`header_rule`], and the
 /// rule's height with or without one.
 const RULE_ORNAMENT: f32 = 7.0;
@@ -75,15 +77,23 @@ fn cased(styling: &Styling, label: &str) -> String {
 /// The styling's ornament, `size` pixels across in the accent colour, or
 /// `None` if it has none.
 pub fn ornament<'a, Message: 'a>(styling: &Styling, size: f32) -> Option<Element<'a, Message>> {
-    styling.ornament.map(|ornament| match ornament {
-        Ornament::Diamond => diamond(size),
-    })
+    styling
+        .ornament
+        .map(|ornament| mark(ornament_svg(ornament), size))
 }
 
-/// A diamond `size` pixels across, in the accent colour.
+/// The SVG `ornament` is drawn from.
+fn ornament_svg(ornament: Ornament) -> &'static [u8] {
+    match ornament {
+        Ornament::Diamond => DIAMOND,
+        Ornament::Flame => FLAME,
+    }
+}
+
+/// The SVG `image`, `size` pixels square, in the accent colour.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn diamond<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
-    svg(svg::Handle::from_memory(DIAMOND))
+fn mark<'a, Message: 'a>(image: &'static [u8], size: f32) -> Element<'a, Message> {
+    svg(svg::Handle::from_memory(image))
         .width(size)
         .height(size)
         .style(|theme: &Theme, _| svg::Style {
@@ -374,7 +384,11 @@ mod tests {
     }
 
     #[test]
-    fn the_diamond_is_an_svg() {
-        assert!(DIAMOND.starts_with(b"<svg"));
+    fn every_ornament_is_drawn_from_its_own_svg() {
+        let diamond = ornament_svg(Ornament::Diamond);
+        let flame = ornament_svg(Ornament::Flame);
+        assert!(diamond.starts_with(b"<svg"));
+        assert!(flame.starts_with(b"<svg"));
+        assert_ne!(diamond, flame);
     }
 }

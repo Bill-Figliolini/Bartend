@@ -1,6 +1,6 @@
-//! Building blocks for detail panels: double-bordered cards (plain or
-//! [toned](Tone)), stat tiles, with corner brackets if the [`Styling`] has
-//! them (showing a figure or holding a control), a stock gauge (segmented
+//! Building blocks for detail panels: cards framed as the [`Styling`]
+//! says (plain or [toned](Tone)), stat tiles, with corner marks if the
+//! styling has them (showing a figure or holding a control), a stock gauge (segmented
 //! or one bar, as the styling says),
 //! chips (plain or toned), link rows (optionally with a row action or a
 //! toned status), column headings and labelled fields. Cards, tiles and
@@ -24,7 +24,7 @@ use crate::{
     logic::StockLevel,
     presentation::{
         constants,
-        styling::{GaugeKind, Styling},
+        styling::{CardFrame, GaugeKind, Styling},
         widget::{
             framed_card::{FRAME_PADDING, FramedCard},
             styled,
@@ -78,27 +78,22 @@ fn card_box<'a, Message: 'a>(
         .push(title.map(|title| caption(styling, title)))
         .push(content)
         .spacing(constants::SPACING);
-    let radius = styling.radius;
+    let (radius, frame) = (styling.radius, styling.card_frame);
     let box_ = container(body)
         .width(Fill)
         .padding(CARD_PADDING)
-        .style(move |theme: &Theme| card_style(theme, radius));
+        .style(move |theme: &Theme| card_style(theme, radius, frame));
     FramedCard::new(styling, box_, |theme| inner_line(theme, Tone::Neutral))
 }
 
-/// A [`card_box`] for a tile, with accent brackets in its corners if the
-/// styling has them.
+/// A [`card_box`] for a tile, with its corners marked in the accent colour
+/// if the styling marks them.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn tile_box<'a, Message: 'a>(
     styling: &Styling,
     content: impl Into<Element<'a, Message>>,
 ) -> FramedCard<'a, Message> {
-    let card = card_box(styling, None, content);
-    if styling.tile_brackets {
-        card.brackets(styled::accent)
-    } else {
-        card
-    }
+    card_box(styling, None, content).corners(styling.tile_corners, styled::accent)
 }
 
 /// A card showing one figure: a small `label`, the `value` in large type,
@@ -146,11 +141,11 @@ pub fn toned_card<'a, Message: 'a>(
     tone: Tone,
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let radius = styling.radius;
+    let (radius, frame) = (styling.radius, styling.card_frame);
     let box_ = container(content)
         .width(Fill)
         .padding(CARD_PADDING)
-        .style(move |theme: &Theme| toned_card_style(theme, tone, radius));
+        .style(move |theme: &Theme| toned_card_style(theme, tone, radius, frame));
     FramedCard::new(styling, box_, move |theme| inner_line(theme, tone)).into()
 }
 
@@ -391,14 +386,14 @@ pub fn percent(fraction: f32) -> String {
     format!("{:.0}%", (fraction * 100.0).floor())
 }
 
-/// A card with corners of `radius`.
-fn card_style(theme: &Theme, radius: f32) -> container::Style {
+/// A card with corners of `radius`, outlined as thickly as `frame` says.
+fn card_style(theme: &Theme, radius: f32, frame: CardFrame) -> container::Style {
     let palette = theme.extended_palette();
     container::Style {
         background: Some(palette.background.weakest.color.into()),
         text_color: Some(palette.background.weakest.text),
         border: Border {
-            width: 1.0,
+            width: frame.outline(),
             radius: radius.into(),
             color: palette.background.weak.color,
         },
@@ -433,8 +428,8 @@ fn toned_chip_style(theme: &Theme, tone: Tone, radius: f32) -> container::Style 
 
 /// A [`card_style`] filled with the weak shade of `tone`'s colour and
 /// outlined in its base colour, or the plain card when neutral.
-fn toned_card_style(theme: &Theme, tone: Tone, radius: f32) -> container::Style {
-    let card = card_style(theme, radius);
+fn toned_card_style(theme: &Theme, tone: Tone, radius: f32, frame: CardFrame) -> container::Style {
+    let card = card_style(theme, radius, frame);
     let Some(shade) = tone_shades(theme, tone) else {
         return card;
     };
@@ -549,6 +544,7 @@ mod tests {
 
     const DECO: Styling = Styling::ART_DECO;
     const SQUARE: f32 = Styling::ART_DECO.radius;
+    const FRAME: CardFrame = Styling::ART_DECO.card_frame;
 
     #[test]
     fn percentages_round_down() {
@@ -612,12 +608,29 @@ mod tests {
     fn cards_and_chips_have_the_given_corners() {
         for radius in every_styling().iter().map(|styling| styling.radius) {
             for theme in Themes::new().options() {
-                assert_eq!(card_style(theme, radius).border.radius, radius.into());
+                assert_eq!(
+                    card_style(theme, radius, FRAME).border.radius,
+                    radius.into()
+                );
                 assert_eq!(chip_style(theme, radius).border.radius, radius.into());
                 assert_eq!(
                     toned_chip_style(theme, Tone::Success, radius).border.radius,
                     radius.into()
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn cards_are_outlined_as_thickly_as_their_frame_says() {
+        for frame in [CardFrame::Single, CardFrame::Double, CardFrame::Heavy] {
+            for theme in Themes::new().options() {
+                assert!(
+                    (card_style(theme, SQUARE, frame).border.width - frame.outline()).abs()
+                        < f32::EPSILON
+                );
+                let toned = toned_card_style(theme, Tone::Danger, SQUARE, frame);
+                assert!((toned.border.width - frame.outline()).abs() < f32::EPSILON);
             }
         }
     }
@@ -641,7 +654,7 @@ mod tests {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
 
-            let card = card_style(theme, SQUARE);
+            let card = card_style(theme, SQUARE, FRAME);
             assert_eq!(
                 card.background,
                 Some(Background::Color(palette.background.weakest.color))
@@ -695,8 +708,8 @@ mod tests {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
             assert_eq!(
-                toned_card_style(theme, Tone::Neutral, SQUARE),
-                card_style(theme, SQUARE)
+                toned_card_style(theme, Tone::Neutral, SQUARE, FRAME),
+                card_style(theme, SQUARE, FRAME)
             );
             let cases = [
                 (Tone::Success, palette.success.base, palette.success.weak),
@@ -704,7 +717,7 @@ mod tests {
                 (Tone::Danger, palette.danger.base, palette.danger.weak),
             ];
             for (tone, base, weak) in cases {
-                let style = toned_card_style(theme, tone, SQUARE);
+                let style = toned_card_style(theme, tone, SQUARE, FRAME);
                 assert_eq!(
                     style.background,
                     Some(weak.color.into()),
@@ -712,7 +725,10 @@ mod tests {
                 );
                 assert_eq!(style.text_color, Some(weak.text));
                 assert_eq!(style.border.color, base.color);
-                assert_eq!(style.border.radius, card_style(theme, SQUARE).border.radius);
+                assert_eq!(
+                    style.border.radius,
+                    card_style(theme, SQUARE, FRAME).border.radius
+                );
             }
         }
     }
