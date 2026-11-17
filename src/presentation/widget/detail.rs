@@ -1,6 +1,7 @@
 //! Building blocks for detail panels: double-bordered cards (plain or
 //! [toned](Tone)), stat tiles, with corner brackets if the [`Styling`] has
-//! them (showing a figure or holding a control), a segmented stock gauge,
+//! them (showing a figure or holding a control), a stock gauge (segmented
+//! or one bar, as the styling says),
 //! chips (plain or toned), link rows (optionally with a row action or a
 //! toned status), column headings and labelled fields. Cards, tiles and
 //! chips have the styling's corners.
@@ -14,14 +15,16 @@ use iced::{
     Theme,
     alignment::Horizontal::Right,
     theme::palette::Pair,
-    widget::{Button, Column, Row, Text, button, column, container, row, space, text},
+    widget::{
+        Button, Column, Row, Text, button, column, container, progress_bar, row, space, text,
+    },
 };
 
 use crate::{
     logic::StockLevel,
     presentation::{
         constants,
-        styling::Styling,
+        styling::{GaugeKind, Styling},
         widget::{
             framed_card::{FRAME_PADDING, FramedCard},
             styled,
@@ -40,12 +43,6 @@ const VALUE_SIZE: f32 = 28.0;
 const ON_TONE_WASH: f32 = 0.12;
 /// How much of the text colour muted text keeps.
 const MUTED_ALPHA: f32 = 0.65;
-/// Thickness of the stock gauge.
-const GAUGE_GIRTH: f32 = 8.0;
-/// How many segments the stock gauge is split into.
-const GAUGE_SEGMENTS: u8 = 20;
-/// Gap between the stock gauge's segments.
-const GAUGE_GAP: f32 = 2.0;
 /// Width of the status column of a [`status_link_row`], so the details
 /// before it line up from row to row. Fits "None in stock" in small type.
 const STATUS_WIDTH: f32 = 100.0;
@@ -171,21 +168,38 @@ pub fn toned_card_button<'a, Message: 'a>(
         .style(move |theme: &Theme, status| on_tone(secondary(theme, status), theme, status, tone))
 }
 
-/// A row of square segments, lit up to `fraction` (0 to 1) in the colour
-/// of `level` (see [`lit_segments`]), followed by the share as a
-/// percentage.
+/// How full something is: `fraction` (0 to 1) of the gauge filled in the
+/// colour of `level`, followed by the share as a percentage. The gauge is
+/// a row of square segments (see [`lit_segments`]) or one bar with the
+/// styling's corners, as thick as the styling says.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn gauge<'a, Message: 'a>(fraction: f32, level: StockLevel) -> Element<'a, Message> {
-    let lit = lit_segments(fraction);
-    let segments = (0..GAUGE_SEGMENTS).map(|index| {
-        let on = usize::from(index) < lit;
-        container(space())
-            .width(Fill)
-            .height(GAUGE_GIRTH)
-            .style(move |theme: &Theme| segment_style(theme, level, on))
-            .into()
-    });
-    let bar = Row::with_children(segments).spacing(GAUGE_GAP).width(Fill);
+pub fn gauge<'a, Message: 'a>(
+    styling: &Styling,
+    fraction: f32,
+    level: StockLevel,
+) -> Element<'a, Message> {
+    let girth = styling.gauge.girth;
+    let bar: Element<'a, Message> = match styling.gauge.kind {
+        GaugeKind::Segments { count, gap } => {
+            let lit = lit_segments(count, fraction);
+            let segments = (0..count).map(|index| {
+                let on = usize::from(index) < lit;
+                container(space())
+                    .width(Fill)
+                    .height(girth)
+                    .style(move |theme: &Theme| segment_style(theme, level, on))
+                    .into()
+            });
+            Row::with_children(segments).spacing(gap).width(Fill).into()
+        }
+        GaugeKind::Bar => {
+            let radius = styling.radius;
+            progress_bar(0.0..=1.0, fraction)
+                .girth(girth)
+                .style(move |theme: &Theme| bar_style(theme, level, radius))
+                .into()
+        }
+    };
     let share = text(percent(fraction))
         .size(constants::SMALL_TEXT)
         .style(muted);
@@ -195,18 +209,19 @@ pub fn gauge<'a, Message: 'a>(fraction: f32, level: StockLevel) -> Element<'a, M
         .into()
 }
 
-/// How many of the gauge's segments are lit for a `fraction` (0 to 1) of
-/// stock: rounded up, so any stock at all lights at least one, and none
-/// lights none.
-pub fn lit_segments(fraction: f32) -> usize {
+/// How many of a gauge's `count` segments are lit for a `fraction` of
+/// stock, from 0 to 1: rounded up, so any stock at all lights at least
+/// one, and none lights none.
+pub fn lit_segments(count: u8, fraction: f32) -> usize {
     // Leeway for fractions such as 0.15 that come out a hair over their
     // true value, so they don't light a segment too many.
     const LEEWAY: f32 = 1e-4;
-    let filled = fraction * f32::from(GAUGE_SEGMENTS) - LEEWAY;
-    (0..GAUGE_SEGMENTS)
+    let filled = fraction * f32::from(count) - LEEWAY;
+    (0..count)
         .filter(|&index| f32::from(index) < filled)
         .count()
         .max(usize::from(fraction > 0.0))
+        .min(usize::from(count))
 }
 
 /// A small label, e.g. for a category.
@@ -486,17 +501,40 @@ struct Shades {
 /// One segment of the stock gauge: in the colour of `level` when `lit`,
 /// or the shade of cards' borders when not.
 fn segment_style(theme: &Theme, level: StockLevel, lit: bool) -> container::Style {
-    let palette = theme.extended_palette();
-    let color = match (lit, level) {
-        (false, _) => palette.background.weak.color,
-        (true, StockLevel::Healthy) => palette.success.base.color,
-        (true, StockLevel::Low) => palette.warning.base.color,
-        (true, StockLevel::Critical) => palette.danger.base.color,
+    let color = if lit {
+        level_color(theme, level)
+    } else {
+        unlit(theme)
     };
     container::Style {
         background: Some(color.into()),
         ..container::Style::default()
     }
+}
+
+/// The stock gauge as one bar: filled in the colour of `level` on a track
+/// in the shade of cards' borders, with corners of `radius`.
+fn bar_style(theme: &Theme, level: StockLevel, radius: f32) -> progress_bar::Style {
+    progress_bar::Style {
+        background: unlit(theme).into(),
+        bar: level_color(theme, level).into(),
+        border: Border::default().rounded(radius),
+    }
+}
+
+/// The colour of the filled part of the stock gauge at `level`.
+fn level_color(theme: &Theme, level: StockLevel) -> Color {
+    let palette = theme.extended_palette();
+    match level {
+        StockLevel::Healthy => palette.success.base.color,
+        StockLevel::Low => palette.warning.base.color,
+        StockLevel::Critical => palette.danger.base.color,
+    }
+}
+
+/// The colour of the empty part of the stock gauge.
+fn unlit(theme: &Theme) -> Color {
+    theme.extended_palette().background.weak.color
 }
 
 #[cfg(test)]
@@ -505,7 +543,7 @@ mod tests {
 
     use super::*;
     use crate::presentation::{
-        styling::{ROUNDED, Styling},
+        styling::{PLAIN, Styling},
         theme::Themes,
     };
 
@@ -537,27 +575,42 @@ mod tests {
                     segment_style(theme, level, false).background,
                     Some(Background::Color(palette.background.weak.color))
                 );
+                let bar = bar_style(theme, level, PLAIN.radius);
+                assert_eq!(bar.bar, expected.into(), "{theme} {level:?}");
+                assert_eq!(bar.background, palette.background.weak.color.into());
+                assert_eq!(bar.border.radius, PLAIN.radius.into());
             }
         }
     }
 
     #[test]
     fn gauge_segments_light_up_rounding_up() {
-        assert_eq!(lit_segments(0.0), 0);
-        assert_eq!(lit_segments(-0.5), 0);
-        assert_eq!(lit_segments(0.001), 1);
-        assert_eq!(lit_segments(0.05), 1);
-        assert_eq!(lit_segments(0.051), 2);
-        assert_eq!(lit_segments(0.15), 3);
-        assert_eq!(lit_segments(0.75), 15);
-        assert_eq!(lit_segments(0.999), 20);
-        assert_eq!(lit_segments(1.0), 20);
-        assert_eq!(lit_segments(1.5), 20);
+        let lit = |fraction| lit_segments(20, fraction);
+        assert_eq!(lit(0.0), 0);
+        assert_eq!(lit(-0.5), 0);
+        assert_eq!(lit(0.001), 1);
+        assert_eq!(lit(0.05), 1);
+        assert_eq!(lit(0.051), 2);
+        assert_eq!(lit(0.15), 3);
+        assert_eq!(lit(0.75), 15);
+        assert_eq!(lit(0.999), 20);
+        assert_eq!(lit(1.0), 20);
+        assert_eq!(lit(1.5), 20);
+    }
+
+    #[test]
+    fn gauges_with_fewer_segments_light_proportionally() {
+        assert_eq!(lit_segments(5, 0.0), 0);
+        assert_eq!(lit_segments(5, 0.01), 1);
+        assert_eq!(lit_segments(5, 0.4), 2);
+        assert_eq!(lit_segments(5, 0.41), 3);
+        assert_eq!(lit_segments(5, 1.0), 5);
+        assert_eq!(lit_segments(0, 0.5), 0);
     }
 
     #[test]
     fn cards_and_chips_have_the_given_corners() {
-        for radius in [SQUARE, ROUNDED.radius] {
+        for radius in [SQUARE, PLAIN.radius] {
             for theme in Themes::new().options() {
                 assert_eq!(card_style(theme, radius).border.radius, radius.into());
                 assert_eq!(chip_style(theme, radius).border.radius, radius.into());

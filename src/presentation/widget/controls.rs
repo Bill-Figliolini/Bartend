@@ -182,7 +182,7 @@ fn rail(theme: &Theme, hot: bool, radius: f32) -> scrollable::Rail {
 mod tests {
     use super::*;
     use crate::presentation::{
-        styling::{ROUNDED, Styling},
+        styling::{PLAIN, Styling},
         theme::Themes,
     };
 
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn controls_have_the_stylings_corners() {
-        for styling in [DECO, ROUNDED] {
+        for styling in [DECO, PLAIN] {
             let radius = styling.radius.into();
             for theme in Themes::new().options() {
                 for status in TEXT_STATES {

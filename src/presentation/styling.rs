@@ -5,8 +5,8 @@
 //! colours goes where, so every styling works with every
 //! [theme](super::theme), and the two are picked separately.
 
-// The views don't yet draw single-edged cards, a plain gauge or no
-// ornament (phase 3), and Settings doesn't offer a choice (phase 4).
+// Settings doesn't offer a choice yet (phase 4), and no built-in styling
+// has single-edged cards or a plain gauge until the second one (phase 5).
 #![cfg_attr(
     not(test),
     expect(
@@ -67,12 +67,22 @@ pub enum Ornament {
     Diamond,
 }
 
-/// How the stock gauge is drawn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Gauge {
-    /// A row of this many square segments, lit up to the share in stock.
-    Segments(u8),
-    /// One continuous bar.
+/// How the stock gauge is drawn. Its `girth` sets the height of the stock
+/// tile, so a styling that changes it moves what sits below.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Gauge {
+    /// Thickness of the gauge.
+    pub girth: f32,
+    pub kind: GaugeKind,
+}
+
+/// Whether the stock gauge is split into segments or is one bar.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GaugeKind {
+    /// A row of `count` square segments `gap` apart, lit up to the share
+    /// in stock.
+    Segments { count: u8, gap: f32 },
+    /// One continuous bar, with the styling's corners.
     Bar,
 }
 
@@ -87,7 +97,13 @@ impl Styling {
         card_frame: CardFrame::Double,
         tile_brackets: true,
         ornament: Some(Ornament::Diamond),
-        gauge: Gauge::Segments(20),
+        gauge: Gauge {
+            girth: 8.0,
+            kind: GaugeKind::Segments {
+                count: 20,
+                gap: 2.0,
+            },
+        },
     };
 }
 
@@ -155,15 +171,20 @@ pub fn choice_for(option: &StylingOption) -> StylingChoice {
     StylingChoice::BuiltIn(option.name.to_string())
 }
 
-/// A styling unlike [Art Deco](Styling::ART_DECO) in every field the
-/// views read, for checking that they follow the styling.
+/// A styling unlike [Art Deco](Styling::ART_DECO) in every field, for
+/// checking that the views follow the styling.
 #[cfg(test)]
-pub const ROUNDED: Styling = Styling {
+pub const PLAIN: Styling = Styling {
     heading: Font::DEFAULT,
     caps: false,
     radius: 6.0,
+    card_frame: CardFrame::Single,
     tile_brackets: false,
-    ..Styling::ART_DECO
+    ornament: None,
+    gauge: Gauge {
+        girth: 6.0,
+        kind: GaugeKind::Bar,
+    },
 };
 
 #[cfg(test)]
@@ -211,7 +232,40 @@ mod tests {
         assert_eq!(deco.card_frame, CardFrame::Double);
         assert!(deco.tile_brackets);
         assert_eq!(deco.ornament, Some(Ornament::Diamond));
-        assert_eq!(deco.gauge, Gauge::Segments(20));
+        assert_eq!(
+            deco.gauge,
+            Gauge {
+                girth: 8.0,
+                kind: GaugeKind::Segments {
+                    count: 20,
+                    gap: 2.0
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn the_plain_test_styling_differs_from_art_deco_in_every_field() {
+        // Destructured, so a new field fails to compile here until PLAIN
+        // differs in it too.
+        let Styling {
+            heading,
+            caps,
+            radius,
+            card_frame,
+            tile_brackets,
+            ornament,
+            gauge: Gauge { girth, kind },
+        } = PLAIN;
+        let deco = Styling::ART_DECO;
+        assert_ne!(heading, deco.heading);
+        assert_ne!(caps, deco.caps);
+        assert!((radius - deco.radius).abs() > f32::EPSILON);
+        assert_ne!(card_frame, deco.card_frame);
+        assert_ne!(tile_brackets, deco.tile_brackets);
+        assert_ne!(ornament, deco.ornament);
+        assert!((girth - deco.gauge.girth).abs() > f32::EPSILON);
+        assert_ne!(kind, deco.gauge.kind);
     }
 
     #[test]

@@ -25,12 +25,13 @@ use crate::{
 const HEIGHT: f32 = 48.0;
 /// Size of the app's name in the corner.
 const BRAND_SIZE: f32 = 22.0;
-/// Size of the diamonds either side of the app's name.
-const BRAND_DIAMOND: f32 = 8.0;
+/// Size of the ornaments either side of the app's name.
+const BRAND_ORNAMENT: f32 = 8.0;
 /// Size of a tab's label.
 const TAB_SIZE: f32 = 15.0;
-/// Size of the diamond at the centre of the active tab's underline.
-const TAB_DIAMOND: f32 = 7.0;
+/// Size of the ornament at the centre of the active tab's underline, and
+/// the underline's height with or without one.
+const TAB_ORNAMENT: f32 = 7.0;
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn tab_bar<'a>(
@@ -41,10 +42,11 @@ pub fn tab_bar<'a>(
     let name = styled::label(styling, "Bartend")
         .size(BRAND_SIZE)
         .style(styled::accented);
+    // The name between two of the styling's ornaments, if it has one.
     let brand = row![
-        styled::diamond(BRAND_DIAMOND),
+        styled::ornament(styling, BRAND_ORNAMENT),
         name,
-        styled::diamond(BRAND_DIAMOND)
+        styled::ornament(styling, BRAND_ORNAMENT)
     ]
     .spacing(10)
     .align_y(Center);
@@ -67,7 +69,8 @@ pub fn tab_bar<'a>(
 }
 
 /// One screen's tab: its name in capitals, and while it is the `active`
-/// one, underlined in the accent colour with a diamond at the centre.
+/// one, underlined in the accent colour with the styling's ornament, if
+/// any, at the centre.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn tab<'a>(styling: &Styling, kind: ScreenKind, active: bool) -> Element<'a, Message> {
     let name = styled::label(styling, kind.label()).size(TAB_SIZE);
@@ -78,12 +81,12 @@ fn tab<'a>(styling: &Styling, kind: ScreenKind, active: bool) -> Element<'a, Mes
         .on_press(Message::OpenScreen(kind));
     let mut layers = Stack::new().push(label);
     if active {
-        let underline = row![
-            frame::underline(),
-            styled::diamond(TAB_DIAMOND),
-            frame::underline()
-        ]
+        let underline = match styled::ornament(styling, TAB_ORNAMENT) {
+            Some(mark) => row![frame::underline(), mark, frame::underline()],
+            None => row![frame::underline()],
+        }
         .spacing(4)
+        .height(TAB_ORNAMENT)
         .align_y(Center);
         // Laid over the tab, so that it takes the tab's width.
         let underline = container(underline)

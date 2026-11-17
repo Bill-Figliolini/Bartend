@@ -1,5 +1,5 @@
-//! [`FramedCard`]: a container drawn with a double border, and optionally
-//! brackets in its corners.
+//! [`FramedCard`]: a container drawn with a double border if the
+//! [`Styling`] has one, and optionally brackets in its corners.
 //!
 //! The container draws its own fill and the outer line. The wrapper draws
 //! the inner line and the brackets over it, at the container's final
@@ -20,9 +20,9 @@ use iced::{
     widget::Container,
 };
 
-use crate::presentation::styling::Styling;
+use crate::presentation::styling::{CardFrame, Styling};
 
-/// Gap from the card's edge to its inner line.
+/// Gap from the card's edge to its inner line, and to its brackets.
 const INSET: f32 = 3.0;
 /// Width of the inner line.
 const LINE: f32 = 1.0;
@@ -31,7 +31,8 @@ const BRACKET_ARM: f32 = 10.0;
 /// Thickness of a corner bracket.
 const BRACKET_GIRTH: f32 = 2.0;
 
-/// Extra padding a card's content needs to clear its inner line.
+/// Extra padding a card's content needs to clear its inner line. Kept
+/// under every styling, so cards keep their size without one.
 pub const FRAME_PADDING: f32 = INSET + LINE;
 
 /// Picks the colour of a card's inner line, and of its brackets, from the
@@ -45,6 +46,7 @@ pub struct FramedCard<'a, M> {
     container: Container<'a, M>,
     /// Corner radius of the container; the inner line follows it.
     radius: f32,
+    frame: CardFrame,
     line: Ink<'a>,
     brackets: Option<Ink<'a>>,
 }
@@ -54,7 +56,7 @@ impl<'a, M: 'a> FramedCard<'a, M> {
     /// `container` styled with its fill and outer line, and padded to
     /// clear the inner line (see [`FRAME_PADDING`]); the inner line is
     /// drawn in the colour `line` picks, with corners to match the
-    /// `styling`'s.
+    /// `styling`'s, if the styling's cards have one.
     pub fn new(
         styling: &Styling,
         container: Container<'a, M>,
@@ -63,6 +65,7 @@ impl<'a, M: 'a> FramedCard<'a, M> {
         Self {
             container,
             radius: styling.radius,
+            frame: styling.card_frame,
             line: Box::new(line),
             brackets: None,
         }
@@ -103,6 +106,7 @@ impl<'a, M: 'a> From<FramedCard<'a, M>> for Element<'a, M> {
         Element::new(Framed {
             content: card.container.into(),
             radius: card.radius,
+            frame: card.frame,
             line: card.line,
             brackets: card.brackets,
         })
@@ -114,13 +118,24 @@ impl<'a, M: 'a> From<FramedCard<'a, M>> for Element<'a, M> {
 struct Framed<'a, M> {
     content: Element<'a, M>,
     radius: f32,
+    frame: CardFrame,
     line: Ink<'a>,
     brackets: Option<Ink<'a>>,
 }
 
-/// Where the inner line runs, for a card with `bounds`.
-fn inner_line(bounds: Rectangle) -> Rectangle {
+/// The rectangle a few pixels inside a card with `bounds`, which the inner
+/// line and brackets run along.
+fn inset(bounds: Rectangle) -> Rectangle {
     bounds.shrink(Padding::new(INSET))
+}
+
+/// Where the inner line runs, for a card with `bounds` edged as `frame`
+/// says, or `None` if it has only its outer line.
+fn inner_line(bounds: Rectangle, frame: CardFrame) -> Option<Rectangle> {
+    match frame {
+        CardFrame::Single => None,
+        CardFrame::Double => Some(inset(bounds)),
+    }
 }
 
 /// The corner radius of the inner line of a card whose corners have
@@ -130,9 +145,10 @@ fn inner_radius(radius: f32) -> f32 {
 }
 
 /// The eight bars making up the corner brackets of a card with `bounds`:
-/// for each corner, one across and one down, laid along its inner line.
+/// for each corner, one across and one down, laid along its
+/// [inset](inset), where a double-edged card's inner line runs.
 fn bracket_bars(bounds: Rectangle) -> [Rectangle; 8] {
-    let line = inner_line(bounds);
+    let line = inset(bounds);
     let across = Size::new(BRACKET_ARM, BRACKET_GIRTH);
     let down = Size::new(BRACKET_GIRTH, BRACKET_ARM);
     let left = line.x;
@@ -194,19 +210,21 @@ impl<M> Widget<M, Theme, Renderer> for Framed<'_, M> {
         );
 
         let bounds = layout.bounds();
-        renderer.fill_quad(
-            Quad {
-                bounds: inner_line(bounds),
-                border: Border {
-                    width: LINE,
-                    color: (self.line)(theme),
-                    radius: inner_radius(self.radius).into(),
+        if let Some(line) = inner_line(bounds, self.frame) {
+            renderer.fill_quad(
+                Quad {
+                    bounds: line,
+                    border: Border {
+                        width: LINE,
+                        color: (self.line)(theme),
+                        radius: inner_radius(self.radius).into(),
+                    },
+                    snap: true,
+                    ..Quad::default()
                 },
-                snap: true,
-                ..Quad::default()
-            },
-            Background::Color(Color::TRANSPARENT),
-        );
+                Background::Color(Color::TRANSPARENT),
+            );
+        }
         if let Some(ink) = &self.brackets {
             let color = ink(theme);
             for bar in bracket_bars(bounds) {
@@ -313,15 +331,18 @@ mod tests {
 
     #[test]
     fn the_inner_line_is_inset_on_every_side() {
-        assert_eq!(
-            inner_line(CARD),
-            Rectangle {
-                x: 103.0,
-                y: 53.0,
-                width: 194.0,
-                height: 74.0,
-            }
-        );
+        let inset = Rectangle {
+            x: 103.0,
+            y: 53.0,
+            width: 194.0,
+            height: 74.0,
+        };
+        assert_eq!(inner_line(CARD, CardFrame::Double), Some(inset));
+    }
+
+    #[test]
+    fn single_edged_cards_have_no_inner_line() {
+        assert_eq!(inner_line(CARD, CardFrame::Single), None);
     }
 
     #[test]
@@ -332,8 +353,8 @@ mod tests {
     }
 
     #[test]
-    fn brackets_sit_inside_the_inner_line_at_its_corners() {
-        let line = inner_line(CARD);
+    fn brackets_sit_inside_the_inset_at_its_corners() {
+        let line = inset(CARD);
         let bars = bracket_bars(CARD);
         for bar in bars {
             let inside = bar.x >= line.x
@@ -342,7 +363,7 @@ mod tests {
                 && bar.y + bar.height <= line.y + line.height;
             assert!(inside, "{bar:?}");
         }
-        // Each corner of the inner line is covered by two bars.
+        // Each corner of the inset is covered by two bars.
         let corners = [
             [line.x, line.y],
             [line.x + line.width - 1.0, line.y],

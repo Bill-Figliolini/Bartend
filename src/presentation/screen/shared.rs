@@ -72,7 +72,7 @@ pub(super) fn detail_header<'a>(
 
 /// A panel's header: `name` as a [title](styled::title) over a `subtitle`
 /// line on the left, `buttons` on the right, and an
-/// [ornament rule](styled::ornament_rule) underneath. [`detail_header`] is
+/// [rule](styled::header_rule) underneath. [`detail_header`] is
 /// this with Edit and Delete.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(super) fn page_header<'a>(
@@ -83,7 +83,7 @@ pub(super) fn page_header<'a>(
 ) -> Element<'a, Message> {
     let title = column![styled::title(styling, name), subtitle].spacing(6);
     let header = row![title, space().width(Fill), buttons];
-    column![header, styled::ornament_rule()]
+    column![header, styled::header_rule(styling)]
         .spacing(constants::SPACING)
         .into()
 }

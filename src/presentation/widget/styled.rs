@@ -1,6 +1,6 @@
 //! The touches every screen shares, drawn as the [`Styling`] says: titles
-//! and labels in its heading face, the diamond, the rule with a diamond at
-//! its centre, and buttons labelled in its heading face. Every colour comes
+//! and labels in its heading face, its ornament, the rule under page
+//! headers, and buttons labelled in its heading face. Every colour comes
 //! from the theme's palette, so they suit whichever theme is chosen.
 
 use iced::{
@@ -11,18 +11,23 @@ use iced::{
     widget::{Button, Text, button, row, rule, svg, text},
 };
 
-use crate::presentation::{constants, styling::Styling, widget::frame};
+use crate::presentation::{
+    constants,
+    styling::{Ornament, Styling},
+    widget::frame,
+};
 
 /// Size of the name at the top of a detail panel or form.
 pub const TITLE_SIZE: f32 = 28.0;
 
 /// A diamond, drawn rather than typed because Federo has no ◆.
 const DIAMOND: &[u8] = include_bytes!("../../../assets/diamond.svg");
-/// Size of the diamond at the centre of an [`ornament_rule`].
-const RULE_DIAMOND: f32 = 7.0;
-/// How much of the accent colour the lines of an [`ornament_rule`] keep.
+/// Size of the ornament at the centre of a [`header_rule`], and the
+/// rule's height with or without one.
+const RULE_ORNAMENT: f32 = 7.0;
+/// How much of the accent colour the lines of a [`header_rule`] keep.
 const RULE_ALPHA: f32 = 0.45;
-/// Thickness of the lines of an [`ornament_rule`].
+/// Thickness of the lines of a [`header_rule`].
 const RULE_GIRTH: u32 = 1;
 /// Size of a button's label.
 const BUTTON_TEXT: f32 = 14.0;
@@ -67,9 +72,17 @@ fn cased(styling: &Styling, label: &str) -> String {
     }
 }
 
+/// The styling's ornament, `size` pixels across in the accent colour, or
+/// `None` if it has none.
+pub fn ornament<'a, Message: 'a>(styling: &Styling, size: f32) -> Option<Element<'a, Message>> {
+    styling.ornament.map(|ornament| match ornament {
+        Ornament::Diamond => diamond(size),
+    })
+}
+
 /// A diamond `size` pixels across, in the accent colour.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn diamond<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
+fn diamond<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
     svg(svg::Handle::from_memory(DIAMOND))
         .width(size)
         .height(size)
@@ -79,13 +92,19 @@ pub fn diamond<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
         .into()
 }
 
-/// A faint accent line across the panel with a diamond at its centre,
-/// ── ◆ ──, as under a page's header.
+/// The faint accent line across the panel under a page's header, with the
+/// styling's ornament at its centre, ── ◆ ──, if it has one. It takes the
+/// same height either way, so pages keep their layout.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn ornament_rule<'a, Message: 'a>() -> Element<'a, Message> {
+pub fn header_rule<'a, Message: 'a>(styling: &Styling) -> Element<'a, Message> {
     let line = || rule::horizontal(RULE_GIRTH).style(rule_line);
-    row![line(), diamond(RULE_DIAMOND), line()]
+    let lines = match ornament(styling, RULE_ORNAMENT) {
+        Some(mark) => row![line(), mark, line()],
+        None => row![line()],
+    };
+    lines
         .spacing(8)
+        .height(RULE_ORNAMENT)
         .align_y(Center)
         .width(Fill)
         .into()
@@ -227,7 +246,7 @@ pub fn accent(theme: &Theme) -> Color {
     theme.palette().primary
 }
 
-/// A line of an [`ornament_rule`]: a faint wash of the accent colour.
+/// A line of a [`header_rule`]: a faint wash of the accent colour.
 fn rule_line(theme: &Theme) -> rule::Style {
     rule::Style {
         color: accent(theme).scale_alpha(RULE_ALPHA),
@@ -241,7 +260,7 @@ fn rule_line(theme: &Theme) -> rule::Style {
 mod tests {
     use super::*;
     use crate::presentation::{
-        styling::{ROUNDED, Styling},
+        styling::{PLAIN, Styling},
         theme::Themes,
     };
 
@@ -264,7 +283,7 @@ mod tests {
 
     #[test]
     fn buttons_have_the_stylings_corners() {
-        for styling in [DECO, ROUNDED] {
+        for styling in [DECO, PLAIN] {
             let styles: [&ButtonStyle; 3] = [
                 &primary(&styling),
                 &secondary(&styling),
@@ -285,9 +304,15 @@ mod tests {
     }
 
     #[test]
+    fn the_ornament_is_drawn_only_if_the_styling_has_one() {
+        assert!(ornament::<()>(&DECO, 7.0).is_some());
+        assert!(ornament::<()>(&PLAIN, 7.0).is_none());
+    }
+
+    #[test]
     fn labels_are_in_capitals_only_if_the_styling_has_them() {
         assert_eq!(cased(&DECO, "Add bottle"), "ADD BOTTLE");
-        assert_eq!(cased(&ROUNDED, "Add bottle"), "Add bottle");
+        assert_eq!(cased(&PLAIN, "Add bottle"), "Add bottle");
     }
 
     #[test]

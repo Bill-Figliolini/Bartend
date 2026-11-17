@@ -31,7 +31,8 @@ pub struct Entry {
 
 /// How much of the text colour a dimmed entry keeps.
 const DIMMED_ALPHA: f32 = 0.45;
-/// Size of the diamond before the selected entry.
+/// Size of the ornament before the selected entry, and the room kept for
+/// it before every entry.
 const MARKER_SIZE: f32 = 7.0;
 
 /// The list, under a `new` button if given. With no entries, `empty` is
@@ -74,8 +75,8 @@ pub fn master_list<'a>(
         .into()
 }
 
-/// One entry: its label after an accent diamond that shows while it is
-/// selected, on the frame's tint.
+/// One entry: its label after the styling's ornament, which shows while it
+/// is selected, on the frame's tint.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn entry<'a>(styling: &Styling, entry: Entry) -> Element<'a, Message> {
     let Entry {
@@ -84,12 +85,12 @@ fn entry<'a>(styling: &Styling, entry: Entry) -> Element<'a, Message> {
         on_press,
         dimmed,
     } = entry;
-    // Unselected entries keep the diamond's room, so labels line up.
-    let marker: Element<'a, Message> = if selected {
-        styled::diamond(MARKER_SIZE)
-    } else {
-        space().width(MARKER_SIZE).into()
-    };
+    // Every entry keeps the ornament's room, so labels line up whether or
+    // not it is selected, and under a styling with no ornament.
+    let marker = selected
+        .then(|| styled::ornament(styling, MARKER_SIZE))
+        .flatten()
+        .unwrap_or_else(|| space().width(MARKER_SIZE).into());
     let dimmed = dimmed.then_some(DIMMED_ALPHA);
     button(row![marker, text(label)].spacing(8).align_y(Center))
         .width(Fill)

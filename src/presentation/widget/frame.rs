@@ -43,7 +43,7 @@ pub fn hairline_across<'a, Message: 'a>() -> Element<'a, Message> {
 }
 
 /// A line in the accent colour under the active tab, either side of its
-/// diamond.
+/// ornament if it has one.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn underline<'a, Message: 'a>() -> Element<'a, Message> {
     rule::horizontal(UNDERLINE).style(underline_style).into()
@@ -163,7 +163,7 @@ pub fn switch_outline(styling: &Styling) -> impl Fn(&Theme) -> container::Style 
 mod tests {
     use super::*;
     use crate::presentation::{
-        styling::{ROUNDED, Styling},
+        styling::{PLAIN, Styling},
         theme::Themes,
     };
 
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn entries_and_the_switch_have_the_stylings_corners() {
-        for styling in [DECO, ROUNDED] {
+        for styling in [DECO, PLAIN] {
             let radius = styling.radius.into();
             for theme in Themes::new().options() {
                 for chosen in [true, false] {

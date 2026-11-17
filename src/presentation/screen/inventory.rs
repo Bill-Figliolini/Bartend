@@ -210,7 +210,9 @@ impl Inventory {
         let below: Element<'_, _> = match gauge_parts {
             Some(((fraction, level), full_size)) => {
                 let full = hint(format!("of {} full size", full_size.readable(units)));
-                column![gauge(fraction, level), full].spacing(4).into()
+                column![gauge(styling, fraction, level), full]
+                    .spacing(4)
+                    .into()
             }
             None => hint("Add a full size to see how full it is").into(),
         };
