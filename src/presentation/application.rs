@@ -418,7 +418,7 @@ mod tests {
                 categories, inventory, settings,
                 test_support::{World, drain},
             },
-            theme::art_deco,
+            theme::navy_and_champagne,
         },
     };
 
@@ -845,9 +845,9 @@ mod tests {
     }
 
     #[test]
-    fn the_default_theme_is_art_deco() {
+    fn the_default_theme_is_navy_and_champagne() {
         let (app, _dir) = app();
-        assert_eq!(app.theme(), art_deco());
+        assert_eq!(app.theme(), navy_and_champagne());
     }
 
     /// Opens Settings and picks `theme`, without saving.
@@ -871,7 +871,7 @@ mod tests {
         preview(&mut app, Theme::Nord);
 
         run(&mut app, Message::ResetSettings);
-        assert_eq!(app.theme(), art_deco());
+        assert_eq!(app.theme(), navy_and_champagne());
 
         // The staged edit is discarded too.
         run(&mut app, Message::Settings(settings::Message::Save));
@@ -885,7 +885,7 @@ mod tests {
 
         run(&mut app, Message::OpenScreen(ScreenKind::Inventory));
 
-        assert_eq!(app.theme(), art_deco());
+        assert_eq!(app.theme(), navy_and_champagne());
     }
 
     #[test]
@@ -906,7 +906,7 @@ mod tests {
         let (mut app, _dir) = app();
         run(&mut app, Message::PreviewTheme(Theme::Nord));
 
-        assert_eq!(app.theme(), art_deco());
+        assert_eq!(app.theme(), navy_and_champagne());
     }
 
     #[test]
@@ -923,6 +923,6 @@ mod tests {
             theme_notice(&config, &themes),
             Some(BartendError::Config(ConfigError::UnknownTheme(_)))
         ));
-        assert_eq!(themes.resolve(config.theme()), art_deco());
+        assert_eq!(themes.resolve(config.theme()), navy_and_champagne());
     }
 }

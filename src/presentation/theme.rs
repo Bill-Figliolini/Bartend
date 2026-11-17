@@ -1,5 +1,9 @@
 //! Maps the [`ThemeChoice`] saved in the config to iced [`Theme`]s, and
-//! defines the app's own Art Deco theme.
+//! defines the app's own Navy & Champagne theme.
+//!
+//! A theme is only a palette: the colours. The shapes, type and ornaments
+//! the app is drawn with are its [styling](super::styling), picked
+//! separately.
 
 use iced::{
     Color, Theme, color,
@@ -11,8 +15,8 @@ use iced::{
 
 use crate::models::{ConfigError, DEFAULT_THEME_NAME, ThemeChoice};
 
-/// The Art Deco theme's colours: navy and champagne.
-mod deco {
+/// The Navy & Champagne theme's colours.
+mod navy_and_champagne {
     use super::{Color, color};
 
     /// Midnight navy: the panels behind everything.
@@ -33,35 +37,42 @@ mod deco {
     pub const DANGER: Color = color!(0xC4, 0x6A, 0x6A);
 }
 
+/// Names the app's own theme was saved under before it was renamed, and the
+/// name each now goes by. Saved configs keep the old name until Settings is
+/// next saved.
+const RENAMED: [(&str, &str); 1] = [("Art Deco", DEFAULT_THEME_NAME)];
+
 /// The app's own theme, and the default: navy and champagne.
-pub fn art_deco() -> Theme {
+pub fn navy_and_champagne() -> Theme {
+    use navy_and_champagne as colours;
+
     let palette = Palette {
-        background: deco::BACKGROUND,
-        text: deco::TEXT,
-        primary: deco::ACCENT,
-        success: deco::SUCCESS,
-        warning: deco::WARNING,
-        danger: deco::DANGER,
+        background: colours::BACKGROUND,
+        text: colours::TEXT,
+        primary: colours::ACCENT,
+        success: colours::SUCCESS,
+        warning: colours::WARNING,
+        danger: colours::DANGER,
     };
     Theme::custom_with_fn(DEFAULT_THEME_NAME, palette, |palette| {
         let mut extended = Extended::generate(palette);
         // Pin the shades the frame and cards are drawn with, rather than
         // the ones iced would derive from the background.
-        extended.background.weakest = Pair::new(deco::SURFACE, deco::TEXT);
-        extended.background.weak = Pair::new(deco::HAIRLINE, deco::TEXT);
+        extended.background.weakest = Pair::new(colours::SURFACE, colours::TEXT);
+        extended.background.weak = Pair::new(colours::HAIRLINE, colours::TEXT);
         // Navy lettering on champagne buttons.
-        extended.primary.base.text = deco::BACKGROUND;
-        extended.primary.strong.text = deco::BACKGROUND;
+        extended.primary.base.text = colours::BACKGROUND;
+        extended.primary.strong.text = colours::BACKGROUND;
         extended
     })
 }
 
 /// Used whenever the saved theme can't be found.
 fn fallback() -> Theme {
-    art_deco()
+    navy_and_champagne()
 }
 
-/// Every theme the user can pick from: the app's own [`art_deco`] theme
+/// Every theme the user can pick from: the app's own [`navy_and_champagne`] theme
 /// first, then iced's built-in themes. User-defined themes would be added
 /// here as well.
 #[derive(Debug, Clone)]
@@ -71,7 +82,7 @@ pub struct Themes {
 
 impl Themes {
     pub fn new() -> Self {
-        let mut options = vec![art_deco()];
+        let mut options = vec![navy_and_champagne()];
         options.extend_from_slice(Theme::ALL);
         Self { options }
     }
@@ -81,16 +92,21 @@ impl Themes {
         &self.options
     }
 
-    /// The theme `choice` names.
+    /// The theme `choice` names, under its current name or a former one
+    /// (see [`RENAMED`]).
     ///
     /// # Errors
     ///
     /// [`ConfigError::UnknownTheme`] if no theme has that name.
     pub fn lookup(&self, choice: &ThemeChoice) -> Result<Theme, ConfigError> {
         let ThemeChoice::BuiltIn(name) = choice;
+        let name = RENAMED
+            .iter()
+            .find(|(old, _)| old == name)
+            .map_or(name.as_str(), |&(_, new)| new);
         self.options
             .iter()
-            .find(|theme| theme.to_string() == *name)
+            .find(|theme| theme.to_string() == name)
             .cloned()
             .ok_or_else(|| ConfigError::UnknownTheme(choice.clone()))
     }
@@ -111,10 +127,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn offers_art_deco_first_then_every_built_in_theme() {
+    fn offers_navy_and_champagne_first_then_every_built_in_theme() {
         let themes = Themes::new();
         let (first, rest) = themes.options().split_first().unwrap();
-        assert_eq!(*first, art_deco());
+        assert_eq!(*first, navy_and_champagne());
         assert_eq!(rest, Theme::ALL);
     }
 
@@ -128,16 +144,17 @@ mod tests {
     }
 
     #[test]
-    fn art_deco_is_navy_and_champagne() {
-        let theme = art_deco();
+    fn navy_and_champagne_pins_its_shades() {
+        use navy_and_champagne as colours;
+        let theme = navy_and_champagne();
         let palette = theme.extended_palette();
         assert_eq!(theme.to_string(), DEFAULT_THEME_NAME);
-        assert_eq!(theme.palette().primary, deco::ACCENT);
-        assert_eq!(palette.background.base.color, deco::BACKGROUND);
-        assert_eq!(palette.background.weakest.color, deco::SURFACE);
-        assert_eq!(palette.background.weak.color, deco::HAIRLINE);
-        assert_eq!(palette.primary.base.text, deco::BACKGROUND);
-        assert_eq!(palette.primary.strong.text, deco::BACKGROUND);
+        assert_eq!(theme.palette().primary, colours::ACCENT);
+        assert_eq!(palette.background.base.color, colours::BACKGROUND);
+        assert_eq!(palette.background.weakest.color, colours::SURFACE);
+        assert_eq!(palette.background.weak.color, colours::HAIRLINE);
+        assert_eq!(palette.primary.base.text, colours::BACKGROUND);
+        assert_eq!(palette.primary.strong.text, colours::BACKGROUND);
         assert!(palette.is_dark);
     }
 
@@ -168,5 +185,25 @@ mod tests {
             Err(ConfigError::UnknownTheme(choice)) if choice == unknown
         ));
         assert_eq!(themes.resolve(&unknown), fallback());
+    }
+
+    #[test]
+    fn a_theme_saved_under_a_former_name_is_found() {
+        let themes = Themes::new();
+        let old = ThemeChoice::BuiltIn("Art Deco".to_string());
+        assert_eq!(themes.lookup(&old).ok(), Some(navy_and_champagne()));
+    }
+
+    #[test]
+    fn former_names_lead_to_offered_themes_and_are_not_reused() {
+        let themes = Themes::new();
+        for (old, new) in RENAMED {
+            let named = |name: &str| themes.options().iter().any(|t| t.to_string() == name);
+            assert!(
+                named(new),
+                "{old} was renamed to {new}, which isn't offered"
+            );
+            assert!(!named(old), "{old} is a former name and a current one");
+        }
     }
 }

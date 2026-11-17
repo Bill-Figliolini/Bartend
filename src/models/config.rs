@@ -27,9 +27,12 @@ pub struct Config {
     /// Older config files have no theme; they load with the default.
     #[serde(default)]
     theme: ThemeChoice,
+    /// Older config files have no styling; they load with the default.
+    #[serde(default)]
+    styling: StylingChoice,
 }
 
-/// The theme the user picked, by name. Tagged so that user-defined themes can
+/// The palette the user picked, by name. iced calls a palette a theme. Tagged so that user-defined themes can
 /// be added later as their own variant without changing the file format.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "name")]
@@ -49,6 +52,27 @@ impl Display for ThemeChoice {
     }
 }
 
+/// The styling the user picked, by name: the shapes, type and ornaments
+/// the app is drawn with, whichever palette colours them. Tagged like
+/// [`ThemeChoice`], so user-defined stylings can be added later.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "name")]
+pub enum StylingChoice {
+    BuiltIn(String),
+}
+impl Default for StylingChoice {
+    fn default() -> Self {
+        StylingChoice::BuiltIn(DEFAULT_STYLING_NAME.to_string())
+    }
+}
+impl Display for StylingChoice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StylingChoice::BuiltIn(name) => write!(f, "{name}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ConfigError {
     UnableToAccessSystemConfigDir,
@@ -60,6 +84,8 @@ pub enum ConfigError {
     UnableToCreateDataDir,
     /// The saved theme does not exist; the default is used instead.
     UnknownTheme(ThemeChoice),
+    /// The saved styling does not exist; the default is used instead.
+    UnknownStyling(StylingChoice),
 }
 impl Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -68,6 +94,12 @@ impl Display for ConfigError {
                 return write!(
                     f,
                     "Config Error: Saved theme '{theme}' not found; using {DEFAULT_THEME_NAME}"
+                );
+            }
+            ConfigError::UnknownStyling(styling) => {
+                return write!(
+                    f,
+                    "Config Error: Saved style '{styling}' not found; using {DEFAULT_STYLING_NAME}"
                 );
             }
             ConfigError::UnableToAccessSystemConfigDir => {
@@ -87,8 +119,10 @@ impl Display for ConfigError {
 const CONFIG_DIR_NAME: &str = "Bartend";
 const DEFAULT_CONFIG_FILE_NAME: &str = "Bartend.json";
 const DEFAULT_DB_NAME: &str = "Bartend.db";
-/// The display name of the app's own theme, which is the default.
-pub const DEFAULT_THEME_NAME: &str = "Art Deco";
+/// The display name of the app's own palette, which is the default.
+pub const DEFAULT_THEME_NAME: &str = "Navy & Champagne";
+/// The display name of the app's own styling, which is the default.
+pub const DEFAULT_STYLING_NAME: &str = "Art Deco";
 
 impl Config {
     /// Loads a config if it exists at path, and creates one at path if it does not yet exist.
@@ -126,6 +160,7 @@ impl Config {
                 db_path,
                 default_unit_system: UnitSystem::Metric,
                 theme: ThemeChoice::default(),
+                styling: StylingChoice::default(),
             };
 
             if config.save().is_err() {
@@ -172,6 +207,10 @@ impl Config {
     pub const fn theme(&self) -> &ThemeChoice {
         &self.theme
     }
+    #[must_use]
+    pub const fn styling(&self) -> &StylingChoice {
+        &self.styling
+    }
 
     #[must_use]
     pub fn editable(&self) -> EditableConfig {
@@ -180,6 +219,7 @@ impl Config {
             db_path: self.db_path.clone(),
             default_unit_system: self.default_unit_system,
             theme: self.theme.clone(),
+            styling: self.styling.clone(),
         }
     }
 }
@@ -225,6 +265,7 @@ pub struct EditableConfig {
     pub db_path: PathBuf,
     pub default_unit_system: UnitSystem,
     pub theme: ThemeChoice,
+    pub styling: StylingChoice,
 }
 
 impl EditableConfig {
@@ -235,6 +276,7 @@ impl EditableConfig {
             db_path: self.db_path.clone(),
             default_unit_system: self.default_unit_system,
             theme: self.theme.clone(),
+            styling: self.styling.clone(),
         }
     }
 }
@@ -267,6 +309,7 @@ mod tests {
                 db_path: test_dir.path().join("existing.db"),
                 default_unit_system: UnitSystem::Imperial,
                 theme: ThemeChoice::BuiltIn("Nord".to_string()),
+                styling: StylingChoice::BuiltIn("Modern".to_string()),
             };
             config.save().unwrap();
 
@@ -277,6 +320,10 @@ mod tests {
             assert_eq!(loaded.db_path(), config.db_path());
             assert_eq!(loaded.default_units(), UnitSystem::Imperial);
             assert_eq!(loaded.theme(), &ThemeChoice::BuiltIn("Nord".to_string()));
+            assert_eq!(
+                loaded.styling(),
+                &StylingChoice::BuiltIn("Modern".to_string())
+            );
         }
 
         #[test]
@@ -297,9 +344,36 @@ mod tests {
         }
 
         #[test]
+        fn a_config_without_a_styling_gets_the_default() {
+            let test_dir = tempdir().unwrap();
+            let config = Config::load(
+                Some(test_dir.path().join("old.json")),
+                Some(test_dir.path().join("old.db")),
+            )
+            .unwrap();
+            let mut json = serde_json::to_value(&config).unwrap();
+            json.as_object_mut().unwrap().remove("styling");
+            fs::write(config.path(), json.to_string()).unwrap();
+
+            let loaded = Config::load(Some(config.path().clone()), None).unwrap();
+
+            assert_eq!(loaded.styling(), &StylingChoice::default());
+        }
+
+        #[test]
         fn the_theme_is_saved_tagged_by_kind() {
             let json = serde_json::to_value(ThemeChoice::BuiltIn("Nord".to_string())).unwrap();
             assert_eq!(json, serde_json::json!({"kind": "BuiltIn", "name": "Nord"}));
+        }
+
+        #[test]
+        fn the_styling_is_saved_tagged_by_kind() {
+            let json =
+                serde_json::to_value(StylingChoice::BuiltIn("Art Deco".to_string())).unwrap();
+            assert_eq!(
+                json,
+                serde_json::json!({"kind": "BuiltIn", "name": "Art Deco"})
+            );
         }
 
         #[test]
@@ -338,6 +412,7 @@ mod tests {
             editable.db_path = test_dir.path().join("b.db");
             editable.default_unit_system = UnitSystem::Imperial;
             editable.theme = ThemeChoice::BuiltIn("Dracula".to_string());
+            editable.styling = StylingChoice::BuiltIn("Modern".to_string());
 
             let committed = editable.commit();
 
@@ -347,6 +422,10 @@ mod tests {
             assert_eq!(
                 committed.theme(),
                 &ThemeChoice::BuiltIn("Dracula".to_string())
+            );
+            assert_eq!(
+                committed.styling(),
+                &StylingChoice::BuiltIn("Modern".to_string())
             );
         }
     }
@@ -361,6 +440,7 @@ mod tests {
             ConfigError::UnableToCreateConfigFile,
             ConfigError::UnableToCreateDataDir,
             ConfigError::UnknownTheme(ThemeChoice::BuiltIn("Nope".to_string())),
+            ConfigError::UnknownStyling(StylingChoice::BuiltIn("Nope".to_string())),
         ];
         let messages: std::collections::HashSet<String> =
             errors.iter().map(ToString::to_string).collect();
@@ -372,7 +452,15 @@ mod tests {
         let error = ConfigError::UnknownTheme(ThemeChoice::BuiltIn("Nope".to_string()));
         assert_eq!(
             error.to_string(),
-            "Config Error: Saved theme 'Nope' not found; using Art Deco"
+            "Config Error: Saved theme 'Nope' not found; using Navy & Champagne"
+        );
+    }
+    #[test]
+    fn an_unknown_styling_names_the_styling_and_the_fallback() {
+        let error = ConfigError::UnknownStyling(StylingChoice::BuiltIn("Nope".to_string()));
+        assert_eq!(
+            error.to_string(),
+            "Config Error: Saved style 'Nope' not found; using Art Deco"
         );
     }
     mod save {
@@ -386,6 +474,7 @@ mod tests {
                 db_path: test_dir.path().join("c.db"),
                 default_unit_system: UnitSystem::Metric,
                 theme: ThemeChoice::default(),
+                styling: StylingChoice::default(),
             };
             assert!(matches!(config.save(), Err(ConfigError::WriteError)));
         }
@@ -399,6 +488,7 @@ mod tests {
                 db_path: test_db,
                 default_unit_system: UnitSystem::Metric,
                 theme: ThemeChoice::default(),
+                styling: StylingChoice::default(),
             };
 
             config.save().unwrap();

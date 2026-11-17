@@ -8,7 +8,10 @@ mod recipe;
 pub use {
     bartend_error::BartendError,
     category::{Category, CategoryBody, CategoryFilter, CategoryID},
-    config::{Config, ConfigError, DEFAULT_THEME_NAME, EditableConfig, ThemeChoice},
+    config::{
+        Config, ConfigError, DEFAULT_STYLING_NAME, DEFAULT_THEME_NAME, EditableConfig,
+        StylingChoice, ThemeChoice,
+    },
     item::{Item, ItemBody, ItemID, ItemUse},
     quantity::{
         CountName, DECIMAL_SCALE, Quantity, Unit, UnitSystem, format_number, format_number_down,
