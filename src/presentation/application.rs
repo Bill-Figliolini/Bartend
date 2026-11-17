@@ -928,7 +928,7 @@ mod tests {
     }
 
     #[test]
-    fn cancelling_settings_restores_the_saved_theme() {
+    fn canceling_settings_restores_the_saved_theme() {
         let (mut app, _dir) = app();
         preview(&mut app, Theme::Nord);
 
@@ -1078,7 +1078,7 @@ mod tests {
     }
 
     #[test]
-    fn cancelling_settings_restores_the_saved_styling() {
+    fn canceling_settings_restores_the_saved_styling() {
         let (mut app, _dir) = app();
         preview_plain(&mut app);
 

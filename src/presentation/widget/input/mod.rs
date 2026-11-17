@@ -7,6 +7,7 @@
 //! app's messages: `view` takes the function that builds one. See
 //! [`input_handling`](crate::presentation::input_handling) for the forms.
 
+mod color_field;
 mod keyboard_pick;
 mod pick_field;
 mod text_field;
@@ -36,6 +37,8 @@ pub enum Error {
     PoursDontAddUp,
     /// The chosen item has less in stock than is being taken from it.
     NotEnoughStock,
+    /// A hex code that isn't six hex digits.
+    ColorInvalid,
 }
 
 impl From<Infallible> for Error {
@@ -74,6 +77,7 @@ impl Display for Error {
             Self::MustChooseValue => "Choose an option",
             Self::PoursDontAddUp => "Amounts must add up to what the recipe calls for",
             Self::NotEnoughStock => "Not enough in stock",
+            Self::ColorInvalid => "Enter six hex digits, like #D8C08A",
         };
         write!(f, "{text}")
     }
@@ -100,5 +104,9 @@ mod tests {
             "Amounts must add up to what the recipe calls for"
         );
         assert_eq!(Error::NotEnoughStock.to_string(), "Not enough in stock");
+        assert_eq!(
+            Error::ColorInvalid.to_string(),
+            "Enter six hex digits, like #D8C08A"
+        );
     }
 }

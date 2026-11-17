@@ -1,5 +1,5 @@
 //! Styles for iced's stock controls: text boxes (also the text box of a
-//! combo box), pick lists, the menus they open, and scrollbars. Each
+//! combo box), pick lists, the menus they open, scrollbars and sliders. Each
 //! starts from iced's own style and gives it the [`Styling`]'s corners,
 //! edged in the shade of cards' borders, and picked out in the accent
 //! color when hovered, focused or open.
@@ -12,7 +12,7 @@ use iced::{
     widget::{
         Scrollable, pick_list, scrollable,
         scrollable::{Direction, Scrollbar},
-        text_input,
+        slider as iced_slider, text_input,
     },
 };
 
@@ -28,6 +28,15 @@ const SCROLLER_ALPHA: f32 = 0.75;
 const SCROLLBAR_WIDTH: f32 = 4.0;
 /// Gap between a scrollbar and what it scrolls.
 const SCROLLBAR_GAP: f32 = 8.0;
+/// Thickness of a slider's rail.
+const SLIDER_RAIL: f32 = 4.0;
+/// Width of a slider's handle, a bar as tall as the slider.
+pub const SLIDER_HANDLE: u16 = 8;
+/// The most a slider handle's corners round, so a styling with wide
+/// corners still gives a bar rather than a pill.
+const SLIDER_HANDLE_ROUNDING: f32 = 3.0;
+/// Width of the accent edge around a slider's handle.
+const SLIDER_HANDLE_EDGE: f32 = 2.0;
 
 /// `content` in a vertical [`Scrollable`] with a thin [`scrollbar`] that
 /// sits beside it rather than over it.
@@ -178,6 +187,41 @@ fn rail(theme: &Theme, hot: bool, radius: f32) -> scrollable::Rail {
     }
 }
 
+/// A slider: a rail in the accent up to the handle and in the shade of
+/// cards' borders after it, and a bar of a handle on the panel's
+/// background, edged in the accent and filled with it while hovered or
+/// dragged. Its corners follow the styling, held to its narrow shape.
+pub fn slider(
+    styling: &Styling,
+) -> impl Fn(&Theme, iced_slider::Status) -> iced_slider::Style + use<> {
+    let radius = styling.radius;
+    move |theme, status| {
+        let hot = !matches!(status, iced_slider::Status::Active);
+        let palette = theme.extended_palette();
+        let fill = if hot {
+            accent(theme)
+        } else {
+            palette.background.base.color
+        };
+        iced_slider::Style {
+            rail: iced_slider::Rail {
+                backgrounds: (accent(theme).into(), palette.background.weak.color.into()),
+                width: SLIDER_RAIL,
+                border: Border::default().rounded(radius.min(SLIDER_RAIL / 2.0)),
+            },
+            handle: iced_slider::Handle {
+                shape: iced_slider::HandleShape::Rectangle {
+                    width: SLIDER_HANDLE,
+                    border_radius: radius.min(SLIDER_HANDLE_ROUNDING).into(),
+                },
+                background: fill.into(),
+                border_width: SLIDER_HANDLE_EDGE,
+                border_color: accent(theme),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +355,53 @@ mod tests {
                 accent(theme).into()
             );
             assert_eq!(hovered.vertical_rail.scroller.background, faint);
+        }
+    }
+
+    const SLIDER_STATES: [iced_slider::Status; 3] = [
+        iced_slider::Status::Active,
+        iced_slider::Status::Hovered,
+        iced_slider::Status::Dragged,
+    ];
+
+    #[test]
+    fn slider_corners_follow_the_styling_but_stay_narrow() {
+        for styling in every_styling() {
+            let style = slider(&styling)(&Theme::Dark, iced_slider::Status::Active);
+            assert_eq!(
+                style.rail.border.radius,
+                styling.radius.min(SLIDER_RAIL / 2.0).into()
+            );
+            assert_eq!(
+                style.handle.shape,
+                iced_slider::HandleShape::Rectangle {
+                    width: SLIDER_HANDLE,
+                    border_radius: styling.radius.min(SLIDER_HANDLE_ROUNDING).into(),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn slider_rails_run_from_the_accent_to_the_card_border_shade() {
+        for theme in Themes::new().options() {
+            for status in SLIDER_STATES {
+                let style = slider(&DECO)(theme, status);
+                let steel = theme.extended_palette().background.weak.color;
+                assert_eq!(style.rail.backgrounds, (accent(theme).into(), steel.into()));
+                assert_eq!(style.handle.border_color, accent(theme));
+            }
+        }
+    }
+
+    #[test]
+    fn slider_handles_fill_with_the_accent_while_used() {
+        for theme in Themes::new().options() {
+            let fill = |status| slider(&DECO)(theme, status).handle.background;
+            let base = theme.extended_palette().background.base.color;
+            assert_eq!(fill(iced_slider::Status::Active), base.into());
+            assert_eq!(fill(iced_slider::Status::Hovered), accent(theme).into());
+            assert_eq!(fill(iced_slider::Status::Dragged), accent(theme).into());
         }
     }
 }

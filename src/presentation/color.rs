@@ -199,7 +199,7 @@ mod tests {
         }
 
         #[test]
-        fn reads_greys_as_unsaturated() {
+        fn reads_grays_as_unsaturated() {
             assert_hsl(Rgb::new(0, 0, 0), 0.0, 0.0, 0.0);
             assert_hsl(Rgb::new(128, 128, 128), 0.0, 0.0, 0.502);
             assert_hsl(Rgb::new(255, 255, 255), 0.0, 0.0, 1.0);

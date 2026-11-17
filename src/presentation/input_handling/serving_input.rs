@@ -1658,7 +1658,7 @@ mod tests {
     }
 
     #[test]
-    fn items_are_labelled_with_their_stock_rounded_down_in_the_current_units() {
+    fn items_are_labeled_with_their_stock_rounded_down_in_the_current_units() {
         let GinBar {
             world, full, shot, ..
         } = gin_bar();
@@ -1681,7 +1681,7 @@ mod tests {
         let shown = first.item.value().unwrap().to_string();
         assert_eq!(
             shown, "Full (25.36 fl oz)",
-            "the pick is relabelled, not lost"
+            "the pick is relabeled, not lost"
         );
     }
 

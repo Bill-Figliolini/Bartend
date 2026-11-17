@@ -5,7 +5,7 @@
 //! The container draws its own fill and the outer line. The wrapper draws
 //! the inner line and the corner marks over it, at the container's final
 //! bounds. Doing it at draw time keeps the inner line flush with the outer
-//! one when a tile is stretched to match its neighbours; a second,
+//! one when a tile is stretched to match its neighbors; a second,
 //! nested container would keep its own height and fall short.
 
 use std::fmt::{self, Debug};

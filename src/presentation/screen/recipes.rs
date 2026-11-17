@@ -371,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn cancelling_an_edit_empties_the_form() {
+    fn canceling_an_edit_empties_the_form() {
         let mut world = World::new();
         let id = world.add_recipe("Draft", &[]);
         let mut screen = Recipes::new(&world.config, &world.categories, UnitSystem::Metric);
