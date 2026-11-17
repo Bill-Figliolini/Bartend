@@ -1,13 +1,6 @@
 //! Color maths for palettes: converting between the saved [`Rgb`] and
 //! iced's [`Color`], hue/saturation/lightness for the palette editor's
 //! sliders, and contrast between two colors.
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the HSL sliders and contrast warnings arrive with the palette editor"
-    )
-)]
 
 use iced::Color;
 

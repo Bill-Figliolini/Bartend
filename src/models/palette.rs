@@ -255,6 +255,26 @@ impl PaletteFile {
         &self.path
     }
 
+    /// Puts `palette` in the list: in place of the palette called
+    /// `replacing` if there is one, so an edit keeps its place even when
+    /// renamed, or else at the end. Names aren't checked here; see
+    /// [`palette_name`].
+    pub fn put(&mut self, replacing: Option<&str>, palette: CustomPalette) {
+        let slot = replacing.and_then(|name| self.palettes.iter_mut().find(|p| p.name == name));
+        match slot {
+            Some(slot) => *slot = palette,
+            None => self.palettes.push(palette),
+        }
+    }
+
+    /// Takes the palette called `name` out of the list, saying whether
+    /// there was one.
+    pub fn remove(&mut self, name: &str) -> bool {
+        let before = self.palettes.len();
+        self.palettes.retain(|palette| palette.name != name);
+        self.palettes.len() != before
+    }
+
     /// The palettes, in the order they were made.
     #[must_use]
     pub fn palettes(&self) -> &[CustomPalette] {
@@ -550,6 +570,62 @@ mod tests {
 
             assert_eq!(reloaded.palettes(), [sample("Harbor")]);
             assert_eq!(reloaded.skipped(), Vec::<String>::new());
+        }
+
+        /// A file at `dir` holding `names`, as samples.
+        fn file_of(dir: &TempDir, names: &[&str]) -> PaletteFile {
+            PaletteFile {
+                path: dir.path().join("palettes.json"),
+                palettes: names.iter().map(|name| sample(name)).collect(),
+                skipped: Vec::new(),
+            }
+        }
+
+        fn names(file: &PaletteFile) -> Vec<&str> {
+            file.palettes()
+                .iter()
+                .map(|palette| palette.name.as_str())
+                .collect()
+        }
+
+        #[test]
+        fn put_adds_a_new_palette_at_the_end() {
+            let dir = tempdir().unwrap();
+            let mut file = file_of(&dir, &["Harbor", "Dusk"]);
+            file.put(None, sample("Dawn"));
+            assert_eq!(names(&file), ["Harbor", "Dusk", "Dawn"]);
+        }
+
+        #[test]
+        fn put_replaces_an_edited_palette_in_its_place_even_when_renamed() {
+            let dir = tempdir().unwrap();
+            let mut file = file_of(&dir, &["Harbor", "Dusk", "Dawn"]);
+            let mut renamed = sample("Midnight");
+            renamed.colors.accent = Rgb::new(1, 2, 3);
+
+            file.put(Some("Dusk"), renamed.clone());
+
+            assert_eq!(names(&file), ["Harbor", "Midnight", "Dawn"]);
+            assert_eq!(file.palettes()[1], renamed);
+        }
+
+        #[test]
+        fn put_adds_at_the_end_when_the_edited_palette_is_gone() {
+            let dir = tempdir().unwrap();
+            let mut file = file_of(&dir, &["Harbor"]);
+            file.put(Some("Gone"), sample("Dusk"));
+            assert_eq!(names(&file), ["Harbor", "Dusk"]);
+        }
+
+        #[test]
+        fn remove_takes_out_only_the_named_palette() {
+            let dir = tempdir().unwrap();
+            let mut file = file_of(&dir, &["Harbor", "Dusk", "Dawn"]);
+            assert!(file.remove("Dusk"));
+            assert_eq!(names(&file), ["Harbor", "Dawn"]);
+            assert!(!file.remove("Dusk"));
+            assert!(!file.remove("harbor"), "names match exactly");
+            assert_eq!(names(&file), ["Harbor", "Dawn"]);
         }
 
         #[test]

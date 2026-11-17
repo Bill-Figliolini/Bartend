@@ -22,7 +22,7 @@ use crate::{
 #[derive(Debug)]
 pub enum Screen {
     Inventory(Box<inventory::Inventory>),
-    Settings(settings::Settings),
+    Settings(Box<settings::Settings>),
     Categories(categories::Categories),
     Recipes(Recipes),
     Serving(Serving),
@@ -184,7 +184,7 @@ impl Screen {
     pub fn submit_message(&self) -> Message {
         match self {
             Screen::Inventory(_) => Message::Inventory(inventory::Message::Editor(Save)),
-            Screen::Settings(_) => Message::Settings(settings::Message::Save),
+            Screen::Settings(settings) => Message::Settings(settings.submit_message()),
             Screen::Categories(_) => Message::Categories(categories::Message::Editor(Save)),
             Screen::Recipes(_) => Message::Recipes(recipes::Message::Editor(Save)),
             Screen::Serving(_) => Message::Serving(serving::Message::Save),
@@ -198,7 +198,8 @@ impl Screen {
             Screen::Inventory(_) => Some(Message::Inventory(inventory::Message::Editor(Cancel))),
             Screen::Categories(_) => Some(Message::Categories(categories::Message::Editor(Cancel))),
             Screen::Recipes(_) => Some(Message::Recipes(recipes::Message::Editor(Cancel))),
-            Screen::Settings(_) | Screen::Serving(_) => None,
+            Screen::Settings(settings) => settings.cancel_message().map(Message::Settings),
+            Screen::Serving(_) => None,
         }
     }
 
@@ -215,7 +216,7 @@ impl Screen {
     /// anything (see [`settings::Settings::new`]).
     pub fn settings(current_config: &Config, stylings: &Stylings) -> (Self, Option<ConfigError>) {
         let (settings, notice) = settings::Settings::new(current_config, stylings);
-        (Self::Settings(settings), notice)
+        (Self::Settings(Box::new(settings)), notice)
     }
     pub fn categories() -> Self {
         Self::Categories(categories::Categories::new())

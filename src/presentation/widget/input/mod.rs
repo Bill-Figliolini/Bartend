@@ -21,6 +21,7 @@ use iced::{
 use crate::presentation::constants;
 
 pub use {
+    color_field::{ColorField, ColorMessage},
     pick_field::{OptionalPick, RequiredPick},
     text_field::{NumberField, OptionalPositiveField, PositiveField, StringField},
 };
@@ -39,6 +40,8 @@ pub enum Error {
     NotEnoughStock,
     /// A hex code that isn't six hex digits.
     ColorInvalid,
+    /// Another palette already has this name.
+    NameTaken,
 }
 
 impl From<Infallible> for Error {
@@ -78,6 +81,7 @@ impl Display for Error {
             Self::PoursDontAddUp => "Amounts must add up to what the recipe calls for",
             Self::NotEnoughStock => "Not enough in stock",
             Self::ColorInvalid => "Enter six hex digits, like #D8C08A",
+            Self::NameTaken => "Another palette already has this name",
         };
         write!(f, "{text}")
     }
@@ -107,6 +111,10 @@ mod tests {
         assert_eq!(
             Error::ColorInvalid.to_string(),
             "Enter six hex digits, like #D8C08A"
+        );
+        assert_eq!(
+            Error::NameTaken.to_string(),
+            "Another palette already has this name"
         );
     }
 }

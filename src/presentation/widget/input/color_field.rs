@@ -1,10 +1,6 @@
 //! [`ColorField`]: one color of a palette, as a compact row (swatch, name,
 //! hint and hex code) that opens to show hue, saturation and lightness
 //! sliders.
-#![expect(
-    dead_code,
-    reason = "the palette editor shows and uses it, from phase 4"
-)]
 
 use std::ops::RangeInclusive;
 

@@ -38,6 +38,7 @@
 mod category_input;
 mod editor;
 mod item_input;
+mod palette_input;
 mod recipe_input;
 mod serving_input;
 
@@ -228,10 +229,13 @@ impl<F> Validator<F> {
     }
 }
 
+#[cfg(test)]
+pub use palette_input::Role;
 pub use {
     category_input::{CategoryInput, CategoryMessage},
     editor::{Editor, EditorMessage, Saved},
     item_input::{ItemInput, ItemMessage},
+    palette_input::{PaletteInput, PaletteMessage, low_contrast},
     recipe_input::{RecipeInput, RecipeMessage},
     serving_input::{ServingInput, ServingMessage},
 };

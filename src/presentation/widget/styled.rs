@@ -217,7 +217,7 @@ pub fn secondary(styling: &Styling) -> impl Fn(&Theme, button::Status) -> button
 
 /// A button for a destructive action that is less loud than
 /// [`button::danger`] until hovered: danger-colored text and outline on
-/// no background, filling in on hover.
+/// no background, filling in on hover, faded when disabled.
 pub fn quiet_danger(styling: &Styling) -> impl Fn(&Theme, button::Status) -> button::Style + use<> {
     let radius = styling.radius;
     move |theme, status| {
@@ -227,13 +227,19 @@ pub fn quiet_danger(styling: &Styling) -> impl Fn(&Theme, button::Status) -> but
             radius: radius.into(),
             color: danger.base.color,
         };
+        let outlined = button::Style {
+            background: None,
+            text_color: danger.base.color,
+            border,
+            ..button::Style::default()
+        };
         match status {
-            button::Status::Active | button::Status::Disabled => button::Style {
-                background: None,
-                text_color: danger.base.color,
-                border,
-                ..button::Style::default()
-            },
+            button::Status::Active => outlined,
+            button::Status::Disabled => {
+                let mut style = outlined;
+                fade(&mut style);
+                style
+            }
             button::Status::Hovered | button::Status::Pressed => button::Style {
                 border,
                 ..button::danger(theme, status)
@@ -387,6 +393,11 @@ mod tests {
             let loud = button::danger(theme, HOVERED);
             assert_eq!(hovered.background, loud.background, "{theme}");
             assert_eq!(hovered.text_color, loud.text_color);
+
+            let disabled = quiet_danger(&DECO)(theme, DISABLED);
+            assert_eq!(disabled.background, None, "{theme}");
+            assert_eq!(disabled.text_color, danger.scale_alpha(DISABLED_ALPHA));
+            assert_eq!(disabled.border.color, danger.scale_alpha(DISABLED_ALPHA));
         }
     }
 

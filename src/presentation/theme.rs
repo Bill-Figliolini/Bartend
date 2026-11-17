@@ -101,13 +101,6 @@ fn pinned(name: impl Into<Cow<'static, str>>, colors: PaletteColors) -> Theme {
 /// it starts as. Exact for the app's own themes and custom ones, whose
 /// surface and hairline are pinned; for iced's themes those two are the
 /// shades iced derives, which is what the app draws with under them.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "New in Settings starts from it, with the palette editor"
-    )
-)]
 pub fn colors_of(theme: &Theme) -> PaletteColors {
     let palette = theme.palette();
     let extended = theme.extended_palette();

@@ -14,7 +14,10 @@ use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, CategoryID, Config, ConfigError, Recipe, RecipeID, UnitSystem},
+    models::{
+        BartendError, CategoryID, Config, ConfigError, PaletteFile, Recipe, RecipeID, ThemeChoice,
+        UnitSystem,
+    },
     persistence::Database,
     presentation::{
         constants,
@@ -91,6 +94,10 @@ pub(in crate::presentation) enum Message {
     /// A styling was picked in Settings: show it now, and stage it as an
     /// edit.
     PreviewStyling(StylingOption),
+    /// A palette was saved or deleted in Settings, writing this palettes
+    /// file and leaving this palette in use, which is saved: stop
+    /// previewing a palette, and tell Settings.
+    PalettesChanged(PaletteFile, ThemeChoice),
 
     /// Tab: focus the next field.
     FocusNext,
@@ -321,6 +328,12 @@ impl Bartend {
                 self.update(Message::Settings(screen::settings::Message::UpdateTheme(
                     theme,
                 )))
+            }
+            Message::PalettesChanged(file, theme) => {
+                self.preview_theme = None;
+                self.update(Message::Settings(
+                    screen::settings::Message::PalettesChanged(file, theme),
+                ))
             }
             Message::PreviewStyling(option) => {
                 if self.screen.kind() != ScreenKind::Settings {
@@ -995,6 +1008,47 @@ mod tests {
         assert!(!app.config.palettes_path().exists());
         assert_eq!(app.theme(), custom_theme(&sample("Harbor")));
         assert!(notice(&app, &app.config).is_none());
+    }
+
+    /// The app on Settings, with a style and a palette previewed and the
+    /// palette editor open on a copy of the default palette.
+    fn editing_a_new_palette() -> (Bartend, tempfile::TempDir) {
+        let (mut app, dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(&mut app, Message::PreviewTheme(Theme::Nord));
+        run(&mut app, Message::PreviewStyling(PLAIN_OPTION));
+        run(&mut app, Message::Settings(settings::Message::NewPalette));
+        (app, dir)
+    }
+
+    #[test]
+    fn saving_a_palette_shows_it_and_keeps_the_style_preview() {
+        let (mut app, _dir) = editing_a_new_palette();
+
+        run(&mut app, Message::Submit);
+
+        let ThemeChoice::Custom(palette) = app.config.theme().clone() else {
+            panic!("the new palette should be in use");
+        };
+        assert_eq!(palette.name, "Nord copy");
+        assert!(app.preview_theme.is_none());
+        assert_eq!(app.theme(), custom_theme(&palette));
+        assert_eq!(app.styling(), PLAIN, "the style stays previewed, unsaved");
+        assert_eq!(app.config.styling(), &StylingChoice::default());
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn escape_closes_the_palette_editor_and_keeps_the_previews() {
+        let (mut app, _dir) = editing_a_new_palette();
+
+        run(&mut app, Message::Cancel);
+        // A second Escape has nothing left to close.
+        run(&mut app, Message::Cancel);
+
+        assert_eq!(app.theme(), Theme::Nord);
+        assert_eq!(app.styling(), PLAIN);
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
     }
 
     #[test]
