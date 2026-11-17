@@ -95,9 +95,9 @@ pub(in crate::presentation) enum Message {
     /// edit.
     PreviewStyling(StylingOption),
     /// A palette was saved or deleted in Settings, writing this palettes
-    /// file and leaving this palette in use, which is saved: stop
-    /// previewing a palette, and tell Settings.
-    PalettesChanged(PaletteFile, ThemeChoice),
+    /// file, with the palette to use from now on if that changes. Saves it,
+    /// stops previewing a palette, and tells Settings, all in one update.
+    PalettesChanged(PaletteFile, Option<ThemeChoice>),
 
     /// Tab: focus the next field.
     FocusNext,
@@ -243,6 +243,29 @@ impl Bartend {
         };
     }
 
+    /// After a palette was saved or deleted, writing `file`: saves the
+    /// palette to `switch_to`, if any, stops previewing a palette, and tells
+    /// Settings, all in this one update so no frame shows the two out of
+    /// step.
+    fn palettes_changed(
+        &mut self,
+        file: PaletteFile,
+        switch_to: Option<ThemeChoice>,
+    ) -> Task<Message> {
+        if let Some(theme) = switch_to
+            && let Err(e) = screen::settings::use_palette(&mut self.config, theme)
+        {
+            // The palettes file was written, so Settings still takes it,
+            // with the palette in use unchanged.
+            self.error = Some(BartendError::Config(e));
+        }
+        self.preview_theme = None;
+        let theme = self.config.theme().clone();
+        self.update(Message::Settings(
+            screen::settings::Message::PalettesChanged(file, theme),
+        ))
+    }
+
     /// Stops showing any theme or styling picked in Settings but not saved.
     fn clear_previews(&mut self) {
         self.preview_theme = None;
@@ -329,12 +352,7 @@ impl Bartend {
                     theme,
                 )))
             }
-            Message::PalettesChanged(file, theme) => {
-                self.preview_theme = None;
-                self.update(Message::Settings(
-                    screen::settings::Message::PalettesChanged(file, theme),
-                ))
-            }
+            Message::PalettesChanged(file, switch_to) => self.palettes_changed(file, switch_to),
             Message::PreviewStyling(option) => {
                 if self.screen.kind() != ScreenKind::Settings {
                     return Task::none();
@@ -1019,6 +1037,65 @@ mod tests {
         run(&mut app, Message::PreviewStyling(PLAIN_OPTION));
         run(&mut app, Message::Settings(settings::Message::NewPalette));
         (app, dir)
+    }
+
+    /// Like [`run`], but after each message checks that the palette the
+    /// app is drawn in is the one Settings' picker shows: what any frame
+    /// drawn at that moment would show.
+    fn run_in_step(app: &mut Bartend, message: Message) {
+        let mut queue = vec![message];
+        while let Some(message) = queue.pop() {
+            queue.extend(drain(app.update(message)));
+            if let Screen::Settings(settings) = &app.screen {
+                assert_eq!(
+                    app.theme(),
+                    settings.picked_theme(),
+                    "a frame would show one palette in use and another picked"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn no_frame_shows_the_palette_in_use_out_of_step_with_settings() {
+        let (mut app, _dir) = app();
+        run_in_step(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run_in_step(&mut app, Message::Settings(settings::Message::NewPalette));
+        run_in_step(&mut app, Message::Settings(settings::Message::SavePalette));
+        assert!(matches!(app.config.theme(), ThemeChoice::Custom(_)));
+
+        run_in_step(
+            &mut app,
+            Message::Settings(settings::Message::DeletePalette),
+        );
+        run_in_step(
+            &mut app,
+            Message::Settings(settings::Message::ConfirmDeletePalette),
+        );
+
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn a_palette_whose_config_cannot_be_saved_is_reported_and_not_used() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(&mut app, Message::Settings(settings::Message::NewPalette));
+        // The config can no longer be written, but the palettes file can.
+        std::fs::remove_file(app.config.path()).unwrap();
+        std::fs::create_dir(app.config.path()).unwrap();
+
+        run_in_step(&mut app, Message::Settings(settings::Message::SavePalette));
+
+        assert!(matches!(
+            app.error,
+            Some(BartendError::Config(ConfigError::WriteError))
+        ));
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+        assert_eq!(app.theme(), navy_and_champagne());
+        let palettes = PaletteFile::load(app.config.palettes_path()).unwrap();
+        assert_eq!(palettes.palettes().len(), 1, "the palette itself was saved");
     }
 
     #[test]

@@ -133,13 +133,13 @@ pub enum Message {
 
 pub enum Command {
     UpdateConfig(Config),
-    /// Writes `file`, then saves `palette` as the palette in use.
+    /// Writes `file`, then has the app start using `palette`.
     SavePalette {
         file: PaletteFile,
         palette: CustomPalette,
     },
     /// Writes `file`, which no longer has the palette called `name`; if
-    /// that was the palette in use, the default is used instead.
+    /// that was the palette in use, the app goes back to the default.
     DeletePalette {
         file: PaletteFile,
         name: String,
@@ -196,12 +196,18 @@ impl Command {
                 *ctx.config = config;
                 Task::done(application::Message::ReloadScreen)
             }
-            Command::SavePalette { file, palette } => {
-                if let Err(e) = file.save() {
-                    return config_error(e);
-                }
-                use_palette(ctx, file, ThemeChoice::Custom(palette))
-            }
+            // Only the palettes file is written here. The config is saved
+            // when the app handles `PalettesChanged`, in the same update as
+            // Settings, so no frame shows the new palette in use while
+            // Settings still shows the old one. (Under the tiny-skia
+            // renderer, such a frame left the old picker label half drawn.)
+            Command::SavePalette { file, palette } => match file.save() {
+                Ok(()) => Task::done(application::Message::PalettesChanged(
+                    file,
+                    Some(ThemeChoice::Custom(palette)),
+                )),
+                Err(e) => config_error(e),
+            },
             Command::DeletePalette { file, name } => {
                 if let Err(e) = file.save() {
                     return config_error(e);
@@ -210,12 +216,8 @@ impl Command {
                     ctx.config.theme(),
                     ThemeChoice::Custom(palette) if palette.name == name
                 );
-                if deleted_in_use {
-                    use_palette(ctx, file, ThemeChoice::default())
-                } else {
-                    let theme = ctx.config.theme().clone();
-                    Task::done(application::Message::PalettesChanged(file, theme))
-                }
+                let switch_to = deleted_in_use.then(ThemeChoice::default);
+                Task::done(application::Message::PalettesChanged(file, switch_to))
             }
         }
     }
@@ -227,30 +229,20 @@ fn config_error(error: ConfigError) -> Task<application::Message> {
     ))
 }
 
-/// Saves `theme` as the palette in use, in the config as last saved, so
-/// any other unsaved edits in Settings stay pending. Then tells the app
-/// the palettes in `file` changed, even if the config couldn't be saved,
-/// since `file` was.
-fn use_palette(
-    ctx: &mut Context<'_>,
-    file: PaletteFile,
-    theme: ThemeChoice,
-) -> Task<application::Message> {
-    let mut config = ctx.config.editable();
-    config.theme = theme;
-    let config = config.commit();
-    let saved = config.save();
-    if saved.is_ok() {
-        *ctx.config = config;
-    }
-    let changed = Task::done(application::Message::PalettesChanged(
-        file,
-        ctx.config.theme().clone(),
-    ));
-    match saved {
-        Ok(()) => changed,
-        Err(e) => Task::batch([changed, config_error(e)]),
-    }
+/// Saves `theme` as the palette in use, in `config` as last saved, so any
+/// other unsaved edits in Settings stay pending. Leaves `config` as it was
+/// if it can't be saved.
+///
+/// # Errors
+///
+/// [`ConfigError::WriteError`] if the config can't be saved.
+pub fn use_palette(config: &mut Config, theme: ThemeChoice) -> Result<(), ConfigError> {
+    let mut edited = config.editable();
+    edited.theme = theme;
+    let edited = edited.commit();
+    edited.save()?;
+    *config = edited;
+    Ok(())
 }
 
 impl Settings {
@@ -281,6 +273,12 @@ impl Settings {
             confirming_delete: false,
         };
         (settings, notice)
+    }
+
+    /// The palette the picker shows as picked.
+    #[cfg(test)]
+    pub fn picked_theme(&self) -> Theme {
+        self.themes.resolve(&self.config.theme)
     }
 
     /// What Enter does: saves the palette being edited, or else Settings.
@@ -1045,20 +1043,27 @@ mod tests {
             let command = settings
                 .update(Message::SavePalette)
                 .expect("the palette should be saved");
-            settings_back(settings, drain(command.apply(&mut world.ctx())))
+            let messages = drain(command.apply(&mut world.ctx()));
+            settings_back(settings, world, &messages);
+            messages
         }
 
-        /// Hands any `PalettesChanged` in `messages` to Settings.
+        /// Handles any `PalettesChanged` in `messages` as the app does:
+        /// saves the palette to switch to, then tells Settings.
         fn settings_back(
             settings: &mut Settings,
-            messages: Vec<application::Message>,
-        ) -> Vec<application::Message> {
-            for message in &messages {
-                if let application::Message::PalettesChanged(file, theme) = message {
-                    settings.update(Message::PalettesChanged(file.clone(), theme.clone()));
+            world: &mut World,
+            messages: &[application::Message],
+        ) {
+            for message in messages {
+                if let application::Message::PalettesChanged(file, switch_to) = message {
+                    if let Some(theme) = switch_to {
+                        use_palette(&mut world.config, theme.clone()).unwrap();
+                    }
+                    let theme = world.config.theme().clone();
+                    settings.update(Message::PalettesChanged(file.clone(), theme));
                 }
             }
-            messages
         }
 
         fn editor(settings: &Settings) -> &PaletteEditor {
@@ -1131,7 +1136,7 @@ mod tests {
             assert!(
                 matches!(
                     messages.as_slice(),
-                    [application::Message::PalettesChanged(_, ThemeChoice::Custom(used))] if *used == copy
+                    [application::Message::PalettesChanged(_, Some(ThemeChoice::Custom(used)))] if *used == copy
                 ),
                 "{messages:?}"
             );
@@ -1252,7 +1257,8 @@ mod tests {
 
             settings.update(Message::DeletePalette);
             let command = settings.update(Message::ConfirmDeletePalette).unwrap();
-            settings_back(&mut settings, drain(command.apply(&mut world.ctx())));
+            let messages = drain(command.apply(&mut world.ctx()));
+            settings_back(&mut settings, &mut world, &messages);
 
             assert_eq!(names_on_disk(&world), ["Dusk"]);
             assert_eq!(world.config.theme(), &ThemeChoice::default());
@@ -1274,13 +1280,13 @@ mod tests {
 
             settings.update(Message::DeletePalette);
             let command = settings.update(Message::ConfirmDeletePalette).unwrap();
-            let messages = settings_back(&mut settings, drain(command.apply(&mut world.ctx())));
+            let messages = drain(command.apply(&mut world.ctx()));
+            settings_back(&mut settings, &mut world, &messages);
 
             assert!(
                 matches!(
                     messages.as_slice(),
-                    [application::Message::PalettesChanged(_, ThemeChoice::BuiltIn(name))]
-                        if name == DEFAULT_THEME_NAME
+                    [application::Message::PalettesChanged(_, None)]
                 ),
                 "{messages:?}"
             );
@@ -1342,25 +1348,48 @@ mod tests {
         }
 
         #[test]
-        fn a_config_that_cannot_be_saved_still_shows_the_written_palettes() {
+        fn writing_a_palette_leaves_the_config_to_the_app() {
             let mut world = World::new();
             let mut settings = open_with(&world, &[]);
             settings.update(Message::NewPalette);
             let command = settings.update(Message::SavePalette).unwrap();
-            // The config can no longer be written, but the palettes file can.
-            std::fs::remove_file(world.config.path()).unwrap();
-            std::fs::create_dir(world.config.path()).unwrap();
 
-            let messages = settings_back(&mut settings, drain(command.apply(&mut world.ctx())));
+            let messages = drain(command.apply(&mut world.ctx()));
 
-            assert_eq!(messages.len(), 2, "{messages:?}");
-            assert!(messages.iter().any(|message| matches!(
-                message,
-                application::Message::Error(BartendError::Config(ConfigError::WriteError))
-            )));
+            // The file is written, but the palette in use only changes when
+            // the app handles the message, together with Settings.
             assert_eq!(names_on_disk(&world), ["Navy & Champagne copy"]);
             assert_eq!(world.config.theme(), &ThemeChoice::default());
-            assert_eq!(settings.config.theme, ThemeChoice::default());
+            assert!(
+                matches!(
+                    messages.as_slice(),
+                    [application::Message::PalettesChanged(
+                        _,
+                        Some(ThemeChoice::Custom(_))
+                    )]
+                ),
+                "{messages:?}"
+            );
+        }
+
+        #[test]
+        fn using_a_palette_saves_only_the_theme_and_keeps_the_config_if_it_cannot() {
+            let mut world = World::new();
+            let harbor = ThemeChoice::Custom(sample("Harbor"));
+
+            use_palette(&mut world.config, harbor.clone()).unwrap();
+            assert_eq!(world.config.theme(), &harbor);
+            let on_disk = Config::load(Some(world.config.path().clone()), None).unwrap();
+            assert_eq!(on_disk.theme(), &harbor);
+            assert_eq!(on_disk.default_units(), world.config.default_units());
+
+            std::fs::remove_file(world.config.path()).unwrap();
+            std::fs::create_dir(world.config.path()).unwrap();
+            assert_eq!(
+                use_palette(&mut world.config, ThemeChoice::default()),
+                Err(ConfigError::WriteError)
+            );
+            assert_eq!(world.config.theme(), &harbor);
         }
 
         #[test]
