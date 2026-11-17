@@ -1,5 +1,6 @@
 //! Maps the [`ThemeChoice`] saved in the config to iced [`Theme`]s, and
-//! defines the app's own Navy & Champagne theme.
+//! defines the app's own themes: Navy & Champagne and Violet &
+//! Candlelight.
 //!
 //! A theme is only a palette: the colours. The shapes, type and ornaments
 //! the app is drawn with are its [styling](super::styling), picked
@@ -15,54 +16,88 @@ use iced::{
 
 use crate::models::{ConfigError, DEFAULT_THEME_NAME, ThemeChoice};
 
-/// The Navy & Champagne theme's colours.
-mod navy_and_champagne {
-    use super::{Color, color};
-
-    /// Midnight navy: the panels behind everything.
-    pub const BACKGROUND: Color = color!(0x0F, 0x16, 0x26);
-    /// Slate navy: the frame, cards and tiles.
-    pub const SURFACE: Color = color!(0x17, 0x20, 0x36);
-    /// Steel: the lines edging cards and the frame.
-    pub const HAIRLINE: Color = color!(0x2D, 0x3A, 0x57);
-    /// Champagne: the accent.
-    pub const ACCENT: Color = color!(0xD8, 0xC0, 0x8A);
-    /// Off-white.
-    pub const TEXT: Color = color!(0xF0, 0xEB, 0xDD);
-    /// Seafoam.
-    pub const SUCCESS: Color = color!(0x86, 0xB3, 0x9A);
-    /// Amber.
-    pub const WARNING: Color = color!(0xE2, 0xB6, 0x5C);
-    /// Rose.
-    pub const DANGER: Color = color!(0xC4, 0x6A, 0x6A);
+/// The colours of one of the app's own themes.
+#[derive(Debug, Clone, Copy)]
+struct Colours {
+    /// The panels behind everything.
+    background: Color,
+    /// The frame, cards and tiles.
+    surface: Color,
+    /// The lines edging cards and the frame.
+    hairline: Color,
+    /// The accent, and the fill of primary buttons.
+    accent: Color,
+    text: Color,
+    success: Color,
+    warning: Color,
+    danger: Color,
 }
+
+/// Midnight navy and slate, steel lines, a champagne accent, off-white
+/// text, seafoam, amber and rose.
+const NAVY_AND_CHAMPAGNE: Colours = Colours {
+    background: color!(0x0F, 0x16, 0x26),
+    surface: color!(0x17, 0x20, 0x36),
+    hairline: color!(0x2D, 0x3A, 0x57),
+    accent: color!(0xD8, 0xC0, 0x8A),
+    text: color!(0xF0, 0xEB, 0xDD),
+    success: color!(0x86, 0xB3, 0x9A),
+    warning: color!(0xE2, 0xB6, 0x5C),
+    danger: color!(0xC4, 0x6A, 0x6A),
+};
+
+/// The name of the [`violet_and_candlelight`] theme.
+const VIOLET_AND_CANDLELIGHT_NAME: &str = "Violet & Candlelight";
+
+/// Deep aubergine and plum-black, dusk-violet lines, a candle-gold
+/// accent, bone text, moss, burnt orange (kept clear of the gold) and
+/// crimson.
+const VIOLET_AND_CANDLELIGHT: Colours = Colours {
+    background: color!(0x1A, 0x12, 0x20),
+    surface: color!(0x24, 0x18, 0x29),
+    hairline: color!(0x3D, 0x2A, 0x45),
+    accent: color!(0xE8, 0xB8, 0x60),
+    text: color!(0xED, 0xE3, 0xD1),
+    success: color!(0x8F, 0xA8, 0x7A),
+    warning: color!(0xD9, 0x89, 0x4A),
+    danger: color!(0xB8, 0x47, 0x5A),
+};
 
 /// Names the app's own theme was saved under before it was renamed, and the
 /// name each now goes by. Saved configs keep the old name until Settings is
 /// next saved.
 const RENAMED: [(&str, &str); 1] = [("Art Deco", DEFAULT_THEME_NAME)];
 
-/// The app's own theme, and the default: navy and champagne.
+/// The app's own theme, and the default: champagne on midnight navy.
 pub fn navy_and_champagne() -> Theme {
-    use navy_and_champagne as colours;
+    pinned(DEFAULT_THEME_NAME, NAVY_AND_CHAMPAGNE)
+}
 
+/// Candle gold on deep aubergine, made to go with the Gothic styling.
+pub fn violet_and_candlelight() -> Theme {
+    pinned(VIOLET_AND_CANDLELIGHT_NAME, VIOLET_AND_CANDLELIGHT)
+}
+
+/// A theme called `name` in `colours`, with the shades the frame, cards
+/// and buttons are drawn with pinned rather than derived.
+fn pinned(name: &'static str, colours: Colours) -> Theme {
     let palette = Palette {
-        background: colours::BACKGROUND,
-        text: colours::TEXT,
-        primary: colours::ACCENT,
-        success: colours::SUCCESS,
-        warning: colours::WARNING,
-        danger: colours::DANGER,
+        background: colours.background,
+        text: colours.text,
+        primary: colours.accent,
+        success: colours.success,
+        warning: colours.warning,
+        danger: colours.danger,
     };
-    Theme::custom_with_fn(DEFAULT_THEME_NAME, palette, |palette| {
+    Theme::custom_with_fn(name, palette, move |palette| {
         let mut extended = Extended::generate(palette);
         // Pin the shades the frame and cards are drawn with, rather than
         // the ones iced would derive from the background.
-        extended.background.weakest = Pair::new(colours::SURFACE, colours::TEXT);
-        extended.background.weak = Pair::new(colours::HAIRLINE, colours::TEXT);
-        // Navy lettering on champagne buttons.
-        extended.primary.base.text = colours::BACKGROUND;
-        extended.primary.strong.text = colours::BACKGROUND;
+        extended.background.weakest = Pair::new(colours.surface, colours.text);
+        extended.background.weak = Pair::new(colours.hairline, colours.text);
+        // Lettering on accent buttons in the background colour.
+        extended.primary.base.text = colours.background;
+        extended.primary.strong.text = colours.background;
         extended
     })
 }
@@ -72,9 +107,9 @@ fn fallback() -> Theme {
     navy_and_champagne()
 }
 
-/// Every theme the user can pick from: the app's own [`navy_and_champagne`] theme
-/// first, then iced's built-in themes. User-defined themes would be added
-/// here as well.
+/// Every theme the user can pick from: the app's own themes first
+/// ([`navy_and_champagne`], then [`violet_and_candlelight`]), then iced's
+/// built-in themes. User-defined themes would be added here as well.
 #[derive(Debug, Clone)]
 pub struct Themes {
     options: Vec<Theme>,
@@ -82,7 +117,7 @@ pub struct Themes {
 
 impl Themes {
     pub fn new() -> Self {
-        let mut options = vec![navy_and_champagne()];
+        let mut options = vec![navy_and_champagne(), violet_and_candlelight()];
         options.extend_from_slice(Theme::ALL);
         Self { options }
     }
@@ -127,10 +162,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn offers_navy_and_champagne_first_then_every_built_in_theme() {
+    fn offers_the_apps_own_themes_first_then_every_built_in_theme() {
         let themes = Themes::new();
-        let (first, rest) = themes.options().split_first().unwrap();
-        assert_eq!(*first, navy_and_champagne());
+        let (own, rest) = themes.options().split_at(2);
+        assert_eq!(own, [navy_and_champagne(), violet_and_candlelight()]);
         assert_eq!(rest, Theme::ALL);
     }
 
@@ -143,19 +178,40 @@ mod tests {
         assert_eq!(names.len(), themes.options().len());
     }
 
+    /// Checks that `theme` is called `name`, takes its colours from
+    /// `colours`, and pins its frame, card and button shades.
+    fn assert_pinned(theme: &Theme, name: &str, colours: Colours) {
+        let palette = theme.extended_palette();
+        assert_eq!(theme.to_string(), name);
+        assert_eq!(theme.palette().primary, colours.accent);
+        assert_eq!(theme.palette().text, colours.text);
+        assert_eq!(theme.palette().success, colours.success);
+        assert_eq!(theme.palette().warning, colours.warning);
+        assert_eq!(theme.palette().danger, colours.danger);
+        assert_eq!(palette.background.base.color, colours.background);
+        assert_eq!(palette.background.weakest.color, colours.surface);
+        assert_eq!(palette.background.weak.color, colours.hairline);
+        assert_eq!(palette.primary.base.text, colours.background);
+        assert_eq!(palette.primary.strong.text, colours.background);
+        assert!(palette.is_dark);
+    }
+
     #[test]
     fn navy_and_champagne_pins_its_shades() {
-        use navy_and_champagne as colours;
-        let theme = navy_and_champagne();
-        let palette = theme.extended_palette();
-        assert_eq!(theme.to_string(), DEFAULT_THEME_NAME);
-        assert_eq!(theme.palette().primary, colours::ACCENT);
-        assert_eq!(palette.background.base.color, colours::BACKGROUND);
-        assert_eq!(palette.background.weakest.color, colours::SURFACE);
-        assert_eq!(palette.background.weak.color, colours::HAIRLINE);
-        assert_eq!(palette.primary.base.text, colours::BACKGROUND);
-        assert_eq!(palette.primary.strong.text, colours::BACKGROUND);
-        assert!(palette.is_dark);
+        assert_pinned(
+            &navy_and_champagne(),
+            DEFAULT_THEME_NAME,
+            NAVY_AND_CHAMPAGNE,
+        );
+    }
+
+    #[test]
+    fn violet_and_candlelight_pins_its_shades() {
+        assert_pinned(
+            &violet_and_candlelight(),
+            VIOLET_AND_CANDLELIGHT_NAME,
+            VIOLET_AND_CANDLELIGHT,
+        );
     }
 
     #[test]
