@@ -19,10 +19,11 @@ use crate::{
                 reload_or_error, report_error,
             },
         },
+        styling::Styling,
         widget::{
             controls,
-            deco_card::DecoCard,
             detail::{card, gauge, hint, link_row, stat_tile},
+            framed_card::FramedCard,
             master_list::{Entry, master_list},
         },
     },
@@ -114,6 +115,7 @@ impl Inventory {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        styling: &Styling,
         item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
@@ -128,13 +130,17 @@ impl Inventory {
             "+ New Item".to_string(),
             inventory_msg(Message::Select(None)),
         );
-        let master = master_list(Some(new), entries, "No items yet");
+        let master = master_list(styling, Some(new), entries, "No items yet");
 
         let detail = match self.selected {
-            Some(item) if self.editor.editing().is_none() => {
-                self.item_details(item, item_service, category_service, recipe_service)
-            }
-            _ => self.form_view(),
+            Some(item) if self.editor.editing().is_none() => self.item_details(
+                styling,
+                item,
+                item_service,
+                category_service,
+                recipe_service,
+            ),
+            _ => self.form_view(styling),
         };
         Panels { master, detail }
     }
@@ -144,6 +150,7 @@ impl Inventory {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn item_details(
         &self,
+        styling: &Styling,
         item: ItemID,
         item_service: &ItemService,
         category_service: &CategoryService,
@@ -161,36 +168,40 @@ impl Inventory {
             .and_then(|category| breadcrumb_label(category.id, category_service));
         // The stock tile always has a line under its figure, so it is the
         // taller one and sets the row's height.
-        let tiles = row![self.stock_tile(&body), uses_tile(&uses).height(Fill)]
-            .spacing(constants::SPACING)
-            .height(Shrink);
-        let used_in = self.used_in_card(&uses, category.is_some());
-        let header = header(item, body.name, breadcrumb, category);
+        let tiles = row![
+            self.stock_tile(styling, &body),
+            uses_tile(styling, &uses).height(Fill)
+        ]
+        .spacing(constants::SPACING)
+        .height(Shrink);
+        let used_in = self.used_in_card(styling, &uses, category.is_some());
+        let header = header(styling, item, body.name, breadcrumb, category);
 
-        controls::scrolling(column![header, tiles, used_in].spacing(16)).into()
+        controls::scrolling(styling, column![header, tiles, used_in].spacing(16)).into()
     }
 
     /// The new- or edit-item form, laid out like the item's details: the
     /// heading with Save and Cancel to its right, then the fields in a card.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn form_view(&self) -> Element<'_, application::Message> {
+    fn form_view(&self, styling: &Styling) -> Element<'_, application::Message> {
         let note = if self.editor.editing().is_some() {
             "Change any details, then Save."
         } else {
             "Add something you stock, then Save."
         };
         form_page(
+            styling,
             self.editor.title(),
             note,
-            self.editor.buttons().map(editor_msg),
-            self.editor.form_view().map(editor_msg),
+            self.editor.buttons(styling).map(editor_msg),
+            self.editor.form_view(styling).map(editor_msg),
         )
     }
 
     /// How much is in stock, with a gauge against the full size if the
     /// item has one.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn stock_tile(&self, body: &ItemBody) -> Element<'_, application::Message> {
+    fn stock_tile(&self, styling: &Styling, body: &ItemBody) -> Element<'_, application::Message> {
         let units = self.unit_system;
         let gauge_parts = body
             .fill_fraction()
@@ -203,7 +214,13 @@ impl Inventory {
             }
             None => hint("Add a full size to see how full it is").into(),
         };
-        stat_tile("In stock", body.quantity.readable(units), Some(below)).into()
+        stat_tile(
+            styling,
+            "In stock",
+            body.quantity.readable(units),
+            Some(below),
+        )
+        .into()
     }
 
     /// The recipes the item can go into, each opening on the Recipes
@@ -211,6 +228,7 @@ impl Inventory {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn used_in_card(
         &self,
+        styling: &Styling,
         uses: &[RecipeUse],
         has_category: bool,
     ) -> Element<'_, application::Message> {
@@ -231,7 +249,7 @@ impl Inventory {
             }))
             .into()
         };
-        card(Some("Used in"), content)
+        card(styling, Some("Used in"), content)
     }
 
     pub fn update(&mut self, item_service: &ItemService, message: Message) -> Option<Command> {
@@ -278,14 +296,16 @@ impl Inventory {
 /// The item's name and category on the left; Edit and Delete on the right.
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn header<'a>(
+    styling: &Styling,
     item: ItemID,
     name: String,
     breadcrumb: Option<(String, usize)>,
     category: Option<Category>,
 ) -> Element<'a, application::Message> {
     detail_header(
+        styling,
         name,
-        breadcrumb_line(breadcrumb, "No category"),
+        breadcrumb_line(styling, breadcrumb, "No category"),
         None,
         inventory_msg(Message::BeginEdit(item, category)),
         inventory_msg(Message::DeleteItem(item)),
@@ -294,8 +314,8 @@ fn header<'a>(
 
 /// How many recipes the item can go into.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn uses_tile<'a>(uses: &[RecipeUse]) -> DecoCard<'a, application::Message> {
-    stat_tile("Used in", counted(uses.len(), "recipe"), None)
+fn uses_tile<'a>(styling: &Styling, uses: &[RecipeUse]) -> FramedCard<'a, application::Message> {
+    stat_tile(styling, "Used in", counted(uses.len(), "recipe"), None)
 }
 
 fn inventory_msg(msg: Message) -> application::Message {

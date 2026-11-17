@@ -14,6 +14,7 @@ use crate::{
         application::{Context, Message},
         input_handling::EditorMessage::{Cancel, Save},
         screen::{recipes::Recipes, serving::Serving},
+        styling::Styling,
         theme::Themes,
     },
 };
@@ -104,18 +105,25 @@ impl Screen {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        styling: &Styling,
         item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> Panels<'_> {
         match self {
             Self::Inventory(inventory) => {
-                inventory.view(item_service, category_service, recipe_service)
+                inventory.view(styling, item_service, category_service, recipe_service)
             }
-            Self::Settings(settings) => settings.view(),
-            Self::Categories(categories) => categories.view(category_service, recipe_service),
-            Self::Recipes(recipes) => recipes.view(item_service, category_service, recipe_service),
-            Self::Serving(serving) => serving.view(item_service, category_service, recipe_service),
+            Self::Settings(settings) => settings.view(styling),
+            Self::Categories(categories) => {
+                categories.view(styling, category_service, recipe_service)
+            }
+            Self::Recipes(recipes) => {
+                recipes.view(styling, item_service, category_service, recipe_service)
+            }
+            Self::Serving(serving) => {
+                serving.view(styling, item_service, category_service, recipe_service)
+            }
         }
     }
 

@@ -17,10 +17,12 @@ use crate::{
             Panels,
             shared::{Availability, page_header, volume_figure},
         },
+        styling::Styling,
         widget::{
-            controls, deco,
+            controls,
             detail::{Tone, card, control_tile, hint, stat_tile, toned_card, toned_card_button},
             master_list::{Entry, master_list},
+            styled,
         },
     },
 };
@@ -127,6 +129,7 @@ impl Serving {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        styling: &Styling,
         item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
@@ -144,11 +147,16 @@ impl Serving {
                 on_press: serving_msg(Message::Input(ServingMessage::Recipe(recipe))),
             }
         });
-        let master = master_list(None, entries, "No recipes yet. Add one on Recipes.");
+        let master = master_list(
+            styling,
+            None,
+            entries,
+            "No recipes yet. Add one on Recipes.",
+        );
 
         let detail = match self.input.recipe() {
-            None => Self::empty_view(),
-            Some(recipe) => self.recipe_view(recipe, category_service),
+            None => Self::empty_view(styling),
+            Some(recipe) => self.recipe_view(styling, recipe, category_service),
         };
 
         Panels { master, detail }
@@ -156,9 +164,14 @@ impl Serving {
 
     /// What the panel shows before a recipe is chosen.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn empty_view<'a>() -> Element<'a, application::Message> {
+    fn empty_view<'a>(styling: &Styling) -> Element<'a, application::Message> {
         let note = hint("Choose a recipe from the list. Faded recipes are missing ingredients.");
-        page_header("Serve a drink".to_string(), note.into(), row![].into())
+        page_header(
+            styling,
+            "Serve a drink".to_string(),
+            note.into(),
+            row![].into(),
+        )
     }
 
     /// The chosen recipe: its header with Serve, any notice of what was
@@ -167,31 +180,41 @@ impl Serving {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn recipe_view<'a>(
         &'a self,
+        styling: &Styling,
         recipe: &'a Recipe,
         category_service: &CategoryService,
     ) -> Element<'a, application::Message> {
         let save = self.input.servable().then(|| serving_msg(Message::Save));
-        let serve = deco::primary_button("Serve").on_press_maybe(save);
-        let view_recipe = deco::secondary_button("View recipe")
+        let serve = styled::primary_button(styling, "Serve").on_press_maybe(save);
+        let view_recipe = styled::secondary_button(styling, "View recipe")
             .on_press(application::Message::ShowRecipe(recipe.id));
         let header = page_header(
+            styling,
             recipe.body.name.clone(),
-            availability(&recipe.body, self.input.ready()).view(),
+            availability(&recipe.body, self.input.ready()).view(styling),
             row![serve, view_recipe].spacing(constants::SPACING).into(),
         );
 
-        let notice = self.notice.as_ref().map(|served| self.notice_view(served));
+        let notice = self
+            .notice
+            .as_ref()
+            .map(|served| self.notice_view(styling, served));
 
         // A fixed-width tile with a filling height is laid out after the
         // others, so it takes the volume tile's height wherever it sits
         // (see `stat_tile`). The volume tile always has a line under its
         // figure while the servings show an error, so it is never the
         // shorter one.
-        let servings_tile = control_tile("Servings", self.input.servings_view().map(input_msg))
-            .width(SERVINGS_TILE_WIDTH)
-            .height(Fill);
+        let servings_tile = control_tile(
+            styling,
+            "Servings",
+            self.input.servings_view(styling).map(input_msg),
+        )
+        .width(SERVINGS_TILE_WIDTH)
+        .height(Fill);
         let (volume, below) = drink_volume(&recipe.body, self.input.servings(), self.input.units());
         let volume_tile = stat_tile(
+            styling,
             "Drink volume",
             volume,
             below.map(|below| hint(below).into()),
@@ -201,8 +224,11 @@ impl Serving {
             .height(Shrink);
 
         let pours = card(
+            styling,
             Some("Pours"),
-            self.input.table_view(category_service).map(input_msg),
+            self.input
+                .table_view(styling, category_service)
+                .map(input_msg),
         );
 
         let content = column![header]
@@ -210,16 +236,17 @@ impl Serving {
             .push(tiles)
             .push(pours)
             .spacing(16);
-        controls::scrolling(content).into()
+        controls::scrolling(styling, content).into()
     }
 
     /// What the last serving used, in a success card with Dismiss.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn notice_view(&self, served: &Served) -> Element<'_, application::Message> {
-        let dismiss = toned_card_button(Tone::Success, "Dismiss")
+    fn notice_view(&self, styling: &Styling, served: &Served) -> Element<'_, application::Message> {
+        let dismiss = toned_card_button(styling, Tone::Success, "Dismiss")
             .on_press(serving_msg(Message::DismissNotice));
         let message = text(served.describe(self.input.units()));
         toned_card(
+            styling,
             Tone::Success,
             row![message, space().width(Fill), dismiss]
                 .spacing(constants::SPACING)

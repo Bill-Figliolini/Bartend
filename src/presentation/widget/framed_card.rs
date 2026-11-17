@@ -1,5 +1,5 @@
-//! [`DecoCard`]: a container drawn with an art deco double border, and
-//! optionally champagne brackets in its corners.
+//! [`FramedCard`]: a container drawn with a double border, and optionally
+//! brackets in its corners.
 //!
 //! The container draws its own fill and the outer line. The wrapper draws
 //! the inner line and the brackets over it, at the container's final
@@ -20,6 +20,8 @@ use iced::{
     widget::Container,
 };
 
+use crate::presentation::styling::Styling;
+
 /// Gap from the card's edge to its inner line.
 const INSET: f32 = 3.0;
 /// Width of the inner line.
@@ -36,23 +38,31 @@ pub const FRAME_PADDING: f32 = INSET + LINE;
 /// theme.
 type Ink<'a> = Box<dyn Fn(&Theme) -> Color + 'a>;
 
-/// A [`Container`] drawn as an art deco card; see the
+/// A [`Container`] drawn as a framed card; see the
 /// [module docs](self). Set its size with [`width`](Self::width) and
 /// [`height`](Self::height) as on the container.
-pub struct DecoCard<'a, M> {
+pub struct FramedCard<'a, M> {
     container: Container<'a, M>,
+    /// Corner radius of the container; the inner line follows it.
+    radius: f32,
     line: Ink<'a>,
     brackets: Option<Ink<'a>>,
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-impl<'a, M: 'a> DecoCard<'a, M> {
+impl<'a, M: 'a> FramedCard<'a, M> {
     /// `container` styled with its fill and outer line, and padded to
     /// clear the inner line (see [`FRAME_PADDING`]); the inner line is
-    /// drawn in the colour `line` picks.
-    pub fn new(container: Container<'a, M>, line: impl Fn(&Theme) -> Color + 'a) -> Self {
+    /// drawn in the colour `line` picks, with corners to match the
+    /// `styling`'s.
+    pub fn new(
+        styling: &Styling,
+        container: Container<'a, M>,
+        line: impl Fn(&Theme) -> Color + 'a,
+    ) -> Self {
         Self {
             container,
+            radius: styling.radius,
             line: Box::new(line),
             brackets: None,
         }
@@ -79,29 +89,31 @@ impl<'a, M: 'a> DecoCard<'a, M> {
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-impl<M> Debug for DecoCard<'_, M> {
+impl<M> Debug for FramedCard<'_, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DecoCard")
+        f.debug_struct("FramedCard")
             .field("brackets", &self.brackets.is_some())
             .finish_non_exhaustive()
     }
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-impl<'a, M: 'a> From<DecoCard<'a, M>> for Element<'a, M> {
-    fn from(card: DecoCard<'a, M>) -> Self {
+impl<'a, M: 'a> From<FramedCard<'a, M>> for Element<'a, M> {
+    fn from(card: FramedCard<'a, M>) -> Self {
         Element::new(Framed {
             content: card.container.into(),
+            radius: card.radius,
             line: card.line,
             brackets: card.brackets,
         })
     }
 }
 
-/// The widget a [`DecoCard`] becomes: its container, with the inner line
+/// The widget a [`FramedCard`] becomes: its container, with the inner line
 /// and brackets drawn on top.
 struct Framed<'a, M> {
     content: Element<'a, M>,
+    radius: f32,
     line: Ink<'a>,
     brackets: Option<Ink<'a>>,
 }
@@ -109,6 +121,12 @@ struct Framed<'a, M> {
 /// Where the inner line runs, for a card with `bounds`.
 fn inner_line(bounds: Rectangle) -> Rectangle {
     bounds.shrink(Padding::new(INSET))
+}
+
+/// The corner radius of the inner line of a card whose corners have
+/// `radius`: smaller by the inset, so the two lines stay evenly apart.
+fn inner_radius(radius: f32) -> f32 {
+    (radius - INSET).max(0.0)
 }
 
 /// The eight bars making up the corner brackets of a card with `bounds`:
@@ -182,7 +200,7 @@ impl<M> Widget<M, Theme, Renderer> for Framed<'_, M> {
                 border: Border {
                     width: LINE,
                     color: (self.line)(theme),
-                    radius: 0.0.into(),
+                    radius: inner_radius(self.radius).into(),
                 },
                 snap: true,
                 ..Quad::default()
@@ -304,6 +322,13 @@ mod tests {
                 height: 74.0,
             }
         );
+    }
+
+    #[test]
+    fn the_inner_lines_corners_follow_the_cards() {
+        assert!(inner_radius(0.0).abs() < f32::EPSILON);
+        assert!(inner_radius(2.0).abs() < f32::EPSILON);
+        assert!((inner_radius(8.0) - (8.0 - INSET)).abs() < f32::EPSILON);
     }
 
     #[test]

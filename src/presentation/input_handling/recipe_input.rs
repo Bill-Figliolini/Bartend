@@ -12,10 +12,11 @@ use crate::{
     presentation::{
         constants,
         input_handling::{Form, FormError, RowKey, Rows, Validator, discard_stale_row},
+        styling::Styling,
         widget::{
-            deco,
             detail::{card, column_heading, hint, labeled, row_danger_button},
             input::{NumberField, RequiredPick, StringField},
+            styled,
         },
     },
 };
@@ -133,11 +134,13 @@ impl IngredientInput {
     }
     /// The row's fields, each in its column of the ingredient table.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn view(&self, show: bool) -> Element<'_, IngredientMessage> {
+    fn view(&self, styling: &Styling, show: bool) -> Element<'_, IngredientMessage> {
         table_row([
-            self.category.view(IngredientMessage::Category, show),
-            self.quantity.view(IngredientMessage::Quantity, show),
-            self.unit.view(IngredientMessage::Unit, show),
+            self.category
+                .view(styling, IngredientMessage::Category, show),
+            self.quantity
+                .view(styling, IngredientMessage::Quantity, show),
+            self.unit.view(styling, IngredientMessage::Unit, show),
         ])
     }
 }
@@ -251,13 +254,16 @@ impl Form for RecipeInput {
     /// headings over one row per ingredient (each with a button to remove
     /// it) and a button to add another.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn view(&self, show_errors: bool) -> Element<'_, RecipeMessage> {
+    fn view(&self, styling: &Styling, show_errors: bool) -> Element<'_, RecipeMessage> {
         let name = labeled(
+            styling,
             "Name",
-            self.name_input.view(RecipeMessage::Name, show_errors),
+            self.name_input
+                .view(styling, RecipeMessage::Name, show_errors),
         );
 
-        let add = deco::secondary_button("+ Add ingredient").on_press(RecipeMessage::AddRow);
+        let add =
+            styled::secondary_button(styling, "+ Add ingredient").on_press(RecipeMessage::AddRow);
         let ingredients: Element<'_, _> = if self.ingredient_inputs.is_empty() {
             column![
                 hint("No ingredients yet. You can save the recipe and add them later."),
@@ -268,20 +274,25 @@ impl Form for RecipeInput {
         } else {
             let headings = row![
                 table_row(
-                    ["Category", "Amount", "Unit"].map(|heading| column_heading(heading).into())
+                    ["Category", "Amount", "Unit"]
+                        .map(|heading| column_heading(styling, heading).into())
                 ),
                 space().width(Fixed(REMOVE_WIDTH)),
             ]
             .spacing(constants::SPACING);
             let rows = self.ingredient_inputs.iter().map(|(key, ingredient)| {
                 let fields = ingredient
-                    .view(show_errors)
+                    .view(styling, show_errors)
                     .map(move |msg| RecipeMessage::Row(key, msg));
-                let remove = container(row_danger_button("Remove", RecipeMessage::RemoveRow(key)))
-                    .width(Fixed(REMOVE_WIDTH))
-                    .height(Fixed(FIELD_HEIGHT))
-                    .align_x(Center)
-                    .center_y(Fixed(FIELD_HEIGHT));
+                let remove = container(row_danger_button(
+                    styling,
+                    "Remove",
+                    RecipeMessage::RemoveRow(key),
+                ))
+                .width(Fixed(REMOVE_WIDTH))
+                .height(Fixed(FIELD_HEIGHT))
+                .align_x(Center)
+                .center_y(Fixed(FIELD_HEIGHT));
                 row![fields, remove]
                     .spacing(constants::SPACING)
                     .height(Shrink)
@@ -296,10 +307,13 @@ impl Form for RecipeInput {
             .into()
         };
 
-        column![card(None, name), card(Some("Ingredients"), ingredients)]
-            .spacing(16)
-            .width(Fill)
-            .into()
+        column![
+            card(styling, None, name),
+            card(styling, Some("Ingredients"), ingredients)
+        ]
+        .spacing(16)
+        .width(Fill)
+        .into()
     }
 }
 

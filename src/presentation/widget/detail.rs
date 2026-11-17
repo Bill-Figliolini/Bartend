@@ -1,8 +1,9 @@
 //! Building blocks for detail panels: double-bordered cards (plain or
-//! [toned](Tone)), stat tiles with corner brackets (showing a figure or
-//! holding a control), a segmented stock gauge, square chips (plain or
-//! toned), link rows (optionally with a row action or a toned status),
-//! column headings and labelled fields.
+//! [toned](Tone)), stat tiles, with corner brackets if the [`Styling`] has
+//! them (showing a figure or holding a control), a segmented stock gauge,
+//! chips (plain or toned), link rows (optionally with a row action or a
+//! toned status), column headings and labelled fields. Cards, tiles and
+//! chips have the styling's corners.
 //! Every colour comes from the theme's palette, so they suit whichever
 //! theme is chosen.
 
@@ -20,9 +21,10 @@ use crate::{
     logic::StockLevel,
     presentation::{
         constants,
+        styling::Styling,
         widget::{
-            deco,
-            deco_card::{DecoCard, FRAME_PADDING},
+            framed_card::{FRAME_PADDING, FramedCard},
+            styled,
         },
     },
 };
@@ -58,36 +60,48 @@ pub enum Tone {
     Danger,
 }
 
-/// A square box with a double border, holding `content` under a small
-/// `title` if it has one.
+/// A box with a double border, holding `content` under a small `title` if
+/// it has one.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn card<'a, Message: 'a>(
+    styling: &Styling,
     title: Option<&str>,
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    card_box(title, content).into()
+    card_box(styling, title, content).into()
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
 fn card_box<'a, Message: 'a>(
+    styling: &Styling,
     title: Option<&str>,
     content: impl Into<Element<'a, Message>>,
-) -> DecoCard<'a, Message> {
+) -> FramedCard<'a, Message> {
     let body = Column::new()
-        .push(title.map(caption))
+        .push(title.map(|title| caption(styling, title)))
         .push(content)
         .spacing(constants::SPACING);
+    let radius = styling.radius;
     let box_ = container(body)
         .width(Fill)
         .padding(CARD_PADDING)
-        .style(card_style);
-    DecoCard::new(box_, |theme| inner_line(theme, Tone::Neutral))
+        .style(move |theme: &Theme| card_style(theme, radius));
+    FramedCard::new(styling, box_, |theme| inner_line(theme, Tone::Neutral))
 }
 
-/// A [`card_box`] for a tile, with accent brackets in its corners.
+/// A [`card_box`] for a tile, with accent brackets in its corners if the
+/// styling has them.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn tile_box<'a, Message: 'a>(content: impl Into<Element<'a, Message>>) -> DecoCard<'a, Message> {
-    card_box(None, content).brackets(deco::accent)
+fn tile_box<'a, Message: 'a>(
+    styling: &Styling,
+    content: impl Into<Element<'a, Message>>,
+) -> FramedCard<'a, Message> {
+    let card = card_box(styling, None, content);
+    if styling.tile_brackets {
+        card.brackets(styled::accent)
+    } else {
+        card
+    }
 }
 
 /// A card showing one figure: a small `label`, the `value` in large type,
@@ -102,14 +116,15 @@ fn tile_box<'a, Message: 'a>(content: impl Into<Element<'a, Message>>) -> DecoCa
 /// it sits.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn stat_tile<'a, Message: 'a>(
+    styling: &Styling,
     label: &str,
     value: impl text::IntoFragment<'a>,
     below: Option<Element<'a, Message>>,
-) -> DecoCard<'a, Message> {
-    let body = column![caption(label), text(value).size(VALUE_SIZE)]
+) -> FramedCard<'a, Message> {
+    let body = column![caption(styling, label), text(value).size(VALUE_SIZE)]
         .push(below)
         .spacing(constants::SPACING / 2);
-    tile_box(body)
+    tile_box(styling, body)
 }
 
 /// A [`stat_tile`] whose figure is a control, such as a stepper, rather
@@ -117,11 +132,12 @@ pub fn stat_tile<'a, Message: 'a>(
 /// same way.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn control_tile<'a, Message: 'a>(
+    styling: &Styling,
     label: &str,
     control: impl Into<Element<'a, Message>>,
-) -> DecoCard<'a, Message> {
-    let body = column![caption(label), control.into()].spacing(constants::SPACING / 2);
-    tile_box(body)
+) -> FramedCard<'a, Message> {
+    let body = column![caption(styling, label), control.into()].spacing(constants::SPACING / 2);
+    tile_box(styling, body)
 }
 
 /// A card filled with the weak shade of `tone`'s colour and double
@@ -129,22 +145,30 @@ pub fn control_tile<'a, Message: 'a>(
 /// just served. A neutral one is a plain [`card`].
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn toned_card<'a, Message: 'a>(
+    styling: &Styling,
     tone: Tone,
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
+    let radius = styling.radius;
     let box_ = container(content)
         .width(Fill)
         .padding(CARD_PADDING)
-        .style(move |theme: &Theme| toned_card_style(theme, tone));
-    DecoCard::new(box_, move |theme| inner_line(theme, tone)).into()
+        .style(move |theme: &Theme| toned_card_style(theme, tone, radius));
+    FramedCard::new(styling, box_, move |theme| inner_line(theme, tone)).into()
 }
 
 /// A button for a [`toned_card`] of the same `tone`, such as Dismiss: a
-/// [secondary button](deco::secondary_button) outlined in the card's text
+/// [secondary button](styled::secondary_button) outlined in the card's text
 /// colour, which reads on the card where the accent may not.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn toned_card_button<'a, Message: 'a>(tone: Tone, label: &str) -> Button<'a, Message> {
-    deco::secondary_button(label).style(move |theme: &Theme, status| on_tone(theme, status, tone))
+pub fn toned_card_button<'a, Message: 'a>(
+    styling: &Styling,
+    tone: Tone,
+    label: &str,
+) -> Button<'a, Message> {
+    let secondary = styled::secondary(styling);
+    styled::secondary_button(styling, label)
+        .style(move |theme: &Theme, status| on_tone(secondary(theme, status), theme, status, tone))
 }
 
 /// A row of square segments, lit up to `fraction` (0 to 1) in the colour
@@ -185,12 +209,16 @@ pub fn lit_segments(fraction: f32) -> usize {
         .max(usize::from(fraction > 0.0))
 }
 
-/// A small square label, e.g. for a category.
+/// A small label, e.g. for a category.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn chip<'a, Message: 'a>(label: impl text::IntoFragment<'a>) -> Element<'a, Message> {
+pub fn chip<'a, Message: 'a>(
+    styling: &Styling,
+    label: impl text::IntoFragment<'a>,
+) -> Element<'a, Message> {
+    let radius = styling.radius;
     container(text(label).size(constants::SMALL_TEXT))
         .padding([2, 10])
-        .style(chip_style)
+        .style(move |theme: &Theme| chip_style(theme, radius))
         .into()
 }
 
@@ -198,12 +226,14 @@ pub fn chip<'a, Message: 'a>(label: impl text::IntoFragment<'a>) -> Element<'a, 
 /// made.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn toned_chip<'a, Message: 'a>(
+    styling: &Styling,
     label: impl text::IntoFragment<'a>,
     tone: Tone,
 ) -> Element<'a, Message> {
+    let radius = styling.radius;
     container(text(label).size(constants::SMALL_TEXT))
         .padding([2, 10])
-        .style(move |theme: &Theme| toned_chip_style(theme, tone))
+        .style(move |theme: &Theme| toned_chip_style(theme, tone, radius))
         .into()
 }
 
@@ -269,15 +299,16 @@ pub fn status_link_row<'a, Message: Clone + 'a>(
         .into()
 }
 
-/// A compact [`deco::quiet_danger`] button in small capitals, for an action on one
-/// row of a list rather than on the whole page.
+/// A compact [`styled::quiet_danger`] button, for an action on one row of
+/// a list rather than on the whole page.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn row_danger_button<'a, Message: Clone + 'a>(
+    styling: &Styling,
     label: &str,
     on_press: Message,
 ) -> Element<'a, Message> {
-    deco::small_button(label)
-        .style(deco::quiet_danger)
+    styled::small_button(styling, label)
+        .style(styled::quiet_danger(styling))
         .on_press(on_press)
         .into()
 }
@@ -285,28 +316,31 @@ pub fn row_danger_button<'a, Message: Clone + 'a>(
 /// A form field with its `label` above it as a [`column_heading`].
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn labeled<'a, Message: 'a>(
+    styling: &Styling,
     label: &str,
     field: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    column![column_heading(label), field.into()]
+    column![column_heading(styling, label), field.into()]
         .spacing(4)
         .into()
 }
 
-/// A small, muted heading in capitals in the heading face, over a field
-/// or a column of a table.
+/// A small, muted [label](styled::label) over a field or a column of a
+/// table.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn column_heading<'a>(label: &str) -> Text<'a> {
-    deco::caps(label).size(constants::SMALL_TEXT).style(muted)
+pub fn column_heading<'a>(styling: &Styling, label: &str) -> Text<'a> {
+    styled::label(styling, label)
+        .size(constants::SMALL_TEXT)
+        .style(muted)
 }
 
-/// A small heading in capitals in the heading face and the accent colour,
-/// as on cards and stat tiles.
+/// A small [label](styled::label) in the accent colour, as on cards and
+/// stat tiles.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn caption<'a>(label: &str) -> Text<'a> {
-    deco::caps(label)
+pub fn caption<'a>(styling: &Styling, label: &str) -> Text<'a> {
+    styled::label(styling, label)
         .size(constants::SMALL_TEXT)
-        .style(deco::accented)
+        .style(styled::accented)
 }
 
 /// A small, muted note, e.g. explaining why something is missing.
@@ -342,47 +376,50 @@ pub fn percent(fraction: f32) -> String {
     format!("{:.0}%", (fraction * 100.0).floor())
 }
 
-fn card_style(theme: &Theme) -> container::Style {
+/// A card with corners of `radius`.
+fn card_style(theme: &Theme, radius: f32) -> container::Style {
     let palette = theme.extended_palette();
     container::Style {
         background: Some(palette.background.weakest.color.into()),
         text_color: Some(palette.background.weakest.text),
         border: Border {
             width: 1.0,
-            radius: 0.0.into(),
+            radius: radius.into(),
             color: palette.background.weak.color,
         },
         ..container::Style::default()
     }
 }
 
-fn chip_style(theme: &Theme) -> container::Style {
+/// A chip with corners of `radius`.
+fn chip_style(theme: &Theme, radius: f32) -> container::Style {
     let pair = theme.extended_palette().background.weak;
     container::Style {
         background: Some(pair.color.into()),
         text_color: Some(pair.text),
-        border: Border::default(),
+        border: Border::default().rounded(radius),
         ..container::Style::default()
     }
 }
 
 /// A [`chip_style`] filled with the weak shade of `tone`'s colour, or the
 /// plain chip when neutral.
-fn toned_chip_style(theme: &Theme, tone: Tone) -> container::Style {
+fn toned_chip_style(theme: &Theme, tone: Tone, radius: f32) -> container::Style {
+    let chip = chip_style(theme, radius);
     let Some(shade) = tone_shades(theme, tone) else {
-        return chip_style(theme);
+        return chip;
     };
     container::Style {
         background: Some(shade.weak.color.into()),
         text_color: Some(shade.weak.text),
-        ..chip_style(theme)
+        ..chip
     }
 }
 
 /// A [`card_style`] filled with the weak shade of `tone`'s colour and
 /// outlined in its base colour, or the plain card when neutral.
-fn toned_card_style(theme: &Theme, tone: Tone) -> container::Style {
-    let card = card_style(theme);
+fn toned_card_style(theme: &Theme, tone: Tone, radius: f32) -> container::Style {
+    let card = card_style(theme, radius);
     let Some(shade) = tone_shades(theme, tone) else {
         return card;
     };
@@ -403,30 +440,27 @@ fn toned_card_style(theme: &Theme, tone: Tone) -> container::Style {
 fn inner_line(theme: &Theme, tone: Tone) -> Color {
     match tone_shades(theme, tone) {
         Some(shade) => shade.base.color,
-        None => deco::accent(theme).scale_alpha(INNER_LINE_ALPHA),
+        None => styled::accent(theme).scale_alpha(INNER_LINE_ALPHA),
     }
 }
 
-/// A [`toned_card_button`]: a [`deco::secondary`] button in the text
-/// colour of a `tone` card, with a faint wash of it on hover. A neutral
-/// one is a plain secondary button.
-fn on_tone(theme: &Theme, status: button::Status, tone: Tone) -> button::Style {
-    let style = deco::secondary(theme, status);
-    let Some(shade) = tone_shades(theme, tone) else {
-        return style;
-    };
-    let ink = shade.weak.text;
-    let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
-        .then(|| ink.scale_alpha(ON_TONE_WASH).into());
-    button::Style {
-        background,
-        text_color: ink,
-        border: Border {
-            color: ink,
-            ..style.border
-        },
-        ..style
+/// A [`toned_card_button`]: its [`styled::secondary`] `style` recoloured
+/// in the text colour of a `tone` card, with a faint wash of it on hover.
+/// A neutral one keeps the plain secondary style.
+fn on_tone(
+    mut style: button::Style,
+    theme: &Theme,
+    status: button::Status,
+    tone: Tone,
+) -> button::Style {
+    if let Some(shade) = tone_shades(theme, tone) {
+        let ink = shade.weak.text;
+        style.background = matches!(status, button::Status::Hovered | button::Status::Pressed)
+            .then(|| ink.scale_alpha(ON_TONE_WASH).into());
+        style.text_color = ink;
+        style.border.color = ink;
     }
+    style
 }
 
 /// The base and weak shades of `tone`'s colour in the theme, or `None`
@@ -470,7 +504,13 @@ mod tests {
     use iced::Background;
 
     use super::*;
-    use crate::presentation::theme::Themes;
+    use crate::presentation::{
+        styling::{ROUNDED, Styling},
+        theme::Themes,
+    };
+
+    const DECO: Styling = Styling::ART_DECO;
+    const SQUARE: f32 = Styling::ART_DECO.radius;
 
     #[test]
     fn percentages_round_down() {
@@ -516,10 +556,16 @@ mod tests {
     }
 
     #[test]
-    fn cards_and_chips_are_square() {
-        for theme in Themes::new().options() {
-            assert_eq!(card_style(theme).border.radius, 0.0.into());
-            assert_eq!(chip_style(theme).border.radius, 0.0.into());
+    fn cards_and_chips_have_the_given_corners() {
+        for radius in [SQUARE, ROUNDED.radius] {
+            for theme in Themes::new().options() {
+                assert_eq!(card_style(theme, radius).border.radius, radius.into());
+                assert_eq!(chip_style(theme, radius).border.radius, radius.into());
+                assert_eq!(
+                    toned_chip_style(theme, Tone::Success, radius).border.radius,
+                    radius.into()
+                );
+            }
         }
     }
 
@@ -542,14 +588,14 @@ mod tests {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
 
-            let card = card_style(theme);
+            let card = card_style(theme, SQUARE);
             assert_eq!(
                 card.background,
                 Some(Background::Color(palette.background.weakest.color))
             );
             assert_eq!(card.border.color, palette.background.weak.color);
 
-            let chip = chip_style(theme);
+            let chip = chip_style(theme, SQUARE);
             assert_eq!(chip.background, Some(palette.background.weak.color.into()));
             assert_eq!(chip.text_color, Some(palette.background.weak.text));
         }
@@ -569,21 +615,24 @@ mod tests {
     fn toned_chips_use_the_weak_shade_of_their_tone() {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
-            assert_eq!(toned_chip_style(theme, Tone::Neutral), chip_style(theme));
+            assert_eq!(
+                toned_chip_style(theme, Tone::Neutral, SQUARE),
+                chip_style(theme, SQUARE)
+            );
             let cases = [
                 (Tone::Success, palette.success.weak),
                 (Tone::Warning, palette.warning.weak),
                 (Tone::Danger, palette.danger.weak),
             ];
             for (tone, pair) in cases {
-                let style = toned_chip_style(theme, tone);
+                let style = toned_chip_style(theme, tone, SQUARE);
                 assert_eq!(
                     style.background,
                     Some(pair.color.into()),
                     "{theme} {tone:?}"
                 );
                 assert_eq!(style.text_color, Some(pair.text));
-                assert_eq!(style.border, chip_style(theme).border);
+                assert_eq!(style.border, chip_style(theme, SQUARE).border);
             }
         }
     }
@@ -592,14 +641,17 @@ mod tests {
     fn toned_cards_are_filled_with_the_weak_shade_and_outlined_in_the_base() {
         for theme in Themes::new().options() {
             let palette = theme.extended_palette();
-            assert_eq!(toned_card_style(theme, Tone::Neutral), card_style(theme));
+            assert_eq!(
+                toned_card_style(theme, Tone::Neutral, SQUARE),
+                card_style(theme, SQUARE)
+            );
             let cases = [
                 (Tone::Success, palette.success.base, palette.success.weak),
                 (Tone::Warning, palette.warning.base, palette.warning.weak),
                 (Tone::Danger, palette.danger.base, palette.danger.weak),
             ];
             for (tone, base, weak) in cases {
-                let style = toned_card_style(theme, tone);
+                let style = toned_card_style(theme, tone, SQUARE);
                 assert_eq!(
                     style.background,
                     Some(weak.color.into()),
@@ -607,7 +659,7 @@ mod tests {
                 );
                 assert_eq!(style.text_color, Some(weak.text));
                 assert_eq!(style.border.color, base.color);
-                assert_eq!(style.border.radius, card_style(theme).border.radius);
+                assert_eq!(style.border.radius, card_style(theme, SQUARE).border.radius);
             }
         }
     }
@@ -617,18 +669,17 @@ mod tests {
         for theme in Themes::new().options() {
             let active = button::Status::Active;
             let hovered = button::Status::Hovered;
-            assert_eq!(
-                on_tone(theme, active, Tone::Neutral),
-                deco::secondary(theme, active)
-            );
+            let secondary = styled::secondary(&DECO);
+            let on_tone = |status, tone| on_tone(secondary(theme, status), theme, status, tone);
+            assert_eq!(on_tone(active, Tone::Neutral), secondary(theme, active));
             for tone in [Tone::Success, Tone::Warning, Tone::Danger] {
                 let ink = tone_shades(theme, tone).unwrap().weak.text;
-                let style = on_tone(theme, active, tone);
+                let style = on_tone(active, tone);
                 assert_eq!(style.text_color, ink, "{theme} {tone:?}");
                 assert_eq!(style.border.color, ink);
                 assert_eq!(style.background, None);
                 assert_eq!(
-                    on_tone(theme, hovered, tone).background,
+                    on_tone(hovered, tone).background,
                     Some(ink.scale_alpha(ON_TONE_WASH).into())
                 );
             }

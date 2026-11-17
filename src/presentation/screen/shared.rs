@@ -18,9 +18,11 @@ use crate::{
     presentation::{
         application::Message,
         constants,
+        styling::Styling,
         widget::{
-            controls, deco,
+            controls,
             detail::{Tone, card, chip, hint, toned_chip},
+            styled,
         },
     },
 };
@@ -48,6 +50,7 @@ pub(super) fn report_error<T>(result: Result<T, BartendError>) -> Task<Message> 
 /// Edit and Delete.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(super) fn detail_header<'a>(
+    styling: &Styling,
     name: String,
     subtitle: Element<'a, Message>,
     lead: Option<Element<'a, Message>>,
@@ -57,29 +60,30 @@ pub(super) fn detail_header<'a>(
     // One filled button per header: Edit, unless a lead such as Serve is
     // the main action.
     let edit = if lead.is_some() {
-        deco::secondary_button("Edit")
+        styled::secondary_button(styling, "Edit")
     } else {
-        deco::primary_button("Edit")
+        styled::primary_button(styling, "Edit")
     };
     let edit = edit.on_press(edit_message);
-    let delete = deco::danger_button("Delete").on_press(delete);
+    let delete = styled::danger_button(styling, "Delete").on_press(delete);
     let buttons = row![lead, edit, delete].spacing(constants::SPACING);
-    page_header(name, subtitle, buttons.into())
+    page_header(styling, name, subtitle, buttons.into())
 }
 
-/// A panel's header: `name` as a [title](deco::title) over a `subtitle`
+/// A panel's header: `name` as a [title](styled::title) over a `subtitle`
 /// line on the left, `buttons` on the right, and an
-/// [ornament rule](deco::ornament_rule) underneath. [`detail_header`] is
+/// [ornament rule](styled::ornament_rule) underneath. [`detail_header`] is
 /// this with Edit and Delete.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(super) fn page_header<'a>(
+    styling: &Styling,
     name: String,
     subtitle: Element<'a, Message>,
     buttons: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let title = column![deco::title(name), subtitle].spacing(6);
+    let title = column![styled::title(styling, name), subtitle].spacing(6);
     let header = row![title, space().width(Fill), buttons];
-    column![header, deco::ornament_rule()]
+    column![header, styled::ornament_rule()]
         .spacing(constants::SPACING)
         .into()
 }
@@ -113,11 +117,11 @@ impl Availability {
     /// The line under the recipe's name: a chip saying whether it can be
     /// made, or a note that it is still a draft.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub(super) fn view<'a>(self) -> Element<'a, Message> {
+    pub(super) fn view<'a>(self, styling: &Styling) -> Element<'a, Message> {
         match self {
             Self::Draft => hint("Draft: no ingredients yet").into(),
-            Self::Ready => toned_chip("Ready to make", Tone::Success),
-            Self::Missing => toned_chip("Missing ingredients", Tone::Warning),
+            Self::Ready => toned_chip(styling, "Ready to make", Tone::Success),
+            Self::Missing => toned_chip(styling, "Missing ingredients", Tone::Warning),
         }
     }
 }
@@ -148,37 +152,41 @@ pub(super) fn volume_figure(
 /// editing) to the right, then the `fields` in a card.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(super) fn form_page<'a>(
+    styling: &Styling,
     title: String,
     note: &'a str,
     buttons: Element<'a, Message>,
     fields: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    form_page_with_cards(title, note, buttons, card(None, fields))
+    let cards = card(styling, None, fields);
+    form_page_with_cards(styling, title, note, buttons, cards)
 }
 
 /// A [`form_page`] whose form lays out its own cards, e.g. one for the name
 /// and one for a list of rows, so `cards` are shown as they are.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(super) fn form_page_with_cards<'a>(
+    styling: &Styling,
     title: String,
     note: &'a str,
     buttons: Element<'a, Message>,
     cards: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let header = page_header(title, hint(note).into(), buttons);
-    controls::scrolling(column![header, cards].spacing(16)).into()
+    let header = page_header(styling, title, hint(note).into(), buttons);
+    controls::scrolling(styling, column![header, cards].spacing(16)).into()
 }
 
 /// A breadcrumb from [`breadcrumb_label`] as a chip, with a muted "+N
 /// more" when other paths lead there too, or `none` as a muted note when
 /// there is no breadcrumb.
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub(super) fn breadcrumb_line(
+pub(super) fn breadcrumb_line<'a>(
+    styling: &Styling,
     breadcrumb: Option<(String, usize)>,
-    none: &str,
-) -> Element<'_, Message> {
+    none: &'a str,
+) -> Element<'a, Message> {
     match breadcrumb {
-        Some((path, others)) => row![chip(path)]
+        Some((path, others)) => row![chip(styling, path)]
             .push((others > 0).then(|| hint(format!("+{others} more"))))
             .spacing(constants::SPACING)
             .align_y(Center)

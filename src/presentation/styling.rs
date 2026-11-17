@@ -5,18 +5,28 @@
 //! colours goes where, so every styling works with every
 //! [theme](super::theme), and the two are picked separately.
 
-// Phase 1 of splitting the look from the palette: the views start reading
-// their styling in phase 2.
-#![expect(dead_code, reason = "the views start reading their styling next")]
+// The views don't yet draw single-edged cards, a plain gauge or no
+// ornament (phase 3), and Settings doesn't offer a choice (phase 4).
+#![cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "parts of the styling are not drawn or offered yet"
+    )
+)]
 
 use std::fmt::{self, Display};
 
 use iced::Font;
 
-use crate::{
-    models::{ConfigError, DEFAULT_STYLING_NAME, StylingChoice},
-    presentation::widget::deco,
-};
+use crate::models::{ConfigError, DEFAULT_STYLING_NAME, StylingChoice};
+
+/// Federo (SIL Open Font License; see `assets/fonts/Federo-OFL.txt`), the
+/// [Art Deco](Styling::ART_DECO) heading face. Loaded into iced at
+/// startup.
+pub const FEDERO_BYTES: &[u8] = include_bytes!("../../assets/fonts/Federo-Regular.ttf");
+/// Federo, by the family name its file declares.
+const FEDERO: Font = Font::with_name("Federo");
 
 /// How the app is drawn, whatever its colours. Spacing is the same under
 /// every styling, so screens keep their layout; only the decoration
@@ -71,7 +81,7 @@ impl Styling {
     /// double-edged cards, bracketed tiles, diamonds, and headings in
     /// Federo capitals.
     pub const ART_DECO: Styling = Styling {
-        heading: deco::HEADING,
+        heading: FEDERO,
         caps: true,
         radius: 0.0,
         card_frame: CardFrame::Double,
@@ -145,9 +155,34 @@ pub fn choice_for(option: &StylingOption) -> StylingChoice {
     StylingChoice::BuiltIn(option.name.to_string())
 }
 
+/// A styling unlike [Art Deco](Styling::ART_DECO) in every field the
+/// views read, for checking that they follow the styling.
+#[cfg(test)]
+pub const ROUNDED: Styling = Styling {
+    heading: Font::DEFAULT,
+    caps: false,
+    radius: 6.0,
+    tile_brackets: false,
+    ..Styling::ART_DECO
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn federo_is_bundled_under_its_family_name() {
+        // A TrueType file starts with version 1.0, and names its family
+        // in its name table.
+        assert_eq!(&FEDERO_BYTES[..4], &[0, 1, 0, 0]);
+        let family = b"Federo";
+        assert!(
+            FEDERO_BYTES
+                .windows(family.len())
+                .any(|window| window == family)
+        );
+        assert_eq!(FEDERO, Font::with_name("Federo"));
+    }
 
     #[test]
     fn offers_art_deco_first() {
@@ -170,7 +205,7 @@ mod tests {
     #[test]
     fn art_deco_is_square_double_edged_and_ornamented() {
         let deco = Styling::ART_DECO;
-        assert_eq!(deco.heading, deco::HEADING);
+        assert_eq!(deco.heading, FEDERO);
         assert!(deco.caps);
         assert!(deco.radius.abs() < f32::EPSILON);
         assert_eq!(deco.card_frame, CardFrame::Double);

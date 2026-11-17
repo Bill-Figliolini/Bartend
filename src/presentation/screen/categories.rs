@@ -12,6 +12,7 @@ use crate::{
                 reload_or_error, report_error,
             },
         },
+        styling::Styling,
         widget::{
             controls,
             detail::{card, hint, link_row, link_row_with_action, row_danger_button, stat_tile},
@@ -99,6 +100,7 @@ impl Categories {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        styling: &Styling,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
     ) -> Panels<'_> {
@@ -112,13 +114,13 @@ impl Categories {
             "+ New Category".to_string(),
             categories_msg(Message::Select(None)),
         );
-        let master = master_list(Some(new), entries, "No categories yet");
+        let master = master_list(styling, Some(new), entries, "No categories yet");
 
         let detail = match self.selected {
             Some(category) if self.editor.editing().is_none() => {
-                Self::category_details(category, category_service, recipe_service)
+                Self::category_details(styling, category, category_service, recipe_service)
             }
-            _ => self.form_view(),
+            _ => self.form_view(styling),
         };
 
         Panels { master, detail }
@@ -128,17 +130,18 @@ impl Categories {
     /// details: the heading with Save and Cancel to its right, then the
     /// name in a card.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn form_view(&self) -> Element<'_, application::Message> {
+    fn form_view(&self, styling: &Styling) -> Element<'_, application::Message> {
         let note = if self.editor.editing().is_some() {
             "Change the name, then Save."
         } else {
             "Add a category, then Save."
         };
         form_page(
+            styling,
             self.editor.title(),
             note,
-            self.editor.buttons().map(editor_msg),
-            self.editor.form_view().map(editor_msg),
+            self.editor.buttons(styling).map(editor_msg),
+            self.editor.form_view(styling).map(editor_msg),
         )
     }
 
@@ -148,6 +151,7 @@ impl Categories {
     /// categories it is part of.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn category_details(
+        styling: &Styling,
         category: CategoryID,
         service: &CategoryService,
         recipe_service: &RecipeService,
@@ -160,8 +164,9 @@ impl Categories {
             breadcrumb_label(category, service)
         };
         let header = detail_header(
+            styling,
             service.name_of(category),
-            breadcrumb_line(breadcrumb, "Top-level category"),
+            breadcrumb_line(styling, breadcrumb, "Top-level category"),
             None,
             categories_msg(Message::Edit(category)),
             categories_msg(Message::DeleteCategory(category)),
@@ -169,6 +174,7 @@ impl Categories {
 
         let counts = service.item_counts(category);
         let items_tile = stat_tile(
+            styling,
             "Items",
             counted(counts.total, "item"),
             Some(hint(item_split(counts)).into()),
@@ -176,21 +182,27 @@ impl Categories {
         let recipes = recipes_for_category(category, service, recipe_service);
         // The items tile always has a line under its figure, so it is the
         // taller one and sets the row's height.
-        let uses_tile = stat_tile("Used in", counted(recipes.len(), "recipe"), None).height(Fill);
+        let uses_tile =
+            stat_tile(styling, "Used in", counted(recipes.len(), "recipe"), None).height(Fill);
         let tiles = row![items_tile, uses_tile]
             .spacing(constants::SPACING)
             .height(Shrink);
 
-        let subcategories = Self::subcategories_card(category, service);
-        let part_of = Self::part_of_card(&parents, service);
+        let subcategories = Self::subcategories_card(styling, category, service);
+        let part_of = Self::part_of_card(styling, &parents, service);
 
-        controls::scrolling(column![header, tiles, subcategories, part_of].spacing(16)).into()
+        controls::scrolling(
+            styling,
+            column![header, tiles, subcategories, part_of].spacing(16),
+        )
+        .into()
     }
 
     /// `category`'s subcategories, each opening when clicked and with a
     /// button to remove it, then a picker to add another.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn subcategories_card(
+        styling: &Styling,
         category: CategoryID,
         service: &CategoryService,
     ) -> Element<'static, application::Message> {
@@ -203,19 +215,20 @@ impl Categories {
                     service.name_of(child),
                     "",
                     categories_msg(Message::Select(Some(child))),
-                    row_danger_button("Remove", category_remove_msg(category, child)),
+                    row_danger_button(styling, "Remove", category_remove_msg(category, child)),
                 )
             }))
             .into()
         };
-        let content =
-            column![list, Self::relation_add_view(category, service)].spacing(constants::SPACING);
-        card(Some("Subcategories"), content)
+        let content = column![list, Self::relation_add_view(styling, category, service)]
+            .spacing(constants::SPACING);
+        card(styling, Some("Subcategories"), content)
     }
 
     /// The categories directly above this one, each opening when clicked.
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn part_of_card(
+        styling: &Styling,
         parents: &[CategoryID],
         service: &CategoryService,
     ) -> Element<'static, application::Message> {
@@ -231,7 +244,7 @@ impl Categories {
             }))
             .into()
         };
-        card(Some("Part of"), content)
+        card(styling, Some("Part of"), content)
     }
 
     pub fn update(
@@ -273,6 +286,7 @@ impl Categories {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn relation_add_view(
+        styling: &Styling,
         id: CategoryID,
         service: &CategoryService,
     ) -> Element<'static, application::Message> {
@@ -290,8 +304,8 @@ impl Categories {
         })
         .placeholder("Add a subcategory")
         .width(Fill)
-        .style(controls::picker)
-        .menu_style(controls::menu)
+        .style(controls::picker(styling))
+        .menu_style(controls::menu(styling))
         .into()
     }
 }

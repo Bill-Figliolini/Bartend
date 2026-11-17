@@ -1,7 +1,8 @@
 //! The window's frame around the panels: the top bar and the master list
 //! sit on a raised surface, edged from the detail panel by hairlines (a
 //! faint accent one under the top bar), and mark what is chosen in them
-//! with a faint accent tint. Everything is square.
+//! with a faint accent tint. Entries and the unit switch have the
+//! [`Styling`]'s corners.
 //! Every colour comes from the theme's palette, like the panels' own.
 
 use iced::{
@@ -9,7 +10,8 @@ use iced::{
     widget::{button, container, rule},
 };
 
-use super::deco::accent;
+use super::styled::accent;
+use crate::presentation::styling::Styling;
 
 /// Thickness of the lines between the frame and the detail panel.
 const HAIRLINE: u32 = 1;
@@ -80,7 +82,7 @@ fn hairline(theme: &Theme) -> rule::Style {
 }
 
 /// The faint wash of the accent colour behind a chosen entry, tab segment
-/// or hovered [outlined button](super::deco::secondary).
+/// or hovered [outlined button](super::styled::secondary).
 pub fn tint(theme: &Theme) -> Color {
     theme.palette().primary.scale_alpha(TINT_ALPHA)
 }
@@ -89,10 +91,20 @@ pub fn tint(theme: &Theme) -> Color {
 /// until hovered, and on the [`tint`] with full-strength text when
 /// `chosen`. A `dimmed` row that isn't chosen has faded text.
 pub fn entry(
+    styling: &Styling,
+    chosen: bool,
+    dimmed: Option<f32>,
+) -> impl Fn(&Theme, button::Status) -> button::Style + use<> {
+    let radius = styling.radius;
+    move |theme, status| entry_style(theme, status, chosen, dimmed, radius)
+}
+
+fn entry_style(
     theme: &Theme,
     status: button::Status,
     chosen: bool,
     dimmed: Option<f32>,
+    radius: f32,
 ) -> button::Style {
     let palette = theme.extended_palette();
     let text = palette.background.weakest.text;
@@ -110,7 +122,7 @@ pub fn entry(
     button::Style {
         background,
         text_color,
-        border: Border::default(),
+        border: Border::default().rounded(radius),
         ..button::Style::default()
     }
 }
@@ -135,11 +147,12 @@ pub fn tab(theme: &Theme, status: button::Status, active: bool) -> button::Style
 }
 
 /// The outline around the unit switch's segments.
-pub fn switch_outline(theme: &Theme) -> container::Style {
-    container::Style {
+pub fn switch_outline(styling: &Styling) -> impl Fn(&Theme) -> container::Style + use<> {
+    let radius = styling.radius;
+    move |theme| container::Style {
         border: Border {
             width: 1.0,
-            radius: 0.0.into(),
+            radius: radius.into(),
             color: theme.extended_palette().background.weak.color,
         },
         ..container::Style::default()
@@ -149,7 +162,12 @@ pub fn switch_outline(theme: &Theme) -> container::Style {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::presentation::theme::Themes;
+    use crate::presentation::{
+        styling::{ROUNDED, Styling},
+        theme::Themes,
+    };
+
+    const DECO: Styling = Styling::ART_DECO;
 
     const ACTIVE: button::Status = button::Status::Active;
     const HOVERED: button::Status = button::Status::Hovered;
@@ -169,7 +187,7 @@ mod tests {
             );
             assert_eq!(underline_style(theme).color, accent(theme));
             assert_eq!(
-                switch_outline(theme).border.color,
+                switch_outline(&DECO)(theme).border.color,
                 palette.background.weak.color
             );
         }
@@ -179,15 +197,15 @@ mod tests {
     fn chosen_entries_are_tinted_and_never_dimmed() {
         for theme in Themes::new().options() {
             let text = theme.extended_palette().background.weakest.text;
-            let chosen = entry(theme, ACTIVE, true, Some(0.5));
+            let chosen = entry(&DECO, true, Some(0.5))(theme, ACTIVE);
             assert_eq!(chosen.background, Some(tint(theme).into()));
             assert_eq!(chosen.text_color, text);
 
-            let dimmed = entry(theme, ACTIVE, false, Some(0.5));
+            let dimmed = entry(&DECO, false, Some(0.5))(theme, ACTIVE);
             assert_eq!(dimmed.background, None);
             assert_eq!(dimmed.text_color, text.scale_alpha(0.5));
 
-            let hovered = entry(theme, HOVERED, false, None);
+            let hovered = entry(&DECO, false, None)(theme, HOVERED);
             assert!(hovered.background.is_some());
             assert_eq!(hovered.text_color, text);
         }
@@ -208,15 +226,16 @@ mod tests {
     }
 
     #[test]
-    fn entries_and_the_switch_are_square() {
-        for theme in Themes::new().options() {
-            for chosen in [true, false] {
-                assert_eq!(
-                    entry(theme, HOVERED, chosen, None).border.radius,
-                    0.0.into()
-                );
+    fn entries_and_the_switch_have_the_stylings_corners() {
+        for styling in [DECO, ROUNDED] {
+            let radius = styling.radius.into();
+            for theme in Themes::new().options() {
+                for chosen in [true, false] {
+                    let style = entry(&styling, chosen, None)(theme, HOVERED);
+                    assert_eq!(style.border.radius, radius);
+                }
+                assert_eq!(switch_outline(&styling)(theme).border.radius, radius);
             }
-            assert_eq!(switch_outline(theme).border.radius, 0.0.into());
         }
     }
 }

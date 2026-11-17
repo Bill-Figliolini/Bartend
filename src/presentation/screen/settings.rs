@@ -16,11 +16,13 @@ use crate::{
         application::{self, Context},
         constants,
         screen::{Panels, shared::form_page},
+        styling::Styling,
         theme::{Themes, choice_for},
         widget::{
-            controls, deco,
+            controls,
             detail::labeled,
             master_list::{Entry, master_list},
+            styled,
         },
     },
 };
@@ -144,22 +146,23 @@ impl Settings {
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> Panels<'_> {
+    pub fn view(&self, styling: &Styling) -> Panels<'_> {
         let entries = Section::ALL.into_iter().map(|section| Entry {
             label: section.label().to_string(),
             selected: self.section == section,
             on_press: settings_msg(Message::SelectSection(section)),
             dimmed: false,
         });
-        let master = master_list(None, entries, "");
+        let master = master_list(styling, None, entries, "");
 
         let fields: Element<'_, application::Message> = match self.section {
             Section::Database => {
                 let path = text(self.config.db_path.display().to_string());
-                let choose = deco::secondary_button("Choose file…").on_press(
+                let choose = styled::secondary_button(styling, "Choose file…").on_press(
                     application::Message::OpenDBPicker(self.config.db_path.clone()),
                 );
                 labeled(
+                    styling,
                     "Database file",
                     row![path, space().width(Fill), choose]
                         .spacing(constants::SPACING)
@@ -174,9 +177,9 @@ impl Settings {
                     |unit_system: UnitSystem| settings_msg(Message::UpdateUnitSystem(unit_system)),
                 )
                 .width(Fill)
-                .style(controls::picker)
-                .menu_style(controls::menu);
-                labeled("Default units", unit_picker)
+                .style(controls::picker(styling))
+                .menu_style(controls::menu(styling));
+                labeled(styling, "Default units", unit_picker)
             }
             Section::Appearance => {
                 let theme_picker = pick_list(
@@ -185,18 +188,20 @@ impl Settings {
                     application::Message::PreviewTheme,
                 )
                 .width(Fill)
-                .style(controls::picker)
-                .menu_style(controls::menu);
-                labeled("Theme", theme_picker)
+                .style(controls::picker(styling))
+                .menu_style(controls::menu(styling));
+                labeled(styling, "Theme", theme_picker)
             }
         };
 
-        let save_button = deco::primary_button("Save").on_press(settings_msg(Message::Save));
-        let cancel_button =
-            deco::secondary_button("Cancel").on_press(application::Message::ResetSettings);
+        let save_button =
+            styled::primary_button(styling, "Save").on_press(settings_msg(Message::Save));
+        let cancel_button = styled::secondary_button(styling, "Cancel")
+            .on_press(application::Message::ResetSettings);
         let buttons = row![save_button, cancel_button].spacing(constants::SPACING);
 
         let detail = form_page(
+            styling,
             self.section.label().to_string(),
             self.section.note(),
             buttons.into(),

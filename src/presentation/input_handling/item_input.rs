@@ -10,6 +10,7 @@ use crate::{
     presentation::{
         constants,
         input_handling::{Form, FormError, Validator},
+        styling::Styling,
         widget::{
             detail::labeled,
             input::{NumberField, OptionalPick, OptionalPositiveField, RequiredPick, StringField},
@@ -146,29 +147,43 @@ impl Form for ItemInput {
     #[cfg_attr(coverage_nightly, coverage(off))]
     /// Each field under its label: the name, then the amount in stock with
     /// its unit and the full size, then the category.
-    fn view(&self, show_errors: bool) -> Element<'_, ItemMessage> {
+    fn view(&self, styling: &Styling, show_errors: bool) -> Element<'_, ItemMessage> {
         let full_size_label = match self.unit.value() {
             Ok(unit) => format!("Full size ({unit})"),
             Err(_) => "Full size".to_string(),
         };
         let amounts = row![
             labeled(
+                styling,
                 "In stock",
-                self.quantity.view(ItemMessage::Quantity, show_errors)
+                self.quantity
+                    .view(styling, ItemMessage::Quantity, show_errors)
             ),
-            labeled("Unit", self.unit.view(ItemMessage::Unit, show_errors)),
             labeled(
+                styling,
+                "Unit",
+                self.unit.view(styling, ItemMessage::Unit, show_errors)
+            ),
+            labeled(
+                styling,
                 &full_size_label,
-                self.full_size.view(ItemMessage::FullSize, show_errors)
+                self.full_size
+                    .view(styling, ItemMessage::FullSize, show_errors)
             ),
         ]
         .spacing(constants::SPACING);
         column![
-            labeled("Name", self.name.view(ItemMessage::Name, show_errors)),
+            labeled(
+                styling,
+                "Name",
+                self.name.view(styling, ItemMessage::Name, show_errors)
+            ),
             amounts,
             labeled(
+                styling,
                 "Category",
-                self.category.view(ItemMessage::Category, show_errors)
+                self.category
+                    .view(styling, ItemMessage::Category, show_errors)
             ),
         ]
         .spacing(constants::SPACING)

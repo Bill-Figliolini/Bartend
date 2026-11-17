@@ -20,9 +20,9 @@ use crate::{
         constants,
         input_handling::ServingMessage,
         screen::{self, Panels, Screen, ScreenKind},
+        styling::{self, Styling, Stylings},
         theme::Themes,
         widget::{
-            deco,
             detail::{Tone, toned_card, toned_card_button},
             frame,
             tab_bar::tab_bar,
@@ -34,7 +34,7 @@ pub fn run() -> iced::Result {
     iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title("Bartend")
         .theme(Bartend::theme)
-        .font(deco::HEADING_FONT_BYTES)
+        .font(styling::FEDERO_BYTES)
         .subscription(Bartend::subscription)
         .window_size((1100.0, 720.0))
         .run()
@@ -53,6 +53,7 @@ struct Bartend {
     /// A theme picked in Settings but not yet saved. Shown in place of the
     /// saved theme until the edit is saved or discarded.
     preview_theme: Option<Theme>,
+    stylings: Stylings,
     /// The unit system amounts are shown in on every screen, picked in the
     /// top bar. Starts as, and follows changes to, the saved default.
     units: UnitSystem,
@@ -159,6 +160,7 @@ impl Bartend {
             error,
             themes,
             preview_theme: None,
+            stylings: Stylings::new(),
             units,
         }
     }
@@ -167,6 +169,11 @@ impl Bartend {
             Some(theme) => theme.clone(),
             None => self.themes.resolve(self.config.theme()),
         }
+    }
+
+    /// How the app is drawn: the saved styling.
+    fn styling(&self) -> Styling {
+        self.stylings.resolve(self.config.styling())
     }
 
     /// Keyboard navigation; see [`shortcut`].
@@ -332,7 +339,9 @@ impl Bartend {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> Element<'_, Message> {
+        let styling = &self.styling();
         let Panels { master, detail } = self.screen.view(
+            styling,
             &self.item_service,
             &self.category_service,
             &self.recipe_service,
@@ -340,11 +349,12 @@ impl Bartend {
 
         let mut detail_contents = column![].spacing(constants::SPACING);
         if let Some(error) = &self.error {
-            let dismiss = toned_card_button(Tone::Danger, "Dismiss").on_press(Message::ClearError);
+            let dismiss =
+                toned_card_button(styling, Tone::Danger, "Dismiss").on_press(Message::ClearError);
             let banner = row![text(error.to_string()).width(Fill), dismiss]
                 .spacing(constants::SPACING)
                 .align_y(Center);
-            detail_contents = detail_contents.push(toned_card(Tone::Danger, banner));
+            detail_contents = detail_contents.push(toned_card(styling, Tone::Danger, banner));
         }
         detail_contents = detail_contents.push(detail);
         let detail = container(detail_contents)
@@ -354,7 +364,7 @@ impl Bartend {
 
         let body = row![master, frame::hairline_down(), detail];
         column![
-            tab_bar(self.screen.kind(), self.units),
+            tab_bar(styling, self.screen.kind(), self.units),
             frame::hairline_across(),
             body
         ]
@@ -443,6 +453,7 @@ mod tests {
             error: None,
             themes: Themes::new(),
             preview_theme: None,
+            stylings: Stylings::new(),
             units: UnitSystem::Metric,
         };
         (app, dir)

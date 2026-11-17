@@ -6,7 +6,8 @@ use crate::{
     models::UnitSystem,
     presentation::{
         input_handling::{Form, FormError},
-        widget::deco,
+        styling::Styling,
+        widget::styled,
     },
 };
 
@@ -133,17 +134,20 @@ impl<F: Form, Id: Copy + PartialEq> Editor<F, Id> {
 
     /// The form's fields, showing their errors once a save has been tried.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn form_view(&self) -> Element<'_, EditorMessage<F::Message>> {
-        self.form.view(self.show_errors).map(EditorMessage::Input)
+    pub fn form_view(&self, styling: &Styling) -> Element<'_, EditorMessage<F::Message>> {
+        self.form
+            .view(styling, self.show_errors)
+            .map(EditorMessage::Input)
     }
 
     /// Save, plus Cancel while editing.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn buttons(&self) -> Element<'_, EditorMessage<F::Message>> {
-        let save = deco::primary_button("Save").on_press(EditorMessage::Save);
+    pub fn buttons(&self, styling: &Styling) -> Element<'_, EditorMessage<F::Message>> {
+        let save = styled::primary_button(styling, "Save").on_press(EditorMessage::Save);
         let mut buttons = row![save].spacing(10);
         if self.editing.is_some() {
-            let cancel = deco::secondary_button("Cancel").on_press(EditorMessage::Cancel);
+            let cancel =
+                styled::secondary_button(styling, "Cancel").on_press(EditorMessage::Cancel);
             buttons = buttons.push(cancel);
         }
         buttons.into()
@@ -208,7 +212,7 @@ mod tests {
         }
 
         #[cfg_attr(coverage_nightly, coverage(off))]
-        fn view(&self, _show_errors: bool) -> Element<'_, NameMessage> {
+        fn view(&self, _styling: &Styling, _show_errors: bool) -> Element<'_, NameMessage> {
             text_input("Name", &self.name)
                 .on_input(NameMessage::Name)
                 .into()

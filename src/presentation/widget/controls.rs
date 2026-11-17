@@ -1,8 +1,8 @@
-//! Art deco styles for iced's stock controls: text boxes (also the text
-//! box of a combo box), pick lists, the menus they open, and scrollbars.
-//! Each starts from iced's own style and makes it square, edged in the
-//! shade of cards' borders, and picked out in the accent colour when
-//! hovered, focused or open.
+//! Styles for iced's stock controls: text boxes (also the text box of a
+//! combo box), pick lists, the menus they open, and scrollbars. Each
+//! starts from iced's own style and gives it the [`Styling`]'s corners,
+//! edged in the shade of cards' borders, and picked out in the accent
+//! colour when hovered, focused or open.
 //! Every colour comes from the theme's palette, so they suit whichever
 //! theme is chosen.
 
@@ -16,7 +16,8 @@ use iced::{
     },
 };
 
-use super::deco::accent;
+use super::styled::accent;
+use crate::presentation::styling::Styling;
 
 /// How much of the accent colour edges a hovered control.
 const HOVER_ALPHA: f32 = 0.6;
@@ -32,6 +33,7 @@ const SCROLLBAR_GAP: f32 = 8.0;
 /// sits beside it rather than over it.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn scrolling<'a, Message: 'a>(
+    styling: &Styling,
     content: impl Into<Element<'a, Message>>,
 ) -> Scrollable<'a, Message> {
     let bar = Scrollbar::new()
@@ -40,14 +42,14 @@ pub fn scrolling<'a, Message: 'a>(
         .spacing(SCROLLBAR_GAP);
     scrollable(content)
         .direction(Direction::Vertical(bar))
-        .style(scrollbar)
+        .style(scrollbar(styling))
 }
 
-/// A square, 1px border in `color`.
-fn edge(color: Color) -> Border {
+/// A 1px border in `color` with corners of `radius`.
+fn edge(color: Color, radius: f32) -> Border {
     Border {
         width: 1.0,
-        radius: 0.0.into(),
+        radius: radius.into(),
         color,
     }
 }
@@ -65,53 +67,73 @@ fn edge_color(theme: &Theme, hovered: bool, engaged: bool) -> Color {
     }
 }
 
-/// A text box: iced's, square, and edged as in [`edge_color`].
-pub fn text_field(theme: &Theme, status: text_input::Status) -> text_input::Style {
-    let (hovered, engaged) = match status {
-        text_input::Status::Active | text_input::Status::Disabled => (false, false),
-        text_input::Status::Hovered => (true, false),
-        text_input::Status::Focused { .. } => (false, true),
-    };
-    text_input::Style {
-        border: edge(edge_color(theme, hovered, engaged)),
-        ..text_input::default(theme, status)
+/// A text box: iced's, with the styling's corners, and edged as in
+/// [`edge_color`].
+pub fn text_field(
+    styling: &Styling,
+) -> impl Fn(&Theme, text_input::Status) -> text_input::Style + use<> {
+    let radius = styling.radius;
+    move |theme, status| {
+        let (hovered, engaged) = match status {
+            text_input::Status::Active | text_input::Status::Disabled => (false, false),
+            text_input::Status::Hovered => (true, false),
+            text_input::Status::Focused { .. } => (false, true),
+        };
+        text_input::Style {
+            border: edge(edge_color(theme, hovered, engaged), radius),
+            ..text_input::default(theme, status)
+        }
     }
 }
 
 /// A pick list: on the panel's background like a [`text_field`], with an
 /// accent arrow, and edged as in [`edge_color`].
-pub fn picker(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
-    let (hovered, engaged) = match status {
-        pick_list::Status::Active => (false, false),
-        pick_list::Status::Hovered => (true, false),
-        pick_list::Status::Opened { .. } => (false, true),
-    };
-    let base = theme.extended_palette().background.base;
-    pick_list::Style {
-        background: base.color.into(),
-        text_color: base.text,
-        handle_color: accent(theme),
-        border: edge(edge_color(theme, hovered, engaged)),
-        ..pick_list::default(theme, status)
+pub fn picker(styling: &Styling) -> impl Fn(&Theme, pick_list::Status) -> pick_list::Style + use<> {
+    let radius = styling.radius;
+    move |theme, status| {
+        let (hovered, engaged) = match status {
+            pick_list::Status::Active => (false, false),
+            pick_list::Status::Hovered => (true, false),
+            pick_list::Status::Opened { .. } => (false, true),
+        };
+        let base = theme.extended_palette().background.base;
+        pick_list::Style {
+            background: base.color.into(),
+            text_color: base.text,
+            handle_color: accent(theme),
+            border: edge(edge_color(theme, hovered, engaged), radius),
+            ..pick_list::default(theme, status)
+        }
     }
 }
 
-/// The menu a pick list or combo box opens: on the cards' shade, square,
-/// edged in the accent, with the hovered option filled with the accent as
-/// in iced's.
-pub fn menu(theme: &Theme) -> menu::Style {
-    let surface = theme.extended_palette().background.weakest;
-    menu::Style {
-        background: surface.color.into(),
-        text_color: surface.text,
-        border: edge(accent(theme)),
-        ..menu::default(theme)
+/// The menu a pick list or combo box opens: on the cards' shade, with the
+/// styling's corners, edged in the accent, with the hovered option filled
+/// with the accent as in iced's.
+pub fn menu(styling: &Styling) -> impl Fn(&Theme) -> menu::Style + use<> {
+    let radius = styling.radius;
+    move |theme| {
+        let surface = theme.extended_palette().background.weakest;
+        menu::Style {
+            background: surface.color.into(),
+            text_color: surface.text,
+            border: edge(accent(theme), radius),
+            ..menu::default(theme)
+        }
     }
 }
 
-/// A scrollbar: square, on a track in the shade of cards' borders, with a
-/// faint accent handle that turns full accent while hovered or dragged.
-pub fn scrollbar(theme: &Theme, status: scrollable::Status) -> scrollable::Style {
+/// A scrollbar: with the styling's corners, on a track in the shade of
+/// cards' borders, with a faint accent handle that turns full accent while
+/// hovered or dragged.
+pub fn scrollbar(
+    styling: &Styling,
+) -> impl Fn(&Theme, scrollable::Status) -> scrollable::Style + use<> {
+    let radius = styling.radius;
+    move |theme, status| scrollbar_style(theme, status, radius)
+}
+
+fn scrollbar_style(theme: &Theme, status: scrollable::Status, radius: f32) -> scrollable::Style {
     let (horizontal, vertical) = match status {
         scrollable::Status::Active { .. } => (false, false),
         scrollable::Status::Hovered {
@@ -132,15 +154,15 @@ pub fn scrollbar(theme: &Theme, status: scrollable::Status) -> scrollable::Style
         ),
     };
     scrollable::Style {
-        vertical_rail: rail(theme, vertical),
-        horizontal_rail: rail(theme, horizontal),
+        vertical_rail: rail(theme, vertical, radius),
+        horizontal_rail: rail(theme, horizontal, radius),
         ..scrollable::default(theme, status)
     }
 }
 
 /// One of a [`scrollbar`]'s rails, with its handle `hot` while hovered or
-/// dragged.
-fn rail(theme: &Theme, hot: bool) -> scrollable::Rail {
+/// dragged, and corners of `radius`.
+fn rail(theme: &Theme, hot: bool, radius: f32) -> scrollable::Rail {
     let handle = if hot {
         accent(theme)
     } else {
@@ -148,10 +170,10 @@ fn rail(theme: &Theme, hot: bool) -> scrollable::Rail {
     };
     scrollable::Rail {
         background: Some(theme.extended_palette().background.weak.color.into()),
-        border: Border::default(),
+        border: Border::default().rounded(radius),
         scroller: scrollable::Scroller {
             background: handle.into(),
-            border: Border::default(),
+            border: Border::default().rounded(radius),
         },
     }
 }
@@ -159,7 +181,35 @@ fn rail(theme: &Theme, hot: bool) -> scrollable::Rail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::presentation::theme::Themes;
+    use crate::presentation::{
+        styling::{ROUNDED, Styling},
+        theme::Themes,
+    };
+
+    const DECO: Styling = Styling::ART_DECO;
+
+    #[test]
+    fn controls_have_the_stylings_corners() {
+        for styling in [DECO, ROUNDED] {
+            let radius = styling.radius.into();
+            for theme in Themes::new().options() {
+                for status in TEXT_STATES {
+                    assert_eq!(text_field(&styling)(theme, status).border.radius, radius);
+                }
+                let list = picker(&styling)(theme, pick_list::Status::Active);
+                assert_eq!(list.border.radius, radius);
+                assert_eq!(menu(&styling)(theme).border.radius, radius);
+                let bar = scrollbar(&styling)(theme, IDLE);
+                assert_eq!(bar.vertical_rail.border.radius, radius);
+                assert_eq!(bar.vertical_rail.scroller.border.radius, radius);
+            }
+        }
+    }
+
+    const IDLE: scrollable::Status = scrollable::Status::Active {
+        is_horizontal_scrollbar_disabled: false,
+        is_vertical_scrollbar_disabled: false,
+    };
 
     const TEXT_STATES: [text_input::Status; 4] = [
         text_input::Status::Active,
@@ -169,13 +219,10 @@ mod tests {
     ];
 
     #[test]
-    fn text_fields_are_square_and_light_up_when_focused() {
+    fn text_fields_light_up_when_focused() {
         for theme in Themes::new().options() {
             let steel = theme.extended_palette().background.weak.color;
-            for status in TEXT_STATES {
-                assert_eq!(text_field(theme, status).border.radius, 0.0.into());
-            }
-            let field = |status| text_field(theme, status).border.color;
+            let field = |status| text_field(&DECO)(theme, status).border.color;
             assert_eq!(field(text_input::Status::Active), steel, "{theme}");
             assert_eq!(
                 field(text_input::Status::Hovered),
@@ -192,7 +239,7 @@ mod tests {
     #[test]
     fn pick_lists_match_text_fields() {
         for theme in Themes::new().options() {
-            let list = |status| picker(theme, status);
+            let list = |status| picker(&DECO)(theme, status);
             let active = list(pick_list::Status::Active);
             assert_eq!(
                 active.background,
@@ -201,7 +248,7 @@ mod tests {
             assert_eq!(active.handle_color, accent(theme));
             assert_eq!(
                 active.border,
-                text_field(theme, text_input::Status::Active).border
+                text_field(&DECO)(theme, text_input::Status::Active).border
             );
             assert_eq!(
                 list(pick_list::Status::Hovered).border.color,
@@ -217,33 +264,25 @@ mod tests {
     }
 
     #[test]
-    fn menus_are_square_on_the_card_shade() {
+    fn menus_are_on_the_card_shade() {
         for theme in Themes::new().options() {
-            let style = menu(theme);
+            let style = menu(&DECO)(theme);
             assert_eq!(
                 style.background,
                 theme.extended_palette().background.weakest.color.into()
             );
-            assert_eq!(style.border, edge(accent(theme)));
+            assert_eq!(style.border, edge(accent(theme), DECO.radius));
         }
     }
 
     #[test]
     fn scrollbar_handles_light_up_while_used() {
         for theme in Themes::new().options() {
-            let idle = scrollbar(
-                theme,
-                scrollable::Status::Active {
-                    is_horizontal_scrollbar_disabled: false,
-                    is_vertical_scrollbar_disabled: false,
-                },
-            );
+            let idle = scrollbar(&DECO)(theme, IDLE);
             let faint = accent(theme).scale_alpha(SCROLLER_ALPHA).into();
             assert_eq!(idle.vertical_rail.scroller.background, faint);
-            assert_eq!(idle.vertical_rail.border.radius, 0.0.into());
-            assert_eq!(idle.vertical_rail.scroller.border.radius, 0.0.into());
 
-            let dragged = scrollbar(
+            let dragged = scrollbar(&DECO)(
                 theme,
                 scrollable::Status::Dragged {
                     is_horizontal_scrollbar_dragged: false,

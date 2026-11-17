@@ -6,6 +6,7 @@ use crate::{
     models::{CategoryBody, UnitSystem},
     presentation::{
         input_handling::{Form, FormError, Validator},
+        styling::Styling,
         widget::{detail::labeled, input::StringField},
     },
 };
@@ -74,10 +75,12 @@ impl Form for CategoryInput {
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn view(&self, show_errors: bool) -> Element<'_, CategoryMessage> {
+    fn view(&self, styling: &Styling, show_errors: bool) -> Element<'_, CategoryMessage> {
         labeled(
+            styling,
             "Name",
-            self.name_input.view(CategoryMessage::Name, show_errors),
+            self.name_input
+                .view(styling, CategoryMessage::Name, show_errors),
         )
     }
 }

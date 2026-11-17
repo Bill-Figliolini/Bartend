@@ -2,9 +2,12 @@ use std::marker::PhantomData;
 
 use iced::{Element, widget::text_input};
 
-use crate::presentation::widget::{
-    controls,
-    input::{Error, with_error},
+use crate::presentation::{
+    styling::Styling,
+    widget::{
+        controls,
+        input::{Error, with_error},
+    },
 };
 
 /// How a [`TextField`]'s raw text is turned into a value.
@@ -139,11 +142,12 @@ impl<R: Rule> TextField<R> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view<'a, M: Clone + 'a>(
         &'a self,
+        styling: &Styling,
         on_input: impl Fn(String) -> M + 'a,
         show_error: bool,
     ) -> Element<'a, M> {
         let error = if show_error { self.value().err() } else { None };
-        self.view_with_error(on_input, error)
+        self.view_with_error(styling, on_input, error)
     }
 
     /// Like [`view`](Self::view), but shows `error`, for a form that checks
@@ -151,12 +155,13 @@ impl<R: Rule> TextField<R> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view_with_error<'a, M: Clone + 'a>(
         &'a self,
+        styling: &Styling,
         on_input: impl Fn(String) -> M + 'a,
         error: Option<Error>,
     ) -> Element<'a, M> {
         let input = text_input(&self.placeholder, &self.text)
             .on_input(on_input)
-            .style(controls::text_field);
+            .style(controls::text_field(styling));
         with_error(input.into(), error)
     }
 }

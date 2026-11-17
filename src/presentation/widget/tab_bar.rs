@@ -16,7 +16,8 @@ use crate::{
         application::Message,
         constants,
         screen::ScreenKind,
-        widget::{deco, frame},
+        styling::Styling,
+        widget::{frame, styled},
     },
 };
 
@@ -32,12 +33,18 @@ const TAB_SIZE: f32 = 15.0;
 const TAB_DIAMOND: f32 = 7.0;
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub fn tab_bar<'a>(active: ScreenKind, units: UnitSystem) -> Element<'a, Message> {
-    let name = deco::caps("Bartend").size(BRAND_SIZE).style(deco::accented);
+pub fn tab_bar<'a>(
+    styling: &Styling,
+    active: ScreenKind,
+    units: UnitSystem,
+) -> Element<'a, Message> {
+    let name = styled::label(styling, "Bartend")
+        .size(BRAND_SIZE)
+        .style(styled::accented);
     let brand = row![
-        deco::diamond(BRAND_DIAMOND),
+        styled::diamond(BRAND_DIAMOND),
         name,
-        deco::diamond(BRAND_DIAMOND)
+        styled::diamond(BRAND_DIAMOND)
     ]
     .spacing(10)
     .align_y(Center);
@@ -48,10 +55,10 @@ pub fn tab_bar<'a>(active: ScreenKind, units: UnitSystem) -> Element<'a, Message
 
     let tabs = row(ScreenKind::ALL
         .into_iter()
-        .map(|kind| tab(kind, kind == active)))
+        .map(|kind| tab(styling, kind, kind == active)))
     .spacing(4);
 
-    let switch = container(unit_switch(units))
+    let switch = container(unit_switch(styling, units))
         .padding([0, constants::PADDING])
         .center_y(Fill);
 
@@ -62,8 +69,8 @@ pub fn tab_bar<'a>(active: ScreenKind, units: UnitSystem) -> Element<'a, Message
 /// One screen's tab: its name in capitals, and while it is the `active`
 /// one, underlined in the accent colour with a diamond at the centre.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn tab<'a>(kind: ScreenKind, active: bool) -> Element<'a, Message> {
-    let name = deco::caps(kind.label()).size(TAB_SIZE);
+fn tab<'a>(styling: &Styling, kind: ScreenKind, active: bool) -> Element<'a, Message> {
+    let name = styled::label(styling, kind.label()).size(TAB_SIZE);
     let label = button(container(name).center_y(Fill))
         .height(Fill)
         .padding([0, 16])
@@ -73,7 +80,7 @@ fn tab<'a>(kind: ScreenKind, active: bool) -> Element<'a, Message> {
     if active {
         let underline = row![
             frame::underline(),
-            deco::diamond(TAB_DIAMOND),
+            styled::diamond(TAB_DIAMOND),
             frame::underline()
         ]
         .spacing(4)
@@ -91,18 +98,18 @@ fn tab<'a>(kind: ScreenKind, active: bool) -> Element<'a, Message> {
 /// Two segments, one per unit system, with the one in use tinted. Picking
 /// the other switches every screen to it.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn unit_switch<'a>(units: UnitSystem) -> Element<'a, Message> {
+fn unit_switch<'a>(styling: &Styling, units: UnitSystem) -> Element<'a, Message> {
     let segment = |system: UnitSystem| {
         let chosen = system == units;
         button(text(short_label(system)).size(14))
             .padding([4, 12])
-            .style(move |theme: &Theme, status| frame::entry(theme, status, chosen, None))
+            .style(frame::entry(styling, chosen, None))
             .on_press_maybe((!chosen).then_some(Message::SetUnits(system)))
     };
     let segments = row![segment(UnitSystem::Metric), segment(UnitSystem::Imperial)].spacing(2);
     container(segments)
         .padding(2)
-        .style(frame::switch_outline)
+        .style(frame::switch_outline(styling))
         .into()
 }
 

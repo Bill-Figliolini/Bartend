@@ -45,7 +45,10 @@ use std::fmt::{Debug, Display};
 
 use iced::Element;
 
-use crate::{models::UnitSystem, presentation::widget::input::Error};
+use crate::{
+    models::UnitSystem,
+    presentation::{styling::Styling, widget::input::Error},
+};
 
 /// A form that adds or edits one value, driven by an [`Editor`].
 ///
@@ -70,8 +73,9 @@ pub trait Form {
     fn clear(&mut self);
     /// Fills a cleared form from `value`, showing quantities in `units`.
     fn fill(&mut self, value: &Self::Value, units: UnitSystem);
-    /// With `show_errors`, each field's current error is shown under it.
-    fn view(&self, show_errors: bool) -> Element<'_, Self::Message>;
+    /// The fields, drawn as `styling` says. With `show_errors`, each
+    /// field's current error is shown under it.
+    fn view(&self, styling: &Styling, show_errors: bool) -> Element<'_, Self::Message>;
 }
 
 /// Identifies one row of a [`Rows`] for as long as it exists.

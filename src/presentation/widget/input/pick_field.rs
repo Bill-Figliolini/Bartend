@@ -6,9 +6,12 @@ use std::{
 
 use iced::{Element, widget::combo_box};
 
-use crate::presentation::widget::{
-    controls,
-    input::{Error, keyboard_pick::KeyboardPick, with_error},
+use crate::presentation::{
+    styling::Styling,
+    widget::{
+        controls,
+        input::{Error, keyboard_pick::KeyboardPick, with_error},
+    },
 };
 
 /// Whether a [`PickField`] must have a selection, and how picking behaves.
@@ -124,6 +127,7 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view<'a, M: Clone + 'a>(
         &'a self,
+        styling: &Styling,
         on_select: impl Fn(T) -> M + 'static,
         show_error: bool,
     ) -> Element<'a, M> {
@@ -132,7 +136,7 @@ where
         } else {
             None
         };
-        self.view_with_error(on_select, error)
+        self.view_with_error(styling, on_select, error)
     }
 
     /// Like [`view`](Self::view), but shows `error`, for a form that checks
@@ -140,6 +144,7 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view_with_error<'a, M: Clone + 'a>(
         &'a self,
+        styling: &Styling,
         on_select: impl Fn(T) -> M + 'static,
         error: Option<Error>,
     ) -> Element<'a, M> {
@@ -149,8 +154,8 @@ where
             self.selection.as_ref(),
             on_select,
         )
-        .input_style(controls::text_field)
-        .menu_style(controls::menu);
+        .input_style(controls::text_field(styling))
+        .menu_style(controls::menu(styling));
         with_error(KeyboardPick::new(picker).into(), error)
     }
 }

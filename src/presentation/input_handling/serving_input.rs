@@ -17,10 +17,11 @@ use crate::{
     presentation::{
         constants,
         input_handling::{FormError, RowKey, Rows, Validator, discard_stale_row},
+        styling::Styling,
         widget::{
-            deco,
             detail::{Tone, column_heading, hint, row_danger_button, toned_text},
             input::{Error, PositiveField, RequiredPick, error_text},
+            styled,
         },
     },
 };
@@ -210,7 +211,7 @@ impl ServingInput {
     /// The servings stepper: −, the number, +. It has no label of its own,
     /// so it is shown under one.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn servings_view(&self) -> Element<'_, ServingMessage> {
+    pub fn servings_view(&self, styling: &Styling) -> Element<'_, ServingMessage> {
         let errors = self.errors();
         let error = errors
             .as_ref()
@@ -220,20 +221,21 @@ impl ServingInput {
             .then_some(ServingMessage::StepServings(Step::Down));
         // The error goes under the whole stepper rather than the narrow
         // field, so it has room and the buttons stay level with the field.
-        let field = container(
-            self.servings
-                .view_with_error(ServingMessage::Servings, None),
-        )
+        let field = container(self.servings.view_with_error(
+            styling,
+            ServingMessage::Servings,
+            None,
+        ))
         .width(80);
         let stepper = row![
             button(text("-").center())
                 .width(32)
-                .style(deco::secondary)
+                .style(styled::secondary(styling))
                 .on_press_maybe(step_down),
             field,
             button(text("+").center())
                 .width(32)
-                .style(deco::secondary)
+                .style(styled::secondary(styling))
                 .on_press(ServingMessage::StepServings(Step::Up)),
         ]
         .spacing(constants::SPACING / 2)
@@ -249,18 +251,22 @@ impl ServingInput {
     /// servings, the item to pour from, and what that item has left
     /// afterwards.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn table_view(&self, category_service: &CategoryService) -> Element<'_, ServingMessage> {
+    pub fn table_view(
+        &self,
+        styling: &Styling,
+        category_service: &CategoryService,
+    ) -> Element<'_, ServingMessage> {
         if self.ingredients.is_empty() {
             return hint("No ingredients to pour. Edit the recipe to add some.").into();
         }
         let headings = table_row(
             ["Ingredient", "Amount", "Use item", "Left after"]
-                .map(|label| column_heading(label).into()),
+                .map(|label| column_heading(styling, label).into()),
         );
         let errors = self.errors();
         let ingredients = self.ingredients.iter().map(|(key, ingredient)| {
             let name = category_service.name_of(ingredient.category);
-            ingredient.view(key, name, self, errors.as_ref())
+            ingredient.view(styling, key, name, self, errors.as_ref())
         });
         column![
             headings,
@@ -759,6 +765,7 @@ impl IngredientUseInput {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn view<'a>(
         &'a self,
+        styling: &Styling,
         key: RowKey,
         name: String,
         form: &'a ServingInput,
@@ -796,16 +803,19 @@ impl IngredientUseInput {
                 pour: pour_key,
             };
             let picker = pour.item.view_with_error(
+                styling,
                 move |offer: Offer| ServingMessage::Item(pour_key, offer.item),
                 error_for(ServingField::PourItem(pour_key)),
             );
             let item_cell: Element<'_, _> = if split {
                 let amount = pour.amount.view_with_error(
+                    styling,
                     move |amount| ServingMessage::Amount(pour_key, amount),
                     error_for(ServingField::PourAmount(pour_key)),
                 );
                 let unit = self.per_serving.unit(pour.units).to_string();
-                let remove = row_danger_button("Remove", ServingMessage::RemovePour(pour_key));
+                let remove =
+                    row_danger_button(styling, "Remove", ServingMessage::RemovePour(pour_key));
                 row![
                     container(picker).width(FillPortion(3)),
                     container(amount).width(FillPortion(1)),
@@ -828,8 +838,8 @@ impl IngredientUseInput {
 
         // Another bottle only helps while some candidate is not yet poured.
         let add = (self.candidates.len() > self.pours.len()).then(|| {
-            deco::small_button("+ Add bottle")
-                .style(deco::secondary)
+            styled::small_button(styling, "+ Add bottle")
+                .style(styled::secondary(styling))
                 .on_press(ServingMessage::AddPour(key))
         });
         let error = error_for(ServingField::Ingredient(key)).map(error_text);

@@ -6,14 +6,14 @@ use iced::{
     Alignment::Center,
     Element,
     Length::Fill,
-    Theme,
     widget::{Column, button, column, container, row, space, text},
 };
 
 use crate::presentation::{
     application::Message,
     constants,
-    widget::{controls, deco, detail::hint, frame},
+    styling::Styling,
+    widget::{controls, detail::hint, frame, styled},
 };
 
 /// One row of a [`master_list`].
@@ -38,25 +38,29 @@ const MARKER_SIZE: f32 = 7.0;
 /// shown in their place.
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub fn master_list<'a>(
+    styling: &Styling,
     new: Option<(String, Message)>,
     entries: impl IntoIterator<Item = Entry>,
     empty: &'a str,
 ) -> Element<'a, Message> {
-    let rows: Vec<Element<'a, Message>> = entries.into_iter().map(entry).collect();
+    let rows: Vec<Element<'a, Message>> = entries
+        .into_iter()
+        .map(|item| entry(styling, item))
+        .collect();
     let list: Element<'a, Message> = if rows.is_empty() {
         container(hint(empty)).padding([4, 6]).into()
     } else {
-        controls::scrolling(Column::with_children(rows).spacing(2))
+        controls::scrolling(styling, Column::with_children(rows).spacing(2))
             .height(Fill)
             .into()
     };
 
     let mut contents = column![].spacing(constants::SPACING);
     if let Some((label, on_press)) = new {
-        let new_button = button(deco::caps(&label).size(14).width(Fill).center())
+        let new_button = button(styled::label(styling, &label).size(14).width(Fill).center())
             .width(Fill)
             .padding([7, 10])
-            .style(deco::secondary)
+            .style(styled::secondary(styling))
             .on_press(on_press);
         contents = contents.push(new_button);
     }
@@ -73,7 +77,7 @@ pub fn master_list<'a>(
 /// One entry: its label after an accent diamond that shows while it is
 /// selected, on the frame's tint.
 #[cfg_attr(coverage_nightly, coverage(off))]
-fn entry<'a>(entry: Entry) -> Element<'a, Message> {
+fn entry<'a>(styling: &Styling, entry: Entry) -> Element<'a, Message> {
     let Entry {
         label,
         selected,
@@ -82,7 +86,7 @@ fn entry<'a>(entry: Entry) -> Element<'a, Message> {
     } = entry;
     // Unselected entries keep the diamond's room, so labels line up.
     let marker: Element<'a, Message> = if selected {
-        deco::diamond(MARKER_SIZE)
+        styled::diamond(MARKER_SIZE)
     } else {
         space().width(MARKER_SIZE).into()
     };
@@ -90,7 +94,7 @@ fn entry<'a>(entry: Entry) -> Element<'a, Message> {
     button(row![marker, text(label)].spacing(8).align_y(Center))
         .width(Fill)
         .padding([6, 6])
-        .style(move |theme: &Theme, status| frame::entry(theme, status, selected, dimmed))
+        .style(frame::entry(styling, selected, dimmed))
         .on_press(on_press)
         .into()
 }

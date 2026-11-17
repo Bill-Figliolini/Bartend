@@ -12,10 +12,12 @@ use crate::{
                 volume_figure,
             },
         },
+        styling::Styling,
         widget::{
-            controls, deco,
+            controls,
             detail::{Tone, card, hint, stat_tile, status_link_row},
             master_list::{Entry, master_list},
+            styled,
         },
     },
 };
@@ -86,6 +88,7 @@ impl Recipes {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        styling: &Styling,
         item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
@@ -100,13 +103,17 @@ impl Recipes {
             "+ New Recipe".to_string(),
             recipes_msg(Message::Select(None)),
         );
-        let master = master_list(Some(new), entries, "No recipes yet");
+        let master = master_list(styling, Some(new), entries, "No recipes yet");
 
         let detail = match self.selected {
-            Some(recipe) if self.editor.editing().is_none() => {
-                self.recipe_details(recipe, item_service, category_service, recipe_service)
-            }
-            _ => self.form_view(),
+            Some(recipe) if self.editor.editing().is_none() => self.recipe_details(
+                styling,
+                recipe,
+                item_service,
+                category_service,
+                recipe_service,
+            ),
+            _ => self.form_view(styling),
         };
         Panels { master, detail }
     }
@@ -115,17 +122,18 @@ impl Recipes {
     /// the heading with Save and Cancel to its right, then the name and the
     /// ingredient table in their own cards.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn form_view(&self) -> Element<'_, application::Message> {
+    fn form_view(&self, styling: &Styling) -> Element<'_, application::Message> {
         let note = if self.editor.editing().is_some() {
             "Change any details, then Save."
         } else {
             "Add a recipe, then Save."
         };
         form_page_with_cards(
+            styling,
             self.editor.title(),
             note,
-            self.editor.buttons().map(editor_msg),
-            self.editor.form_view().map(editor_msg),
+            self.editor.buttons(styling).map(editor_msg),
+            self.editor.form_view(styling).map(editor_msg),
         )
     }
 
@@ -135,6 +143,7 @@ impl Recipes {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn recipe_details(
         &self,
+        styling: &Styling,
         id: RecipeID,
         item_service: &ItemService,
         category_service: &CategoryService,
@@ -143,12 +152,13 @@ impl Recipes {
         let body = recipe_service.get(id).unwrap_or_default();
         let statuses = ingredient_statuses(&body, item_service, category_service);
 
-        let serve = deco::primary_button("Serve")
+        let serve = styled::primary_button(styling, "Serve")
             .on_press(application::Message::ShowServing(id))
             .into();
         let header = detail_header(
+            styling,
             body.name.clone(),
-            Availability::of(&statuses).view(),
+            Availability::of(&statuses).view(styling),
             Some(serve),
             recipes_msg(Message::BeginEdit(Recipe {
                 id,
@@ -159,6 +169,7 @@ impl Recipes {
 
         let (volume, below) = volume_figure(&body.volume_summary(), self.unit_system);
         let volume_tile = stat_tile(
+            styling,
             "Drink volume",
             volume,
             below.map(|below| hint(below).into()),
@@ -167,6 +178,7 @@ impl Recipes {
         // the taller one and takes the volume tile's height. It must come
         // after that tile to do so (see `stat_tile`).
         let ingredients_tile = stat_tile(
+            styling,
             "Ingredients",
             counted(body.ingredients.len(), "ingredient"),
             None,
@@ -176,9 +188,9 @@ impl Recipes {
             .spacing(constants::SPACING)
             .height(Shrink);
 
-        let ingredients = self.ingredients_card(&body, &statuses, category_service);
+        let ingredients = self.ingredients_card(styling, &body, &statuses, category_service);
 
-        controls::scrolling(column![header, tiles, ingredients].spacing(16)).into()
+        controls::scrolling(styling, column![header, tiles, ingredients].spacing(16)).into()
     }
 
     /// One row per ingredient: its category, amount and stock status, each
@@ -186,6 +198,7 @@ impl Recipes {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn ingredients_card(
         &self,
+        styling: &Styling,
         body: &RecipeBody,
         statuses: &[IngredientStatus],
         category_service: &CategoryService,
@@ -205,7 +218,7 @@ impl Recipes {
             ))
             .into()
         };
-        card(Some("Ingredients"), content)
+        card(styling, Some("Ingredients"), content)
     }
 
     pub fn update(&mut self, message: Message, recipe_service: &RecipeService) -> Option<Command> {
