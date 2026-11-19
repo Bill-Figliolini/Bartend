@@ -3,13 +3,13 @@ name = "bartend"
 description = "Desktop GUI bartending app"
 repository = "https://github.com/Bill-Figliolini/Bartend"
 license = "MIT"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.100"
 
 [dependencies]
 dirs = "6.0.0"
-iced = { version = "0.14.0", features = ["tokio", "wgpu"] }
+iced = { version = "0.14.0", features = ["advanced", "svg", "tokio", "wgpu"] }
 rfd = "0.17.2"
 rusqlite = { version = "0.38.0", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }

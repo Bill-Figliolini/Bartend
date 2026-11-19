@@ -1,28 +1,49 @@
 use std::{path::PathBuf, process::exit};
 
 use iced::{
-    Element,
+    Element, Event,
     Length::Fill,
-    Task, Theme,
-    widget::{button, column, container, row, text},
+    Subscription, Task, Theme,
+    alignment::Vertical::Center,
+    event,
+    keyboard::{self, Key, key::Named},
+    widget::{column, container, operation, row, text},
+    window,
 };
 use rfd::AsyncFileDialog;
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::{BartendError, Config},
+    models::{
+        BartendError, CategoryID, Config, ConfigError, PaletteFile, Recipe, RecipeID, ThemeChoice,
+        UnitSystem,
+    },
     persistence::Database,
     presentation::{
-        screen::{self, Screen, ScreenKind},
-        widget::sidebar,
+        constants,
+        input_handling::ServingMessage,
+        screen::{self, Panels, Screen, ScreenKind},
+        styling::{Styling, StylingOption, Stylings},
+        theme::Themes,
+        widget::{
+            detail::{Tone, toned_card, toned_card_button},
+            frame,
+            tab_bar::tab_bar,
+        },
     },
 };
 
 pub fn run() -> iced::Result {
-    iced::application(Bartend::start, Bartend::update, Bartend::view)
+    let app = iced::application(Bartend::start, Bartend::update, Bartend::view)
         .title("Bartend")
         .theme(Bartend::theme)
-        .window_size((500.0, 600.0))
+        .subscription(Bartend::subscription)
+        .window_size((1100.0, 720.0));
+    // Every styling's heading face, so any of them can be picked.
+    Stylings::new()
+        .fonts()
+        .iter()
+        .fold(app, |app, &font| app.font(font))
         .run()
 }
 
@@ -35,7 +56,17 @@ struct Bartend {
     item_service: ItemService,
     recipe_service: RecipeService,
     error: Option<BartendError>,
-    theme_value: Theme,
+    themes: Themes,
+    /// A theme picked in Settings but not yet saved. Shown in place of the
+    /// saved theme until the edit is saved or discarded.
+    preview_theme: Option<Theme>,
+    stylings: Stylings,
+    /// A styling picked in Settings but not yet saved, shown in place of
+    /// the saved one like [`preview_theme`](Self::preview_theme).
+    preview_styling: Option<Styling>,
+    /// The unit system amounts are shown in on every screen, picked in the
+    /// top bar. Starts as, and follows changes to, the saved default.
+    units: UnitSystem,
 }
 
 #[derive(Debug, Clone)]
@@ -45,10 +76,37 @@ pub(in crate::presentation) enum Message {
     ClearError,
 
     OpenScreen(ScreenKind),
+    /// Shows amounts in the given unit system on every screen.
+    SetUnits(UnitSystem),
+    /// Opens the Recipes screen on the given recipe.
+    ShowRecipe(RecipeID),
+    /// Opens the Categories screen on the given category.
+    ShowCategory(CategoryID),
+    /// Opens the Serving screen with the given recipe chosen, ready to
+    /// serve.
+    ShowServing(RecipeID),
     Error(BartendError),
 
     ResetSettings,
     OpenDBPicker(PathBuf),
+    /// A theme was picked in Settings: show it now, and stage it as an edit.
+    PreviewTheme(Theme),
+    /// A styling was picked in Settings: show it now, and stage it as an
+    /// edit.
+    PreviewStyling(StylingOption),
+    /// A palette was saved or deleted in Settings, writing this palettes
+    /// file, with the palette to use from now on if that changes. Saves it,
+    /// stops previewing a palette, and tells Settings, all in one update.
+    PalettesChanged(PaletteFile, Option<ThemeChoice>),
+
+    /// Tab: focus the next field.
+    FocusNext,
+    /// Shift+Tab: focus the previous field.
+    FocusPrevious,
+    /// Enter: save the active screen's form.
+    Submit,
+    /// Escape: cancel the active screen's edit.
+    Cancel,
 
     Inventory(screen::inventory::Message),
     Settings(screen::settings::Message),
@@ -105,6 +163,10 @@ impl Bartend {
             }
         };
         let screen = Screen::start(&config, &category_service);
+        let themes = Themes::new();
+        let stylings = Stylings::new();
+        let error = appearance_notice(&config, &themes, &stylings);
+        let units = config.default_units();
 
         Self {
             screen,
@@ -113,12 +175,36 @@ impl Bartend {
             category_service,
             item_service,
             recipe_service,
-            error: None,
-            theme_value: Theme::KanagawaWave,
+            error,
+            themes,
+            preview_theme: None,
+            stylings,
+            preview_styling: None,
+            units,
         }
     }
     fn theme(&self) -> Theme {
-        self.theme_value.clone()
+        match &self.preview_theme {
+            Some(theme) => theme.clone(),
+            None => self.themes.resolve(self.config.theme()),
+        }
+    }
+
+    /// How the app is drawn: the styling being previewed in Settings, or
+    /// else the saved one.
+    fn styling(&self) -> Styling {
+        self.preview_styling
+            .unwrap_or_else(|| self.stylings.resolve(self.config.styling()).styling)
+    }
+
+    /// Keyboard navigation; see [`shortcut`].
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    #[expect(
+        clippy::unused_self,
+        reason = "iced passes the state; the keys mean the same on every screen"
+    )]
+    fn subscription(&self) -> Subscription<Message> {
+        event::listen_with(shortcut)
     }
 
     fn context(&mut self) -> Context<'_> {
@@ -135,19 +221,74 @@ impl Bartend {
         if self.screen.kind() == kind {
             return;
         }
+        // Leaving Settings discards its unsaved edits, including a previewed
+        // theme and styling.
+        self.clear_previews();
         self.screen = match kind {
-            ScreenKind::Inventory => Screen::inventory(&self.config, &self.category_service),
-            ScreenKind::Settings => Screen::settings(&self.config),
-            ScreenKind::Categories => Screen::categories(&self.config),
-            ScreenKind::Recipes => Screen::recipes(&self.config, &self.category_service),
-            ScreenKind::Serving => Screen::serving(&self.config, &self.recipe_service),
+            ScreenKind::Inventory => {
+                Screen::inventory(&self.config, &self.category_service, self.units)
+            }
+            ScreenKind::Settings => {
+                let (settings, notice) = Screen::settings(&self.config, &self.stylings);
+                if let Some(notice) = notice {
+                    self.error = Some(BartendError::Config(notice));
+                }
+                settings
+            }
+            ScreenKind::Categories => Screen::categories(),
+            ScreenKind::Recipes => {
+                Screen::recipes(&self.config, &self.category_service, self.units)
+            }
+            ScreenKind::Serving => Screen::serving(self.units),
         };
+    }
+
+    /// After a palette was saved or deleted, writing `file`: saves the
+    /// palette to `switch_to`, if any, stops previewing a palette, and tells
+    /// Settings, all in this one update so no frame shows the two out of
+    /// step.
+    fn palettes_changed(
+        &mut self,
+        file: PaletteFile,
+        switch_to: Option<ThemeChoice>,
+    ) -> Task<Message> {
+        if let Some(theme) = switch_to
+            && let Err(e) = screen::settings::use_palette(&mut self.config, theme)
+        {
+            // The palettes file was written, so Settings still takes it,
+            // with the palette in use unchanged.
+            self.error = Some(BartendError::Config(e));
+        }
+        self.preview_theme = None;
+        let theme = self.config.theme().clone();
+        self.update(Message::Settings(
+            screen::settings::Message::PalettesChanged(file, theme),
+        ))
+    }
+
+    /// Stops showing any theme or styling picked in Settings but not saved.
+    fn clear_previews(&mut self) {
+        self.preview_theme = None;
+        self.preview_styling = None;
+    }
+
+    /// Switches every screen to `units`: the active one now, and the
+    /// others as they are opened.
+    fn set_units(&mut self, units: UnitSystem) -> Task<Message> {
+        self.units = units;
+        match self.screen.units_message(units) {
+            Some(message) => self.update(message),
+            None => Task::none(),
+        }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::NoOp => Task::none(),
             Message::ReloadScreen => {
+                // On Settings this follows a successful save, so the saved
+                // theme and styling already match the previews.
+                self.clear_previews();
                 let reload_message = self.screen.reload_message(&self.config);
                 self.update(reload_message)
             }
@@ -159,12 +300,34 @@ impl Bartend {
                 self.open_screen(kind);
                 Task::none()
             }
+            Message::SetUnits(units) => self.set_units(units),
+            Message::ShowRecipe(recipe) => {
+                self.open_screen(ScreenKind::Recipes);
+                self.update(Message::Recipes(screen::recipes::Message::Select(Some(
+                    recipe,
+                ))))
+            }
+            Message::ShowCategory(category) => {
+                self.open_screen(ScreenKind::Categories);
+                self.update(Message::Categories(screen::categories::Message::Select(
+                    Some(category),
+                )))
+            }
+            Message::ShowServing(id) => match self.recipe_service.get(id) {
+                Ok(body) => {
+                    self.open_screen(ScreenKind::Serving);
+                    let choose = ServingMessage::Recipe(Recipe { id, body });
+                    self.update(Message::Serving(screen::serving::Message::Input(choose)))
+                }
+                Err(e) => self.update(Message::Error(e)),
+            },
             Message::Error(e) => {
                 self.error = Some(e);
                 Task::none()
             }
 
             Message::ResetSettings => {
+                self.clear_previews();
                 let reset_message =
                     Message::Settings(screen::settings::Message::ResetConfig(self.config.clone()));
                 self.update(reset_message)
@@ -180,59 +343,155 @@ impl Bartend {
                     Message::Settings(screen::settings::Message::UpdateDBPath(file_buf))
                 })
             }),
+            Message::PreviewTheme(theme) => {
+                if self.screen.kind() != ScreenKind::Settings {
+                    return Task::none();
+                }
+                self.preview_theme = Some(theme.clone());
+                self.update(Message::Settings(screen::settings::Message::UpdateTheme(
+                    theme,
+                )))
+            }
+            Message::PalettesChanged(file, switch_to) => self.palettes_changed(file, switch_to),
+            Message::PreviewStyling(option) => {
+                if self.screen.kind() != ScreenKind::Settings {
+                    return Task::none();
+                }
+                self.preview_styling = Some(option.styling);
+                self.update(Message::Settings(screen::settings::Message::UpdateStyling(
+                    option,
+                )))
+            }
+
+            Message::FocusNext => operation::focus_next(),
+            Message::FocusPrevious => operation::focus_previous(),
+            Message::Submit => {
+                let submit = self.screen.submit_message();
+                self.update(submit)
+            }
+            Message::Cancel => match self.screen.cancel_message() {
+                Some(cancel) => self.update(cancel),
+                None => Task::none(),
+            },
 
             Message::Inventory(_)
             | Message::Settings(_)
             | Message::Categories(_)
             | Message::Recipes(_)
-            | Message::Serving(_) => {
-                let command = self.screen.update(
-                    &self.item_service,
-                    &self.category_service,
-                    &self.recipe_service,
-                    message,
-                );
-                match command {
-                    Some(command) => {
-                        self.error = None;
-                        command.apply(&mut self.context())
-                    }
-                    None => Task::none(),
-                }
-            }
+            | Message::Serving(_) => self.update_screen(message),
         }
+    }
+
+    /// Passes `message` to the active screen, and applies any command it
+    /// returns.
+    fn update_screen(&mut self, message: Message) -> Task<Message> {
+        let command = self.screen.update(
+            &self.item_service,
+            &self.category_service,
+            &self.recipe_service,
+            message,
+        );
+        let Some(command) = command else {
+            return Task::none();
+        };
+        self.error = None;
+        let default_units = self.config.default_units();
+        let task = command.apply(&mut self.context());
+        // Saving a new default in Settings switches to it.
+        if self.config.default_units() != default_units {
+            self.units = self.config.default_units();
+        }
+        task
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn view(&self) -> Element<'_, Message> {
-        let sidebar = sidebar::Sidebar::new()
-            .button("Inventory", || Message::OpenScreen(ScreenKind::Inventory))
-            .button("Categories", || Message::OpenScreen(ScreenKind::Categories))
-            .button("Recipes", || Message::OpenScreen(ScreenKind::Recipes))
-            .button("Serving", || Message::OpenScreen(ScreenKind::Serving))
-            .button("Settings", || Message::OpenScreen(ScreenKind::Settings))
-            .into();
-
-        let mut body = Vec::new();
-        let screen_contents = self.screen.view(
+        let styling = &self.styling();
+        let Panels { master, detail } = self.screen.view(
+            styling,
             &self.item_service,
             &self.category_service,
             &self.recipe_service,
         );
-        if let Some(error) = &self.error {
-            let error_text = text(error.to_string());
-            let error_clear_button = button(text("X")).on_press(Message::ClearError);
-            let error_row = row![error_text, error_clear_button];
-            body.push(error_row.into());
-        }
-        body.push(screen_contents);
-        let screen = container(column(body)).width(Fill).height(Fill);
 
-        container(row![sidebar, screen])
-            .height(Fill)
+        let mut detail_contents = column![].spacing(constants::SPACING);
+        if let Some(error) = &self.error {
+            let dismiss =
+                toned_card_button(styling, Tone::Danger, "Dismiss").on_press(Message::ClearError);
+            let banner = row![text(error.to_string()).width(Fill), dismiss]
+                .spacing(constants::SPACING)
+                .align_y(Center);
+            detail_contents = detail_contents.push(toned_card(styling, Tone::Danger, banner));
+        }
+        detail_contents = detail_contents.push(detail);
+        let detail = container(detail_contents)
             .width(Fill)
-            .into()
+            .height(Fill)
+            .padding(constants::PADDING);
+
+        let body = row![master, frame::hairline_down(), detail];
+        column![
+            tab_bar(styling, self.screen.kind(), self.units),
+            frame::hairline_across(),
+            body
+        ]
+        .height(Fill)
+        .width(Fill)
+        .into()
     }
+}
+
+/// Maps a key press to app navigation: Tab and Shift+Tab move focus, Enter
+/// saves the active screen's form, and Escape cancels its edit.
+///
+/// Only keys no widget has used are mapped. So Enter picks an option in an
+/// open drop-down rather than saving, and Escape in a text box only leaves
+/// the box; a second Escape cancels. Held Enter and Escape do not repeat,
+/// so holding Enter saves once instead of then failing on the empty form.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "event::listen_with needs this exact fn signature"
+)]
+fn shortcut(event: Event, status: event::Status, _window: window::Id) -> Option<Message> {
+    if status == event::Status::Captured {
+        return None;
+    }
+    let Event::Keyboard(keyboard::Event::KeyPressed {
+        key: Key::Named(key),
+        modifiers,
+        repeat,
+        ..
+    }) = event
+    else {
+        return None;
+    };
+    match key {
+        Named::Tab if modifiers.shift() => Some(Message::FocusPrevious),
+        Named::Tab => Some(Message::FocusNext),
+        Named::Enter if !repeat => Some(Message::Submit),
+        Named::Escape if !repeat => Some(Message::Cancel),
+        _ => None,
+    }
+}
+
+/// The error to show at startup if the saved theme or styling can't be
+/// found, naming both in one notice if neither can. The app falls back to
+/// the defaults either way.
+fn appearance_notice(
+    config: &Config,
+    themes: &Themes,
+    stylings: &Stylings,
+) -> Option<BartendError> {
+    let theme = themes.lookup(config.theme()).err();
+    let styling = stylings.lookup(config.styling()).err();
+    let error = match (theme, styling) {
+        (None, None) => return None,
+        (Some(_), Some(_)) => {
+            ConfigError::UnknownThemeAndStyling(config.theme().clone(), config.styling().clone())
+        }
+        (Some(error), None) | (None, Some(error)) => error,
+    };
+    Some(BartendError::Config(error))
 }
 
 #[cfg(test)]
@@ -240,10 +499,17 @@ mod tests {
     use super::*;
     use crate::{
         logic::LogicError,
-        models::{CategoryID, ItemID, UnitSystem},
-        presentation::screen::{
-            categories, inventory, settings,
-            test_support::{World, drain},
+        models::{
+            CategoryID, ItemID, StylingChoice, ThemeChoice, UnitSystem, palette_sample as sample,
+        },
+        presentation::{
+            input_handling::{CategoryMessage, EditorMessage, ItemMessage},
+            screen::{
+                categories, inventory, settings,
+                test_support::{World, drain},
+            },
+            styling::{PLAIN, PLAIN_OPTION},
+            theme::{custom_theme, navy_and_champagne},
         },
     };
 
@@ -266,7 +532,11 @@ mod tests {
             item_service: items,
             recipe_service: recipes,
             error: None,
-            theme_value: Theme::KanagawaWave,
+            themes: Themes::new(),
+            preview_theme: None,
+            stylings: Stylings::with_plain(),
+            preview_styling: None,
+            units: UnitSystem::Metric,
         };
         (app, dir)
     }
@@ -303,6 +573,87 @@ mod tests {
     }
 
     #[test]
+    fn show_recipe_opens_the_recipes_screen_on_it() {
+        let (mut app, _dir) = app();
+        let recipe = app
+            .recipe_service
+            .add(
+                &app.database.recipe_db(),
+                crate::models::RecipeBody {
+                    name: "Negroni".to_string(),
+                    ingredients: Vec::new(),
+                },
+            )
+            .unwrap();
+
+        run(&mut app, Message::ShowRecipe(recipe));
+
+        let Screen::Recipes(recipes) = &app.screen else {
+            panic!("expected the Recipes screen, got {:?}", app.screen.kind());
+        };
+        assert_eq!(recipes.selected(), Some(recipe));
+    }
+
+    #[test]
+    fn show_category_opens_the_categories_screen_on_it() {
+        let (mut app, _dir) = app();
+        let gin = app
+            .category_service
+            .insert(
+                &app.database.category_db(),
+                &crate::models::CategoryBody {
+                    name: "Gin".to_string(),
+                },
+            )
+            .unwrap();
+
+        run(&mut app, Message::ShowCategory(gin));
+
+        let Screen::Categories(categories) = &app.screen else {
+            panic!(
+                "expected the Categories screen, got {:?}",
+                app.screen.kind()
+            );
+        };
+        assert_eq!(categories.selected(), Some(gin));
+    }
+
+    #[test]
+    fn show_serving_opens_the_serving_screen_with_the_recipe_chosen() {
+        let (mut app, _dir) = app();
+        let recipe = app
+            .recipe_service
+            .add(
+                &app.database.recipe_db(),
+                crate::models::RecipeBody {
+                    name: "Negroni".to_string(),
+                    ingredients: Vec::new(),
+                },
+            )
+            .unwrap();
+
+        run(&mut app, Message::ShowServing(recipe));
+
+        let Screen::Serving(serving) = &app.screen else {
+            panic!("expected the Serving screen, got {:?}", app.screen.kind());
+        };
+        assert_eq!(serving.chosen_recipe(), Some(recipe));
+    }
+
+    #[test]
+    fn show_serving_a_missing_recipe_reports_it_and_stays_put() {
+        let (mut app, _dir) = app();
+
+        run(&mut app, Message::ShowServing(RecipeID(99)));
+
+        assert!(matches!(
+            app.error,
+            Some(BartendError::Logic(LogicError::InvalidRecipe(RecipeID(99))))
+        ));
+        assert_eq!(app.screen.kind(), ScreenKind::Inventory);
+    }
+
+    #[test]
     fn reopening_the_current_screen_keeps_its_state() {
         let (mut app, _dir) = app();
         run(&mut app, Message::OpenScreen(ScreenKind::Settings));
@@ -315,6 +666,47 @@ mod tests {
         run(&mut app, Message::Settings(settings::Message::Save));
 
         assert_eq!(app.config.default_units(), UnitSystem::Imperial);
+    }
+
+    #[test]
+    fn units_carry_over_to_screens_opened_later() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::SetUnits(UnitSystem::Imperial));
+        let Screen::Inventory(inventory) = &app.screen else {
+            panic!("expected Inventory, got {:?}", app.screen.kind());
+        };
+        assert_eq!(inventory.units(), UnitSystem::Imperial);
+
+        // Categories shows no amounts, so the choice just waits.
+        run(&mut app, Message::OpenScreen(ScreenKind::Categories));
+        run(&mut app, Message::SetUnits(UnitSystem::Metric));
+        run(&mut app, Message::SetUnits(UnitSystem::Imperial));
+        run(&mut app, Message::OpenScreen(ScreenKind::Recipes));
+
+        let Screen::Recipes(recipes) = &app.screen else {
+            panic!("expected Recipes, got {:?}", app.screen.kind());
+        };
+        assert_eq!(recipes.units(), UnitSystem::Imperial);
+        assert_eq!(app.units, UnitSystem::Imperial);
+        // Only the saved default changes the config.
+        assert_eq!(app.config.default_units(), UnitSystem::Metric);
+    }
+
+    #[test]
+    fn saving_a_new_default_unit_system_switches_to_it() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(
+            &mut app,
+            Message::Settings(settings::Message::UpdateUnitSystem(UnitSystem::Imperial)),
+        );
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.units, UnitSystem::Imperial);
+
+        // Saving anything else keeps the units picked in the top bar.
+        run(&mut app, Message::SetUnits(UnitSystem::Metric));
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.units, UnitSystem::Metric);
     }
 
     #[test]
@@ -362,7 +754,10 @@ mod tests {
         let (mut app, _dir) = app();
         run(&mut app, Message::Error(logic_error()));
 
-        run(&mut app, Message::Inventory(inventory::Message::SwapUnits));
+        run(
+            &mut app,
+            Message::Inventory(inventory::Message::SetUnits(UnitSystem::Imperial)),
+        );
         run(&mut app, Message::NoOp);
         run(&mut app, Message::ReloadScreen);
 
@@ -394,9 +789,481 @@ mod tests {
         assert_eq!(task.units(), 1);
     }
 
+    fn press(key: Key, modifiers: keyboard::Modifiers, repeat: bool) -> Event {
+        Event::Keyboard(keyboard::Event::KeyPressed {
+            modified_key: key.clone(),
+            key,
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers,
+            text: None,
+            repeat,
+        })
+    }
+
+    fn shortcut_for(event: Event, status: event::Status) -> Option<Message> {
+        shortcut(event, status, window::Id::unique())
+    }
+
+    fn named(key: Named) -> Event {
+        press(Key::Named(key), keyboard::Modifiers::default(), false)
+    }
+
     #[test]
-    fn theme_is_kanagawa_wave() {
+    fn navigation_keys_map_to_their_messages() {
+        let ignored = event::Status::Ignored;
+        let shift_tab = press(Key::Named(Named::Tab), keyboard::Modifiers::SHIFT, false);
+        assert!(matches!(
+            shortcut_for(named(Named::Tab), ignored),
+            Some(Message::FocusNext)
+        ));
+        assert!(matches!(
+            shortcut_for(shift_tab, ignored),
+            Some(Message::FocusPrevious)
+        ));
+        assert!(matches!(
+            shortcut_for(named(Named::Enter), ignored),
+            Some(Message::Submit)
+        ));
+        assert!(matches!(
+            shortcut_for(named(Named::Escape), ignored),
+            Some(Message::Cancel)
+        ));
+    }
+
+    #[test]
+    fn keys_a_widget_used_are_left_alone() {
+        let captured = event::Status::Captured;
+        for key in [Named::Tab, Named::Enter, Named::Escape] {
+            assert!(shortcut_for(named(key), captured).is_none(), "{key:?}");
+        }
+    }
+
+    #[test]
+    fn held_enter_and_escape_do_not_repeat_but_tab_does() {
+        let ignored = event::Status::Ignored;
+        let held = |key| press(Key::Named(key), keyboard::Modifiers::default(), true);
+        assert!(shortcut_for(held(Named::Enter), ignored).is_none());
+        assert!(shortcut_for(held(Named::Escape), ignored).is_none());
+        assert!(matches!(
+            shortcut_for(held(Named::Tab), ignored),
+            Some(Message::FocusNext)
+        ));
+    }
+
+    #[test]
+    fn other_events_are_not_shortcuts() {
+        let ignored = event::Status::Ignored;
+        let letter = press(
+            Key::Character("a".into()),
+            keyboard::Modifiers::default(),
+            false,
+        );
+        let release = Event::Keyboard(keyboard::Event::KeyReleased {
+            key: Key::Named(Named::Enter),
+            modified_key: Key::Named(Named::Enter),
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::default(),
+        });
+        assert!(shortcut_for(letter, ignored).is_none());
+        assert!(shortcut_for(named(Named::Space), ignored).is_none());
+        assert!(shortcut_for(release, ignored).is_none());
+    }
+
+    #[test]
+    fn focus_messages_return_a_focus_task() {
+        let (mut app, _dir) = app();
+        assert_eq!(app.update(Message::FocusNext).units(), 1);
+        assert_eq!(app.update(Message::FocusPrevious).units(), 1);
+    }
+
+    fn type_item(app: &mut Bartend, message: ItemMessage) {
+        let input = inventory::Message::Editor(EditorMessage::Input(message));
+        run(app, Message::Inventory(input));
+    }
+
+    #[test]
+    fn submit_saves_the_active_form() {
+        let (mut app, _dir) = app();
+        type_item(&mut app, ItemMessage::Name("Tanqueray".to_string()));
+        type_item(&mut app, ItemMessage::Quantity("750".to_string()));
+
+        run(&mut app, Message::Submit);
+
+        assert_eq!(app.item_service.item_count(), 1);
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn submit_with_an_invalid_form_saves_nothing() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::Submit);
+        assert_eq!(app.item_service.item_count(), 0);
+    }
+
+    #[test]
+    fn cancel_discards_the_entry() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Categories));
+        let name = CategoryMessage::Name("Gin".to_string());
+        run(
+            &mut app,
+            Message::Categories(categories::Message::Editor(EditorMessage::Input(name))),
+        );
+
+        run(&mut app, Message::Cancel);
+        run(&mut app, Message::Submit);
+
+        assert_eq!(app.category_service.category_count(), 0);
+    }
+
+    #[test]
+    fn cancel_without_an_editor_does_nothing() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(
+            &mut app,
+            Message::Settings(settings::Message::UpdateUnitSystem(UnitSystem::Imperial)),
+        );
+
+        run(&mut app, Message::Cancel);
+        run(&mut app, Message::Submit);
+
+        assert_eq!(app.config.default_units(), UnitSystem::Imperial);
+    }
+
+    #[test]
+    fn the_default_theme_is_navy_and_champagne() {
         let (app, _dir) = app();
-        assert_eq!(app.theme(), Theme::KanagawaWave);
+        assert_eq!(app.theme(), navy_and_champagne());
+    }
+
+    /// Opens Settings and picks `theme`, without saving.
+    fn preview(app: &mut Bartend, theme: Theme) {
+        run(app, Message::OpenScreen(ScreenKind::Settings));
+        run(app, Message::PreviewTheme(theme));
+    }
+
+    #[test]
+    fn picking_a_theme_shows_it_before_saving() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        assert_eq!(app.theme(), Theme::Nord);
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+    }
+
+    #[test]
+    fn canceling_settings_restores_the_saved_theme() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        run(&mut app, Message::ResetSettings);
+        assert_eq!(app.theme(), navy_and_champagne());
+
+        // The staged edit is discarded too.
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+    }
+
+    #[test]
+    fn leaving_settings_restores_the_saved_theme() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        run(&mut app, Message::OpenScreen(ScreenKind::Inventory));
+
+        assert_eq!(app.theme(), navy_and_champagne());
+    }
+
+    #[test]
+    fn saving_keeps_the_previewed_theme() {
+        let (mut app, _dir) = app();
+        preview(&mut app, Theme::Nord);
+
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert!(app.preview_theme.is_none());
+        assert_eq!(app.theme(), Theme::Nord);
+        let on_disk = Config::load(Some(app.config.path().clone()), None).unwrap();
+        assert_eq!(on_disk.theme(), &ThemeChoice::BuiltIn("Nord".to_string()));
+    }
+
+    #[test]
+    fn a_theme_picked_off_settings_is_ignored() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::PreviewTheme(Theme::Nord));
+
+        assert_eq!(app.theme(), navy_and_champagne());
+    }
+
+    /// The app's config with the given theme and styling names saved.
+    fn saved_as(app: &Bartend, theme: &str, styling: &str) -> Config {
+        let mut config = app.config.editable();
+        config.theme = ThemeChoice::BuiltIn(theme.to_string());
+        config.styling = StylingChoice::BuiltIn(styling.to_string());
+        config.commit()
+    }
+
+    /// The startup notice for `config`, from the app's own registries.
+    fn notice(app: &Bartend, config: &Config) -> Option<BartendError> {
+        appearance_notice(config, &app.themes, &app.stylings)
+    }
+
+    #[test]
+    fn a_saved_custom_palette_is_drawn_from_its_copy_without_a_notice() {
+        let (mut app, _dir) = app();
+        let mut config = app.config.editable();
+        config.theme = ThemeChoice::Custom(sample("Harbor"));
+        app.config = config.commit();
+
+        // No palettes file exists: the config's copy is enough.
+        assert!(!app.config.palettes_path().exists());
+        assert_eq!(app.theme(), custom_theme(&sample("Harbor")));
+        assert!(notice(&app, &app.config).is_none());
+    }
+
+    /// The app on Settings, with a style and a palette previewed and the
+    /// palette editor open on a copy of the default palette.
+    fn editing_a_new_palette() -> (Bartend, tempfile::TempDir) {
+        let (mut app, dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(&mut app, Message::PreviewTheme(Theme::Nord));
+        run(&mut app, Message::PreviewStyling(PLAIN_OPTION));
+        run(&mut app, Message::Settings(settings::Message::NewPalette));
+        (app, dir)
+    }
+
+    /// Like [`run`], but after each message checks that the palette the
+    /// app is drawn in is the one Settings' picker shows: what any frame
+    /// drawn at that moment would show.
+    fn run_in_step(app: &mut Bartend, message: Message) {
+        let mut queue = vec![message];
+        while let Some(message) = queue.pop() {
+            queue.extend(drain(app.update(message)));
+            if let Screen::Settings(settings) = &app.screen {
+                assert_eq!(
+                    app.theme(),
+                    settings.picked_theme(),
+                    "a frame would show one palette in use and another picked"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn no_frame_shows_the_palette_in_use_out_of_step_with_settings() {
+        let (mut app, _dir) = app();
+        run_in_step(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run_in_step(&mut app, Message::Settings(settings::Message::NewPalette));
+        run_in_step(&mut app, Message::Settings(settings::Message::SavePalette));
+        assert!(matches!(app.config.theme(), ThemeChoice::Custom(_)));
+
+        run_in_step(
+            &mut app,
+            Message::Settings(settings::Message::DeletePalette),
+        );
+        run_in_step(
+            &mut app,
+            Message::Settings(settings::Message::ConfirmDeletePalette),
+        );
+
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn a_palette_whose_config_cannot_be_saved_is_reported_and_not_used() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+        run(&mut app, Message::Settings(settings::Message::NewPalette));
+        // The config can no longer be written, but the palettes file can.
+        std::fs::remove_file(app.config.path()).unwrap();
+        std::fs::create_dir(app.config.path()).unwrap();
+
+        run_in_step(&mut app, Message::Settings(settings::Message::SavePalette));
+
+        assert!(matches!(
+            app.error,
+            Some(BartendError::Config(ConfigError::WriteError))
+        ));
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+        assert_eq!(app.theme(), navy_and_champagne());
+        let palettes = PaletteFile::load(app.config.palettes_path()).unwrap();
+        assert_eq!(palettes.palettes().len(), 1, "the palette itself was saved");
+    }
+
+    #[test]
+    fn saving_a_palette_shows_it_and_keeps_the_style_preview() {
+        let (mut app, _dir) = editing_a_new_palette();
+
+        run(&mut app, Message::Submit);
+
+        let ThemeChoice::Custom(palette) = app.config.theme().clone() else {
+            panic!("the new palette should be in use");
+        };
+        assert_eq!(palette.name, "Nord copy");
+        assert!(app.preview_theme.is_none());
+        assert_eq!(app.theme(), custom_theme(&palette));
+        assert_eq!(app.styling(), PLAIN, "the style stays previewed, unsaved");
+        assert_eq!(app.config.styling(), &StylingChoice::default());
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn escape_closes_the_palette_editor_and_keeps_the_previews() {
+        let (mut app, _dir) = editing_a_new_palette();
+
+        run(&mut app, Message::Cancel);
+        // A second Escape has nothing left to close.
+        run(&mut app, Message::Cancel);
+
+        assert_eq!(app.theme(), Theme::Nord);
+        assert_eq!(app.styling(), PLAIN);
+        assert_eq!(app.config.theme(), &ThemeChoice::default());
+    }
+
+    #[test]
+    fn opening_settings_reports_an_unreadable_palettes_file() {
+        let (mut app, _dir) = app();
+        std::fs::write(app.config.palettes_path(), "{ not a list").unwrap();
+
+        run(&mut app, Message::OpenScreen(ScreenKind::Settings));
+
+        assert_eq!(app.screen.kind(), ScreenKind::Settings);
+        assert!(matches!(
+            app.error,
+            Some(BartendError::Config(ConfigError::UnreadablePalettes))
+        ));
+    }
+
+    #[test]
+    fn known_saved_appearance_needs_no_notice() {
+        let (app, _dir) = app();
+        assert!(notice(&app, &app.config).is_none());
+    }
+
+    #[test]
+    fn an_unknown_saved_theme_is_reported_at_startup() {
+        let (app, _dir) = app();
+        let config = saved_as(&app, "Not A Theme", "Art Deco");
+
+        assert!(matches!(
+            notice(&app, &config),
+            Some(BartendError::Config(ConfigError::UnknownTheme(_)))
+        ));
+        assert_eq!(app.themes.resolve(config.theme()), navy_and_champagne());
+    }
+
+    #[test]
+    fn an_unknown_saved_styling_is_reported_at_startup() {
+        let (app, _dir) = app();
+        let config = saved_as(&app, "Nord", "Not A Style");
+
+        assert!(matches!(
+            notice(&app, &config),
+            Some(BartendError::Config(ConfigError::UnknownStyling(_)))
+        ));
+        assert_eq!(
+            app.stylings.resolve(config.styling()).styling,
+            Styling::ART_DECO
+        );
+    }
+
+    #[test]
+    fn an_unknown_theme_and_styling_are_reported_together() {
+        let (app, _dir) = app();
+        let config = saved_as(&app, "Not A Theme", "Not A Style");
+
+        assert!(matches!(
+            notice(&app, &config),
+            Some(BartendError::Config(ConfigError::UnknownThemeAndStyling(theme, styling)))
+                if theme == *config.theme() && styling == *config.styling()
+        ));
+    }
+
+    #[test]
+    fn the_default_styling_is_art_deco() {
+        let (app, _dir) = app();
+        assert_eq!(app.styling(), Styling::ART_DECO);
+    }
+
+    /// Opens Settings and picks the plain styling, without saving.
+    fn preview_plain(app: &mut Bartend) {
+        run(app, Message::OpenScreen(ScreenKind::Settings));
+        run(app, Message::PreviewStyling(PLAIN_OPTION));
+    }
+
+    #[test]
+    fn picking_a_styling_shows_it_before_saving() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        assert_eq!(app.styling(), PLAIN);
+        assert_eq!(app.config.styling(), &StylingChoice::default());
+    }
+
+    #[test]
+    fn canceling_settings_restores_the_saved_styling() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        run(&mut app, Message::ResetSettings);
+        assert_eq!(app.styling(), Styling::ART_DECO);
+
+        // The staged edit is discarded too.
+        run(&mut app, Message::Settings(settings::Message::Save));
+        assert_eq!(app.config.styling(), &StylingChoice::default());
+    }
+
+    #[test]
+    fn leaving_settings_restores_the_saved_styling() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        run(&mut app, Message::OpenScreen(ScreenKind::Inventory));
+
+        assert_eq!(app.styling(), Styling::ART_DECO);
+    }
+
+    #[test]
+    fn saving_keeps_the_previewed_styling() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert!(app.preview_styling.is_none());
+        assert_eq!(app.styling(), PLAIN);
+        let on_disk = Config::load(Some(app.config.path().clone()), None).unwrap();
+        assert_eq!(
+            on_disk.styling(),
+            &StylingChoice::BuiltIn(PLAIN_OPTION.name.to_string())
+        );
+    }
+
+    #[test]
+    fn a_styling_picked_off_settings_is_ignored() {
+        let (mut app, _dir) = app();
+        run(&mut app, Message::PreviewStyling(PLAIN_OPTION));
+
+        assert_eq!(app.styling(), Styling::ART_DECO);
+    }
+
+    #[test]
+    fn the_style_and_palette_preview_together_and_save_together() {
+        let (mut app, _dir) = app();
+        preview_plain(&mut app);
+        run(&mut app, Message::PreviewTheme(Theme::Nord));
+        assert_eq!((app.styling(), app.theme()), (PLAIN, Theme::Nord));
+
+        run(&mut app, Message::Settings(settings::Message::Save));
+
+        assert_eq!((app.styling(), app.theme()), (PLAIN, Theme::Nord));
     }
 }

@@ -1,114 +1,139 @@
+use std::fmt::Display;
+
+use iced::Element;
+
 use crate::{
-    models::{CategoryBody, Config, UnitSystem},
+    models::{CategoryBody, UnitSystem},
     presentation::{
-        Viewable,
-        application::Message,
-        input_handling::{Field, FormError, InputMessage, UnknownTarget, Validator},
-        widget::input::{Input, InputContents, StringInput},
+        input_handling::{Form, FormError, Validator},
+        styling::Styling,
+        widget::{detail::labeled, input::StringField},
     },
 };
 
+/// An edit to one field of a [`CategoryInput`].
+#[derive(Debug, Clone)]
+pub enum CategoryMessage {
+    Name(String),
+}
+
+/// A field of a [`CategoryInput`], as named in its [`FormError`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CategoryField {
+    Name,
+}
+
+impl Display for CategoryField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CategoryField::Name => write!(f, "Name"),
+        }
+    }
+}
+
+/// The form for adding a category or renaming one.
 #[derive(Debug)]
 pub struct CategoryInput {
-    name_input: StringInput<Message>,
+    name_input: StringField,
 }
 
 impl CategoryInput {
-    pub fn new(_config: &Config, msg: fn(InputMessage) -> Message) -> Self {
+    pub fn new() -> Self {
         Self {
-            name_input: StringInput::new(
-                move |id, str| msg(InputMessage::String(id, str)),
-                "Name".to_string(),
-                String::new(),
-            ),
+            name_input: StringField::new(""),
         }
     }
+}
 
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self) -> iced::Element<'_, Message> {
-        self.name_input.view()
-    }
+impl Form for CategoryInput {
+    type Message = CategoryMessage;
+    type Field = CategoryField;
+    type Output = CategoryBody;
+    type Value = CategoryBody;
 
-    pub fn update(&mut self, msg: InputMessage) -> Result<(), UnknownTarget> {
+    fn update(&mut self, msg: CategoryMessage) {
         match msg {
-            InputMessage::String(id, new_text) if self.name_input.id() == &id => {
-                self.name_input.update(new_text);
-                Ok(())
-            }
-            msg => Err(UnknownTarget(msg)),
+            CategoryMessage::Name(text) => self.name_input.set(text),
         }
     }
 
-    pub fn output(&mut self) -> Result<CategoryBody, FormError> {
+    fn validate(&self) -> Result<CategoryBody, FormError<CategoryField>> {
         let mut validator = Validator::default();
-        let name = validator.check(Field::Name, self.name_input.get_output());
+        let name = validator.check(CategoryField::Name, self.name_input.value());
         match name {
-            Some(name) => {
-                self.clear();
-                Ok(CategoryBody { name })
-            }
+            Some(name) => Ok(CategoryBody { name }),
             None => Err(validator.into_error()),
         }
     }
-    pub fn clear(&mut self) {
+
+    fn clear(&mut self) {
         self.name_input.clear();
     }
-    pub fn begin_edit(&mut self, edit: &CategoryBody, _unit_system: UnitSystem) {
-        self.clear();
-        self.name_input.update(edit.name.clone());
+
+    fn fill(&mut self, value: &CategoryBody, _units: UnitSystem) {
+        self.name_input.set(value.name.clone());
     }
-    #[cfg(test)]
-    pub fn name_id(&self) -> iced::widget::Id {
-        self.name_input.id().clone()
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn view(&self, styling: &Styling, show_errors: bool) -> Element<'_, CategoryMessage> {
+        labeled(
+            styling,
+            "Name",
+            self.name_input
+                .view(styling, CategoryMessage::Name, show_errors),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use iced::widget::Id;
-
     use super::*;
-    use crate::presentation::{
-        input_handling::{
-            FormError,
-            test_support::{config, msg},
-        },
-        widget::input::Error,
-    };
+    use crate::presentation::{input_handling::FormError, widget::input::Error};
 
     fn set_name(input: &mut CategoryInput, name: &str) {
-        let id = input.name_input.id().clone();
-        input
-            .update(InputMessage::String(id, name.to_string()))
-            .unwrap();
+        input.update(CategoryMessage::Name(name.to_string()));
     }
 
     #[test]
     fn empty_name_reports_name_field() {
-        let mut input = CategoryInput::new(&config(), msg);
+        let input = CategoryInput::new();
         assert_eq!(
-            input.output(),
-            Err(FormError(vec![(Field::Name, Error::StringEmpty)]))
+            input.validate(),
+            Err(FormError(vec![(CategoryField::Name, Error::StringEmpty)]))
         );
     }
 
     #[test]
-    fn valid_name_is_returned_and_form_cleared() {
-        let mut input = CategoryInput::new(&config(), msg);
+    fn valid_name_is_returned() {
+        let mut input = CategoryInput::new();
         set_name(&mut input, "Gin");
-        assert_eq!(
-            input.output(),
-            Ok(CategoryBody {
-                name: "Gin".to_string()
-            })
-        );
-        assert!(input.output().is_err(), "form should be empty after a save");
+        let gin = Ok(CategoryBody {
+            name: "Gin".to_string(),
+        });
+        assert_eq!(input.validate(), gin);
+        assert_eq!(input.validate(), gin, "validating changes nothing");
     }
 
     #[test]
-    fn message_for_unknown_field_is_rejected() {
-        let mut input = CategoryInput::new(&config(), msg);
-        let stale = InputMessage::String(Id::unique(), "Gin".to_string());
-        assert!(input.update(stale).is_err());
+    fn clear_empties_the_name() {
+        let mut input = CategoryInput::new();
+        set_name(&mut input, "Gin");
+        input.clear();
+        input.validate().unwrap_err();
+    }
+
+    #[test]
+    fn editing_fills_the_name() {
+        let mut input = CategoryInput::new();
+        let gin = CategoryBody {
+            name: "Gin".to_string(),
+        };
+        input.fill(&gin, UnitSystem::Metric);
+        assert_eq!(input.validate(), Ok(gin));
+    }
+
+    #[test]
+    fn fields_display_their_names() {
+        assert_eq!(CategoryField::Name.to_string(), "Name");
     }
 }

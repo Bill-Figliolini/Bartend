@@ -1,44 +1,54 @@
 use iced::{
     Element,
-    Length::Fill,
+    Length::{Fill, Shrink},
     Task,
-    widget::{column, container, row, table, text},
+    widget::{Column, column, row},
 };
 
 use crate::{
-    logic::{CategoryService, ItemService},
+    logic::{CategoryService, ItemService, RecipeService, RecipeUse, StockLevel, recipes_using},
     models::{Category, CategoryFilter, CategoryID, Config, Item, ItemBody, ItemID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{InputMessage, ItemInput, UnknownTarget},
-        widget::{footer::footer, header::header, text_style::title},
+        constants,
+        input_handling::{Editor, EditorMessage, ItemInput, ItemMessage, Saved},
+        screen::{
+            Panels,
+            shared::{
+                breadcrumb_label, breadcrumb_line, counted, detail_header, form_page,
+                reload_or_error, report_error,
+            },
+        },
+        styling::Styling,
+        widget::{
+            controls,
+            detail::{card, gauge, hint, link_row, stat_tile},
+            framed_card::FramedCard,
+            master_list::{Entry, master_list},
+        },
     },
 };
 
 #[derive(Debug)]
 pub struct Inventory {
-    input: ItemInput,
-
-    current_page: usize,
+    editor: Editor<ItemInput, ItemID>,
+    /// The item shown in the detail panel; `None` shows the new-item form.
+    selected: Option<ItemID>,
     unit_system: UnitSystem,
-
-    edit_state: EditState,
-}
-#[derive(Debug)]
-enum EditState {
-    None,
-    Editing(ItemID),
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Save,
-    SwapUnits,
+    /// Shows amounts in the given unit system, as picked in the top bar.
+    SetUnits(UnitSystem),
+    /// Shows the item in the detail panel, or the new-item form for `None`.
+    /// Any edit in progress is discarded.
+    Select(Option<ItemID>),
+    /// Starts editing the item, which is in the given category, or cancels
+    /// if it is already being edited.
     BeginEdit(ItemID, Option<Category>),
-    CancelEdit,
-    Input(InputMessage),
+    Editor(EditorMessage<ItemMessage>),
     DeleteItem(ItemID),
-    SelectPage(usize),
 
     //Variants for Application's use
     Reload,
@@ -53,273 +63,269 @@ impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
             Command::Add(item_body, category_id) => {
-                let mut tasks = Vec::new();
                 let item_id = match ctx.item_service.add(&ctx.database.item_db(), &item_body) {
-                    Ok(id) => {
-                        tasks.push(Task::done(application::Message::ReloadScreen));
-                        id
-                    }
+                    Ok(id) => id,
                     Err(e) => return Task::done(application::Message::Error(e)),
                 };
-                if let Some(category_id) = category_id
-                    && let Err(e) = ctx.category_service.add_item_mapping(
+                let mapping = category_id.map_or(Ok(()), |category_id| {
+                    ctx.category_service.add_item_mapping(
                         &ctx.database.category_db(),
                         item_id,
                         category_id,
                     )
-                {
-                    tasks.push(Task::done(application::Message::Error(e)));
-                }
-                Task::batch(tasks)
+                });
+                Task::batch([
+                    Task::done(application::Message::ReloadScreen),
+                    report_error(mapping),
+                ])
             }
             Command::Update(item, category_id) => {
-                let mut tasks = Vec::new();
                 let item_id = item.id;
-                if let Err(e) = ctx.item_service.update(&ctx.database.item_db(), item) {
-                    tasks.push(Task::done(application::Message::Error(e)));
-                } else {
-                    tasks.push(Task::done(application::Message::ReloadScreen));
-                }
-                if let Err(e) = ctx.category_service.update_item_mapping(
+                let update = ctx.item_service.update(&ctx.database.item_db(), item);
+                let mapping = ctx.category_service.update_item_mapping(
                     &ctx.database.category_db(),
                     item_id,
                     category_id,
-                ) {
-                    tasks.push(Task::done(application::Message::Error(e)));
-                }
-                Task::batch(tasks)
+                );
+                Task::batch([reload_or_error(update), report_error(mapping)])
             }
-            Command::Delete(id) => match ctx.item_service.delete(&ctx.database.item_db(), id) {
-                Ok(()) => Task::done(application::Message::ReloadScreen),
-                Err(e) => Task::done(application::Message::Error(e)),
-            },
+            Command::Delete(id) => {
+                reload_or_error(ctx.item_service.delete(&ctx.database.item_db(), id))
+            }
         }
     }
 }
 
 impl Inventory {
-    pub fn new(config: &Config, category_service: &CategoryService) -> Self {
-        let unit_system = config.default_units();
+    /// The unit system amounts are shown in.
+    #[cfg(test)]
+    pub fn units(&self) -> UnitSystem {
+        self.unit_system
+    }
 
+    pub fn new(config: &Config, category_service: &CategoryService, units: UnitSystem) -> Self {
+        let form = ItemInput::new(config, category_service.get_all(CategoryFilter {}));
         Self {
-            // Input Handlers
-            input: ItemInput::new(
-                config,
-                input_msg,
-                category_service.get_all(CategoryFilter {}),
-            ),
-
-            // Display Managers
-            unit_system,
-            current_page: 0,
-
-            // Input State
-            edit_state: EditState::None,
+            editor: Editor::new(form, "Item"),
+            selected: None,
+            unit_system: units,
         }
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_item_entry_section(&self) -> Element<'_, application::Message> {
-        let entry_header = match self.edit_state {
-            EditState::None => text("New Item:"),
-            EditState::Editing(_) => text("Edit Item:"),
-        };
-        let save_button = iced::widget::Button::new(text("save"))
-            .on_press(application::Message::Inventory(Message::Save));
-        column![entry_header, row![self.input.view(), save_button]].into()
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_inventory_display(
-        &self,
-        item_service: &ItemService,
-        category_service: &CategoryService,
-    ) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(Fill), |item: ItemID| {
-            text(item_service.get(item).cloned().unwrap_or_default().name)
-        });
-        let quantity_column = table::column(text("Quantity"), |item: ItemID| {
-            let item = item_service.get(item).cloned().unwrap_or_default();
-            text!(
-                "{:.0} {}",
-                item.quantity.value(self.unit_system),
-                item.quantity.unit(self.unit_system).to_string()
-            )
-        });
-        let category_column =
-            table::column(
-                text("Category").width(200),
-                |item: ItemID| match category_service.item_category(item) {
-                    Some(cat_id) => text(
-                        category_service
-                            .get(cat_id)
-                            .cloned()
-                            .unwrap_or_default()
-                            .name,
-                    ),
-                    None => text!("None"),
-                },
-            );
-        //Something is wrong in the design here. Might be a misunderstanding of how to handle the edit state
-        let edit_column_width = 70;
-        let edit_column = table::column(
-            text("Edit").width(edit_column_width).center(),
-            |item: ItemID| match self.edit_state {
-                EditState::None => {
-                    let category = category_service.item_category(item).map(|id_ref| Category {
-                        id: id_ref,
-                        body: category_service.get(id_ref).cloned().unwrap_or_default(),
-                    });
-                    iced::widget::Button::new(text("Edit").center()).on_press(
-                        application::Message::Inventory(Message::BeginEdit(item, category)),
-                    )
-                }
-                .width(edit_column_width),
-                EditState::Editing(item_id) if item == item_id => {
-                    iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::Inventory(Message::CancelEdit))
-                        .width(edit_column_width)
-                }
-                EditState::Editing(_) => {
-                    iced::widget::Button::new(text("Edit").center()).width(edit_column_width)
-                }
-            },
-        );
-        let delete_column_width = 50;
-        let delete_column = table::column(
-            text("Delete").width(delete_column_width).center(),
-            |item: ItemID| {
-                iced::widget::Button::new(text("X").width(delete_column_width).center())
-                    .on_press(application::Message::Inventory(Message::DeleteItem(item)))
-            },
-        );
-        let columns = vec![
-            name_column,
-            quantity_column,
-            category_column,
-            edit_column,
-            delete_column,
-        ];
-        let contents = item_service.get_page(self.current_page, 15);
-        table(columns, contents).into()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        styling: &Styling,
         item_service: &ItemService,
         category_service: &CategoryService,
+        recipe_service: &RecipeService,
+    ) -> Panels<'_> {
+        let entries = item_service.sorted_ids().into_iter().map(|id| Entry {
+            label: item_service.name_of(id),
+            selected: self.selected == Some(id),
+            on_press: inventory_msg(Message::Select(Some(id))),
+            dimmed: false,
+        });
+        let new = (
+            "+ New Item".to_string(),
+            inventory_msg(Message::Select(None)),
+        );
+        let master = master_list(styling, Some(new), entries, "No items yet");
+
+        let detail = match self.selected {
+            Some(item) if self.editor.editing().is_none() => self.item_details(
+                styling,
+                item,
+                item_service,
+                category_service,
+                recipe_service,
+            ),
+            _ => self.form_view(styling),
+        };
+        Panels { master, detail }
+    }
+
+    /// The read-only view of `item`: its name and category, tiles for its
+    /// stock and how many recipes use it, then a list of those recipes.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn item_details(
+        &self,
+        styling: &Styling,
+        item: ItemID,
+        item_service: &ItemService,
+        category_service: &CategoryService,
+        recipe_service: &RecipeService,
     ) -> Element<'_, application::Message> {
-        let title_text = title("Inventory");
-        let header = header(title_text);
+        let body = item_service.get(item).cloned().unwrap_or_default();
+        let category = category_service.item_category(item).map(|id| Category {
+            id,
+            body: category_service.get(id).cloned().unwrap_or_default(),
+        });
+        let uses = recipes_using(item, item_service, category_service, recipe_service);
 
-        let entry_section = self.build_item_entry_section();
+        let breadcrumb = category
+            .as_ref()
+            .and_then(|category| breadcrumb_label(category.id, category_service));
+        // The stock tile always has a line under its figure, so it is the
+        // taller one and sets the row's height.
+        let tiles = row![
+            self.stock_tile(styling, &body),
+            uses_tile(styling, &uses).height(Fill)
+        ]
+        .spacing(constants::SPACING)
+        .height(Shrink);
+        let used_in = self.used_in_card(styling, &uses, category.is_some());
+        let header = header(styling, item, body.name, breadcrumb, category);
 
-        let inventory = self.build_inventory_display(item_service, category_service);
+        controls::scrolling(styling, column![header, tiles, used_in].spacing(16)).into()
+    }
 
-        let body_contents = column![entry_section, inventory];
-        let body = container(body_contents).align_top(Fill);
+    /// The new- or edit-item form, laid out like the item's details: the
+    /// heading with Save and Cancel to its right, then the fields in a card.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn form_view(&self, styling: &Styling) -> Element<'_, application::Message> {
+        let note = if self.editor.editing().is_some() {
+            "Change any details, then Save."
+        } else {
+            "Add something you stock, then Save."
+        };
+        form_page(
+            styling,
+            self.editor.title(),
+            note,
+            self.editor.buttons(styling).map(editor_msg),
+            self.editor.form_view(styling).map(editor_msg),
+        )
+    }
 
-        let mut page_controller_contents = Vec::new();
-        if self.current_page != 0 {
-            let previous_page = self.current_page.wrapping_sub(1);
-            let previous_page_button = iced::widget::button("Previous")
-                .on_press(application::Message::Inventory(Message::SelectPage(
-                    previous_page,
-                )))
-                .into();
-            page_controller_contents.push(previous_page_button);
-        }
-        let space = iced::widget::space().width(Fill).into();
-        page_controller_contents.push(space);
-        if (self.current_page + 1) * 15 < item_service.item_count() {
-            let next_page = self.current_page.wrapping_add(1);
-            let next_page_button = iced::widget::button("Next")
-                .on_press(application::Message::Inventory(Message::SelectPage(
-                    next_page,
-                )))
-                .into();
-            page_controller_contents.push(next_page_button);
-        }
-        let page_controller = row(page_controller_contents);
-        let unit_swap_button = iced::widget::Button::new(text(self.unit_system.to_string()))
-            .on_press(application::Message::Inventory(Message::SwapUnits));
-        let footer_contents = row![unit_swap_button];
-        let footer_container = iced::widget::Container::new(footer_contents).align_left(Fill);
-        let footer = footer(footer_container);
+    /// How much is in stock, with a gauge against the full size if the
+    /// item has one.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn stock_tile(&self, styling: &Styling, body: &ItemBody) -> Element<'_, application::Message> {
+        let units = self.unit_system;
+        let gauge_parts = body
+            .fill_fraction()
+            .zip(StockLevel::of(body))
+            .zip(body.full_size);
+        let below: Element<'_, _> = match gauge_parts {
+            Some(((fraction, level), full_size)) => {
+                let full = hint(format!("of {} full size", full_size.readable(units)));
+                column![gauge(styling, fraction, level), full]
+                    .spacing(4)
+                    .into()
+            }
+            None => hint("Add a full size to see how full it is").into(),
+        };
+        stat_tile(
+            styling,
+            "In stock",
+            body.quantity.readable(units),
+            Some(below),
+        )
+        .into()
+    }
 
-        column![header, body, page_controller, footer].into()
+    /// The recipes the item can go into, each opening on the Recipes
+    /// screen when clicked.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn used_in_card(
+        &self,
+        styling: &Styling,
+        uses: &[RecipeUse],
+        has_category: bool,
+    ) -> Element<'_, application::Message> {
+        let content: Element<'_, _> = if uses.is_empty() {
+            let note = if has_category {
+                "No recipe calls for this item's category yet."
+            } else {
+                "Give this item a category to use it in recipes."
+            };
+            hint(note).into()
+        } else {
+            Column::with_children(uses.iter().map(|usage| {
+                link_row(
+                    usage.name.clone(),
+                    usage.amount.readable(self.unit_system),
+                    application::Message::ShowRecipe(usage.recipe),
+                )
+            }))
+            .into()
+        };
+        card(styling, Some("Used in"), content)
     }
 
     pub fn update(&mut self, item_service: &ItemService, message: Message) -> Option<Command> {
         match message {
-            Message::SwapUnits => {
-                self.unit_system.swap();
+            Message::SetUnits(units) => {
+                self.unit_system = units;
                 None
             }
-            Message::CancelEdit => {
-                self.edit_state = EditState::None;
+            Message::Select(item) => {
+                self.editor.reset();
+                self.selected = item;
                 None
             }
-            Message::Input(msg) => {
-                self.input
-                    .update(msg)
-                    .unwrap_or_else(UnknownTarget::discard);
-                None
-            }
-            Message::BeginEdit(item, category) => match self.edit_state {
-                EditState::None => {
-                    self.edit_state = EditState::Editing(item);
-                    self.input.begin_edit(
-                        &(
-                            item_service.get(item).cloned().unwrap_or_default(),
-                            category,
-                        ),
-                        self.unit_system,
-                    );
-                    None
+            Message::Editor(msg) => match self.editor.update(msg) {
+                Ok(Some(Saved::Add((body, category)))) => {
+                    Some(Command::Add(body, category.map(|category| category.id)))
                 }
-                EditState::Editing(item_id) if item == item_id => {
-                    self.input.clear();
-                    self.edit_state = EditState::None;
-                    None
-                }
-                EditState::Editing(_) => None,
+                Ok(Some(Saved::Update(id, (body, category)))) => Some(Command::Update(
+                    Item { id, body },
+                    category.map(|category| category.id),
+                )),
+                Ok(None) | Err(_) => None,
             },
-            Message::Save => {
-                if let Ok(result) = self.input.output() {
-                    match self.edit_state {
-                        EditState::None => Some(Command::Add(result.0, result.1.map(|cat| cat.id))),
-                        EditState::Editing(item_id) => Some(Command::Update(
-                            Item {
-                                id: item_id,
-                                body: result.0,
-                            },
-                            result.1.map(|cat| cat.id),
-                        )),
-                    }
-                } else {
-                    None
-                }
+            Message::BeginEdit(item, category) => {
+                let load = || {
+                    (
+                        item_service.get(item).cloned().unwrap_or_default(),
+                        category,
+                    )
+                };
+                self.editor.toggle_edit(item, load, self.unit_system);
+                None
             }
             Message::Reload => {
-                self.input.clear();
-                self.edit_state = EditState::None;
-                self.current_page = self
-                    .current_page
-                    .min(item_service.item_count().div_ceil(15).saturating_sub(1));
+                self.editor.reset();
+                self.selected = self.selected.filter(|&item| item_service.get(item).is_ok());
                 None
             }
             Message::DeleteItem(item) => Some(Command::Delete(item)),
-            Message::SelectPage(page) => {
-                self.current_page = page;
-                None
-            }
         }
     }
 }
-fn input_msg(msg: InputMessage) -> application::Message {
-    application::Message::Inventory(Message::Input(msg))
+
+/// The item's name and category on the left; Edit and Delete on the right.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn header<'a>(
+    styling: &Styling,
+    item: ItemID,
+    name: String,
+    breadcrumb: Option<(String, usize)>,
+    category: Option<Category>,
+) -> Element<'a, application::Message> {
+    detail_header(
+        styling,
+        name,
+        breadcrumb_line(styling, breadcrumb, "No category"),
+        None,
+        inventory_msg(Message::BeginEdit(item, category)),
+        inventory_msg(Message::DeleteItem(item)),
+    )
+}
+
+/// How many recipes the item can go into.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn uses_tile<'a>(styling: &Styling, uses: &[RecipeUse]) -> FramedCard<'a, application::Message> {
+    stat_tile(styling, "Used in", counted(uses.len(), "recipe"), None)
+}
+
+fn inventory_msg(msg: Message) -> application::Message {
+    application::Message::Inventory(msg)
+}
+
+fn editor_msg(msg: EditorMessage<ItemMessage>) -> application::Message {
+    inventory_msg(Message::Editor(msg))
 }
 
 #[cfg(test)]
@@ -332,23 +338,16 @@ mod tests {
         presentation::screen::test_support::{World, drain},
     };
 
-    fn send(screen: &mut Inventory, world: &World, input: InputMessage) {
-        assert!(screen.update(&world.items, Message::Input(input)).is_none());
+    const SAVE: Message = Message::Editor(EditorMessage::Save);
+
+    fn send(screen: &mut Inventory, world: &World, input: ItemMessage) {
+        let input = Message::Editor(EditorMessage::Input(input));
+        assert!(screen.update(&world.items, input).is_none());
     }
 
     fn fill(screen: &mut Inventory, world: &World, name: &str, quantity: &str) {
-        let name_id = screen.input.name_id();
-        let quantity_id = screen.input.quantity_id();
-        send(
-            screen,
-            world,
-            InputMessage::String(name_id, name.to_string()),
-        );
-        send(
-            screen,
-            world,
-            InputMessage::String(quantity_id, quantity.to_string()),
-        );
+        send(screen, world, ItemMessage::Name(name.to_string()));
+        send(screen, world, ItemMessage::Quantity(quantity.to_string()));
     }
 
     fn category(world: &World, id: CategoryID) -> Category {
@@ -377,16 +376,15 @@ mod tests {
     fn saving_a_new_item_adds_it_with_its_category() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         fill(&mut screen, &world, "Tanqueray", "750");
-        let category_id = screen.input.category_id();
         send(
             &mut screen,
             &world,
-            InputMessage::Category(category_id, category(&world, gin)),
+            ItemMessage::Category(category(&world, gin)),
         );
 
-        let command = screen.update(&world.items, Message::Save);
+        let command = screen.update(&world.items, SAVE);
         let Some(command @ Command::Add(_, Some(_))) = command else {
             panic!("expected Add with a category");
         };
@@ -401,9 +399,9 @@ mod tests {
     #[test]
     fn saving_an_invalid_form_does_nothing() {
         let world = World::new();
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         fill(&mut screen, &world, "Tanqueray", "lots");
-        assert!(screen.update(&world.items, Message::Save).is_none());
+        assert!(screen.update(&world.items, SAVE).is_none());
     }
 
     #[test]
@@ -412,6 +410,7 @@ mod tests {
         let body = ItemBody {
             name: "Tanqueray".to_string(),
             quantity: ml(750.0),
+            full_size: None,
         };
 
         let messages = apply(&mut world, Command::Add(body, Some(CategoryID(99))));
@@ -437,18 +436,17 @@ mod tests {
         let vodka = world.add_category("Vodka");
         let item = world.add_item("Tanqueray", 750.0);
         world.map_item(item, gin);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
 
         let edit = Message::BeginEdit(item, Some(category(&world, gin)));
         assert!(screen.update(&world.items, edit).is_none());
         fill(&mut screen, &world, "Tito's", "500");
-        let category_id = screen.input.category_id();
         send(
             &mut screen,
             &world,
-            InputMessage::Category(category_id, category(&world, vodka)),
+            ItemMessage::Category(category(&world, vodka)),
         );
-        let command = screen.update(&world.items, Message::Save);
+        let command = screen.update(&world.items, SAVE);
         let Some(command @ Command::Update(Item { id, .. }, Some(_))) = command else {
             panic!("expected Update with a category");
         };
@@ -480,27 +478,32 @@ mod tests {
         let mut world = World::new();
         let first = world.add_item("Tanqueray", 750.0);
         let second = world.add_item("Beefeater", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
 
         screen.update(&world.items, Message::BeginEdit(first, None));
         screen.update(&world.items, Message::BeginEdit(second, None));
-        assert!(matches!(screen.edit_state, EditState::Editing(id) if id == first));
+        assert_eq!(screen.editor.editing(), Some(first));
 
         screen.update(&world.items, Message::BeginEdit(first, None));
-        assert!(matches!(screen.edit_state, EditState::None));
-        assert!(screen.update(&world.items, Message::Save).is_none());
+        assert_eq!(screen.editor.editing(), None);
+        assert!(screen.update(&world.items, SAVE).is_none());
     }
 
     #[test]
-    fn cancel_edit_returns_to_adding() {
+    fn cancel_edit_returns_to_an_empty_form() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
         screen.update(&world.items, Message::BeginEdit(item, None));
 
-        screen.update(&world.items, Message::CancelEdit);
+        let cancel = Message::Editor(EditorMessage::Cancel);
+        screen.update(&world.items, cancel);
 
-        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.editor.editing(), None);
+        assert!(
+            screen.update(&world.items, SAVE).is_none(),
+            "saving after a cancel must not add a copy of the item"
+        );
     }
 
     #[test]
@@ -526,7 +529,7 @@ mod tests {
     fn deleting_an_item_removes_it() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
-        let mut screen = Inventory::new(&world.config, &world.categories);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
 
         let command = screen.update(&world.items, Message::DeleteItem(item));
         assert_reloads(&apply(&mut world, command.unwrap()));
@@ -535,37 +538,70 @@ mod tests {
     }
 
     #[test]
-    fn swap_units_toggles_the_unit_system() {
+    fn set_units_changes_the_unit_system() {
         let world = World::new();
-        let mut screen = Inventory::new(&world.config, &world.categories);
-        screen.update(&world.items, Message::SwapUnits);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
+        screen.update(&world.items, Message::SetUnits(UnitSystem::Imperial));
         assert_eq!(screen.unit_system, UnitSystem::Imperial);
-        screen.update(&world.items, Message::SwapUnits);
+        screen.update(&world.items, Message::SetUnits(UnitSystem::Metric));
         assert_eq!(screen.unit_system, UnitSystem::Metric);
     }
 
     #[test]
-    fn reload_ends_editing_and_clamps_to_the_last_page() {
+    fn reload_ends_editing_and_keeps_a_live_selection() {
         let mut world = World::new();
-        for i in 0..16 {
-            world.add_item(&format!("Item {i}"), 1.0);
-        }
-        let first = world.items.get_page(0, 1)[0];
-        let mut screen = Inventory::new(&world.config, &world.categories);
-        screen.update(&world.items, Message::BeginEdit(first, None));
-        screen.update(&world.items, Message::SelectPage(5));
+        let item = world.add_item("Tanqueray", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
+        screen.update(&world.items, Message::Select(Some(item)));
+        screen.update(&world.items, Message::BeginEdit(item, None));
 
         screen.update(&world.items, Message::Reload);
 
-        assert!(matches!(screen.edit_state, EditState::None));
-        assert_eq!(screen.current_page, 1);
+        assert_eq!(screen.editor.editing(), None);
+        assert_eq!(screen.selected, Some(item));
     }
 
     #[test]
-    fn stale_input_is_discarded() {
-        let world = World::new();
-        let mut screen = Inventory::new(&world.config, &world.categories);
-        let stale = InputMessage::String(iced::widget::Id::unique(), "Gin".to_string());
-        send(&mut screen, &world, stale);
+    fn reload_after_a_delete_clears_the_selection() {
+        let mut world = World::new();
+        let item = world.add_item("Tanqueray", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
+        screen.update(&world.items, Message::Select(Some(item)));
+
+        let command = screen.update(&world.items, Message::DeleteItem(item));
+        apply(&mut world, command.unwrap());
+        screen.update(&world.items, Message::Reload);
+
+        assert_eq!(screen.selected, None);
+    }
+
+    #[test]
+    fn selecting_an_item_discards_an_edit_in_progress() {
+        let mut world = World::new();
+        let first = world.add_item("Tanqueray", 750.0);
+        let second = world.add_item("Beefeater", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
+        screen.update(&world.items, Message::BeginEdit(first, None));
+
+        screen.update(&world.items, Message::Select(Some(second)));
+
+        assert_eq!(screen.selected, Some(second));
+        assert_eq!(screen.editor.editing(), None);
+        assert!(
+            screen.update(&world.items, SAVE).is_none(),
+            "the discarded edit must not be saved"
+        );
+    }
+
+    #[test]
+    fn selecting_new_clears_the_selection() {
+        let mut world = World::new();
+        let item = world.add_item("Tanqueray", 750.0);
+        let mut screen = Inventory::new(&world.config, &world.categories, UnitSystem::Metric);
+        screen.update(&world.items, Message::Select(Some(item)));
+
+        screen.update(&world.items, Message::Select(None));
+
+        assert_eq!(screen.selected, None);
     }
 }

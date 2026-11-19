@@ -5,10 +5,16 @@ pub(super) struct Migration {
     pub sql: &'static str,
 }
 
-pub(super) const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    sql: V1,
-}];
+pub(super) const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        sql: V1,
+    },
+    Migration {
+        version: 2,
+        sql: V2,
+    },
+];
 #[expect(
     clippy::cast_possible_wrap,
     reason = "the migration count is tiny, and `i64::try_from` is not usable in a const"
@@ -58,11 +64,21 @@ const V1: &str = "
                     FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE RESTRICT,
                 UNIQUE(recipe_id, ingredient_index));
             ";
+
+/// An optional full size per item, stored like its quantity: an amount, and
+/// the kind of unit it is in. Both are NULL when there is none.
+const V2: &str = "
+                ALTER TABLE items ADD COLUMN full_size REAL;
+                ALTER TABLE items ADD COLUMN full_size_unit INTEGER;
+            ";
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
 
-    use crate::persistence::{DBError, DBVersion, Database, LATEST, MIGRATIONS, VERSION_PRAGMA};
+    use crate::persistence::{
+        DBError, DBVersion, Database, LATEST, MIGRATIONS, VERSION_PRAGMA,
+        repositories::ItemRepository,
+    };
 
     #[test]
     fn migration_versions_are_sequential() {
@@ -89,6 +105,26 @@ mod tests {
             assert!(db.connection.table_exists(None, table).unwrap());
         }
     }
+    #[test]
+    fn upgrading_from_v1_keeps_items_without_a_full_size() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(super::V1).unwrap();
+        connection.pragma_update(None, VERSION_PRAGMA, 1).unwrap();
+        connection
+            .execute(
+                "INSERT INTO items(name, quantity, unit) VALUES ('Tanqueray', 750.0, 0)",
+                [],
+            )
+            .unwrap();
+
+        let db = Database::new(connection).unwrap();
+
+        let items = db.item_db().get_all().unwrap();
+        let body = items.values().next().unwrap();
+        assert_eq!(body.name, "Tanqueray");
+        assert_eq!(body.full_size, None);
+    }
+
     #[test]
     fn rejects_used_db_file() {
         let connection = Connection::open_in_memory().unwrap();

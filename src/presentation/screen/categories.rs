@@ -1,42 +1,55 @@
-use std::vec;
-
 use crate::{
-    logic::CategoryService,
-    models::{Category, CategoryBody, CategoryID, Config, UnitSystem},
+    logic::{CategoryService, ItemCounts, RecipeService, recipes_for_category},
+    models::{Category, CategoryBody, CategoryID, UnitSystem},
     presentation::{
         application::{self, Context},
-        input_handling::{CategoryInput, InputMessage, UnknownTarget},
-        widget::{self, text_style},
+        constants,
+        input_handling::{CategoryInput, CategoryMessage, Editor, EditorMessage, Saved},
+        screen::{
+            Panels,
+            shared::{
+                breadcrumb_label, breadcrumb_line, counted, detail_header, form_page,
+                reload_or_error, report_error,
+            },
+        },
+        styling::Styling,
+        widget::{
+            controls,
+            detail::{card, hint, link_row, link_row_with_action, row_danger_button, stat_tile},
+            master_list::{Entry, master_list},
+        },
     },
 };
 use iced::{
     Element,
-    Length::Fill,
+    Length::{Fill, Shrink},
     Task,
-    widget::{button, column, container, pick_list, row, table, text},
+    widget::{Column, column, pick_list, row},
 };
 
 #[derive(Debug)]
 pub struct Categories {
-    input: CategoryInput,
-
-    edit_state: EditState,
-
-    current_page: usize,
-    stub: Option<Category>,
+    editor: Editor<CategoryInput, CategoryID>,
+    /// The category shown in the detail panel; `None` shows the
+    /// new-category form.
+    selected: Option<CategoryID>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Reload,
-    Input(InputMessage),
+    /// Shows the category in the detail panel, or the new-category form for
+    /// `None`. Any edit in progress is discarded.
+    Select(Option<CategoryID>),
+    Editor(EditorMessage<CategoryMessage>),
+    /// Starts editing the category, or cancels if it is already being
+    /// edited.
     Edit(CategoryID),
     AddRelation(CategoryID, CategoryID),
     RemoveRelation(CategoryID, CategoryID),
     DeleteCategory(CategoryID),
-    SelectPage(usize),
-    Save,
 }
+
 pub enum Command {
     AddCategory(CategoryBody),
     UpdateCategory(Category),
@@ -47,279 +60,289 @@ pub enum Command {
 impl Command {
     pub fn apply(self, ctx: &mut Context<'_>) -> Task<application::Message> {
         match self {
-            Command::AddCategory(body) => {
-                match ctx
-                    .category_service
-                    .insert(&ctx.database.category_db(), &body)
-                {
-                    Ok(_) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
-            }
-            Command::UpdateCategory(category) => {
-                match ctx
-                    .category_service
-                    .update(&ctx.database.category_db(), &category)
-                {
-                    Ok(()) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
-            }
+            Command::AddCategory(body) => reload_or_error(
+                ctx.category_service
+                    .insert(&ctx.database.category_db(), &body),
+            ),
+            Command::UpdateCategory(category) => reload_or_error(
+                ctx.category_service
+                    .update(&ctx.database.category_db(), &category),
+            ),
             Command::AddRelation(parent, child) => {
-                match ctx.category_service.add_category_relation(
+                report_error(ctx.category_service.add_category_relation(
                     &ctx.database.category_db(),
                     parent,
                     child,
-                ) {
-                    Ok(()) => Task::none(),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
+                ))
             }
             Command::RemoveRelation(parent, child) => {
-                match ctx.category_service.remove_category_relation(
+                report_error(ctx.category_service.remove_category_relation(
                     &ctx.database.category_db(),
                     parent,
                     child,
-                ) {
-                    Ok(()) => Task::none(),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
+                ))
             }
-            Command::DeleteCategory(category) => {
-                match ctx
-                    .category_service
-                    .delete(&ctx.database.category_db(), category)
-                {
-                    Ok(()) => Task::done(application::Message::ReloadScreen),
-                    Err(e) => Task::done(application::Message::Error(e)),
-                }
-            }
+            Command::DeleteCategory(category) => reload_or_error(
+                ctx.category_service
+                    .delete(&ctx.database.category_db(), category),
+            ),
         }
     }
-}
-#[derive(Debug)]
-enum EditState {
-    Editing(CategoryID),
-    None,
 }
 impl Categories {
-    pub fn new(config: &Config) -> Self {
+    pub fn new() -> Self {
         Self {
-            input: CategoryInput::new(config, input_msg),
-            edit_state: EditState::None,
-            current_page: 0,
-            stub: None,
+            editor: Editor::new(CategoryInput::new(), "Category"),
+            selected: None,
         }
     }
+
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_category_entry(&self) -> Element<'_, application::Message> {
-        let header = match self.edit_state {
-            EditState::None => text("New Category:"),
-            EditState::Editing(_) => text("Edit Category:"),
-        };
-        let save_button = iced::widget::Button::new("Save")
-            .on_press(application::Message::Categories(Message::Save));
-        let body = row![self.input.view(), save_button];
-        column![header, body].into()
-    }
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn build_category_display(
+    pub fn view(
         &self,
+        styling: &Styling,
         category_service: &CategoryService,
-    ) -> Element<'_, application::Message> {
-        let name_column = table::column(text("Name").width(200), |category: CategoryID| {
-            text(
-                category_service
-                    .get(category)
-                    .cloned()
-                    .unwrap_or_default()
-                    .name,
-            )
+        recipe_service: &RecipeService,
+    ) -> Panels<'_> {
+        let entries = category_service.sorted_ids().into_iter().map(|id| Entry {
+            label: category_service.name_of(id),
+            selected: self.selected == Some(id),
+            on_press: categories_msg(Message::Select(Some(id))),
+            dimmed: false,
         });
-        let add_relation_column = table::column("Addable Relations", |category: CategoryID| {
-            self.relation_add_view(category, category_service)
-        });
-        let list_relation_column = table::column("Current Relations", |category: CategoryID| {
-            self.category_remove_view(category, category_service)
-        });
-        let edit_column_width = 70;
-        let edit_column = table::column(
-            text("Edit").width(edit_column_width).center(),
-            |category: CategoryID| match self.edit_state {
-                EditState::None => iced::widget::Button::new(text("Edit").center())
-                    .on_press(application::Message::Categories(Message::Edit(category)))
-                    .width(edit_column_width),
-                EditState::Editing(category_id) if category == category_id => {
-                    iced::widget::Button::new(text("Cancel").center())
-                        .on_press(application::Message::Categories(Message::Edit(category_id)))
-                        .width(edit_column_width)
-                }
-                EditState::Editing(_) => {
-                    iced::widget::Button::new(text("Edit").center()).width(edit_column_width)
-                }
-            },
+        let new = (
+            "+ New Category".to_string(),
+            categories_msg(Message::Select(None)),
         );
-        let delete_column_width = 50;
-        let delete_column = table::column(
-            text("Delete").width(delete_column_width).center(),
-            |category: CategoryID| {
-                iced::widget::Button::new(text("X").width(delete_column_width).center()).on_press(
-                    application::Message::Categories(Message::DeleteCategory(category)),
-                )
-            },
-        );
-        let columns = vec![
-            name_column,
-            add_relation_column,
-            list_relation_column,
-            edit_column,
-            delete_column,
-        ];
-        let contents = category_service.get_page(self.current_page, 15);
-        table(columns, contents).into()
+        let master = master_list(styling, Some(new), entries, "No categories yet");
+
+        let detail = match self.selected {
+            Some(category) if self.editor.editing().is_none() => {
+                Self::category_details(styling, category, category_service, recipe_service)
+            }
+            _ => self.form_view(styling),
+        };
+
+        Panels { master, detail }
     }
+
+    /// The new- or edit-category form, laid out like the category's
+    /// details: the heading with Save and Cancel to its right, then the
+    /// name in a card.
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn view(&self, category_service: &CategoryService) -> Element<'_, application::Message> {
-        let header = widget::header::header(text_style::title("Categories"));
-        let category_entry = self.build_category_entry();
-        let categories = self.build_category_display(category_service);
-        let mut page_controller_contents = Vec::new();
-        if self.current_page != 0 {
-            let previous_page = self.current_page.wrapping_sub(1);
-            let previous_page_button = button("Previous")
-                .on_press(application::Message::Categories(Message::SelectPage(
-                    previous_page,
-                )))
-                .into();
-            page_controller_contents.push(previous_page_button);
-        }
-        let space = iced::widget::space().width(Fill).into();
-        page_controller_contents.push(space);
-        if (self.current_page + 1) * 15 < category_service.category_count() {
-            let next_page = self.current_page.wrapping_add(1);
-            let next_page_button = button("Next")
-                .on_press(application::Message::Categories(Message::SelectPage(
-                    next_page,
-                )))
-                .into();
-            page_controller_contents.push(next_page_button);
-        }
-        let page_controller = row(page_controller_contents);
-        let body = container(column![category_entry, categories]).align_top(Fill);
-        column![header, body, page_controller].into()
+    fn form_view(&self, styling: &Styling) -> Element<'_, application::Message> {
+        let note = if self.editor.editing().is_some() {
+            "Change the name, then Save."
+        } else {
+            "Add a category, then Save."
+        };
+        form_page(
+            styling,
+            self.editor.title(),
+            note,
+            self.editor.buttons(styling).map(editor_msg),
+            self.editor.form_view(styling).map(editor_msg),
+        )
     }
+
+    /// The read-only view of `category`: its name and where it sits,
+    /// tiles counting its items and the recipes it can go into, then its
+    /// subcategories (which can be added and removed here) and the
+    /// categories it is part of.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn category_details(
+        styling: &Styling,
+        category: CategoryID,
+        service: &CategoryService,
+        recipe_service: &RecipeService,
+    ) -> Element<'static, application::Message> {
+        let parents = service.parents_by_name(category);
+        // A top-level category's breadcrumb is just its own name.
+        let breadcrumb = if parents.is_empty() {
+            None
+        } else {
+            breadcrumb_label(category, service)
+        };
+        let header = detail_header(
+            styling,
+            service.name_of(category),
+            breadcrumb_line(styling, breadcrumb, "Top-level category"),
+            None,
+            categories_msg(Message::Edit(category)),
+            categories_msg(Message::DeleteCategory(category)),
+        );
+
+        let counts = service.item_counts(category);
+        let items_tile = stat_tile(
+            styling,
+            "Items",
+            counted(counts.total, "item"),
+            Some(hint(item_split(counts)).into()),
+        );
+        let recipes = recipes_for_category(category, service, recipe_service);
+        // The items tile always has a line under its figure, so it is the
+        // taller one and sets the row's height.
+        let uses_tile =
+            stat_tile(styling, "Used in", counted(recipes.len(), "recipe"), None).height(Fill);
+        let tiles = row![items_tile, uses_tile]
+            .spacing(constants::SPACING)
+            .height(Shrink);
+
+        let subcategories = Self::subcategories_card(styling, category, service);
+        let part_of = Self::part_of_card(styling, &parents, service);
+
+        controls::scrolling(
+            styling,
+            column![header, tiles, subcategories, part_of].spacing(16),
+        )
+        .into()
+    }
+
+    /// `category`'s subcategories, each opening when clicked and with a
+    /// button to remove it, then a picker to add another.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn subcategories_card(
+        styling: &Styling,
+        category: CategoryID,
+        service: &CategoryService,
+    ) -> Element<'static, application::Message> {
+        let children = service.children_by_name(category);
+        let list: Element<'_, _> = if children.is_empty() {
+            hint("No subcategories yet.").into()
+        } else {
+            Column::with_children(children.into_iter().map(|child| {
+                link_row_with_action(
+                    service.name_of(child),
+                    "",
+                    categories_msg(Message::Select(Some(child))),
+                    row_danger_button(styling, "Remove", category_remove_msg(category, child)),
+                )
+            }))
+            .into()
+        };
+        let content = column![list, Self::relation_add_view(styling, category, service)]
+            .spacing(constants::SPACING);
+        card(styling, Some("Subcategories"), content)
+    }
+
+    /// The categories directly above this one, each opening when clicked.
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn part_of_card(
+        styling: &Styling,
+        parents: &[CategoryID],
+        service: &CategoryService,
+    ) -> Element<'static, application::Message> {
+        let content: Element<'_, _> = if parents.is_empty() {
+            hint("Not part of any other category.").into()
+        } else {
+            Column::with_children(parents.iter().map(|&parent| {
+                link_row(
+                    service.name_of(parent),
+                    "",
+                    categories_msg(Message::Select(Some(parent))),
+                )
+            }))
+            .into()
+        };
+        card(styling, Some("Part of"), content)
+    }
+
     pub fn update(
         &mut self,
         message: Message,
         category_service: &CategoryService,
     ) -> Option<Command> {
         match message {
-            Message::Input(msg) => {
-                self.input
-                    .update(msg)
-                    .unwrap_or_else(UnknownTarget::discard);
+            Message::Select(category) => {
+                self.editor.reset();
+                self.selected = category;
                 None
             }
-            Message::Edit(category) => {
-                match self.edit_state {
-                    EditState::None => {
-                        self.edit_state = EditState::Editing(category);
-                        let body = category_service.get(category).cloned().unwrap_or_default();
-                        self.input.begin_edit(&body, UnitSystem::Metric);
-                    }
-                    EditState::Editing(category_id) if category_id == category => {
-                        self.input.clear();
-                        self.edit_state = EditState::None;
-                    }
-                    EditState::Editing(_) => unreachable!(
-                        "Edit buttons to items not currently under edit should not be accesable"
-                    ),
+            Message::Editor(msg) => match self.editor.update(msg) {
+                Ok(Some(Saved::Add(body))) => Some(Command::AddCategory(body)),
+                Ok(Some(Saved::Update(id, body))) => {
+                    Some(Command::UpdateCategory(Category { id, body }))
                 }
+                Ok(None) | Err(_) => None,
+            },
+            Message::Edit(category) => {
+                let load = || category_service.get(category).cloned().unwrap_or_default();
+                // Categories have no quantities, so the unit system is unused.
+                self.editor.toggle_edit(category, load, UnitSystem::Metric);
                 None
             }
-            Message::Save => match self.input.output() {
-                Ok(body) => match self.edit_state {
-                    EditState::Editing(id) => Some(Command::UpdateCategory(Category { id, body })),
-                    EditState::None => Some(Command::AddCategory(body)),
-                },
-                Err(_) => None,
-            },
             Message::Reload => {
-                self.input.clear();
-                self.edit_state = EditState::None;
-                self.current_page = self.current_page.min(
-                    category_service
-                        .category_count()
-                        .div_ceil(15)
-                        .saturating_sub(1),
-                );
+                self.editor.reset();
+                self.selected = self
+                    .selected
+                    .filter(|&category| category_service.get(category).is_ok());
                 None
             }
             Message::AddRelation(parent, child) => Some(Command::AddRelation(parent, child)),
             Message::RemoveRelation(parent, child) => Some(Command::RemoveRelation(parent, child)),
             Message::DeleteCategory(category) => Some(Command::DeleteCategory(category)),
-            Message::SelectPage(page) => {
-                self.current_page = page;
-                None
-            }
         }
     }
+
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn relation_add_view(
-        &self,
+        styling: &Styling,
         id: CategoryID,
         service: &CategoryService,
-    ) -> Element<'_, application::Message> {
-        let options = service
+    ) -> Element<'static, application::Message> {
+        let mut options: Vec<Category> = service
             .valid_relations(id)
             .into_iter()
-            .fold(Vec::new(), |mut acc, id| {
-                acc.push(Category {
-                    id,
-                    body: service.get(id).cloned().unwrap_or_default(),
-                });
-                acc
-            });
-        pick_list(options, self.stub.clone(), move |category| {
+            .map(|id| Category {
+                id,
+                body: service.get(id).cloned().unwrap_or_default(),
+            })
+            .collect();
+        options.sort_by_cached_key(|category| category.body.name.to_lowercase());
+        pick_list(options, None::<Category>, move |category| {
             category_add_msg(id, category.id)
         })
-        .placeholder("Add a Subcategory")
-        .into()
-    }
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn category_remove_view(
-        &self,
-        id: CategoryID,
-        service: &CategoryService,
-    ) -> Element<'_, application::Message> {
-        let options = service
-            .child_categories(id)
-            .unwrap_or_default()
-            .into_iter()
-            .fold(Vec::new(), |mut acc, id| {
-                acc.push(Category {
-                    id,
-                    body: service.get(id).cloned().unwrap_or_default(),
-                });
-                acc
-            });
-        pick_list(options, self.stub.clone(), move |selected| {
-            category_remove_msg(id, selected.id)
-        })
-        .placeholder("List subcategories (click to remove)")
+        .placeholder("Add a subcategory")
+        .width(Fill)
+        .style(controls::picker(styling))
+        .menu_style(controls::menu(styling))
         .into()
     }
 }
-fn input_msg(msg: InputMessage) -> application::Message {
-    application::Message::Categories(Message::Input(msg))
+
+/// Where a category's items are filed, for under its item count.
+fn item_split(counts: ItemCounts) -> String {
+    let via = counts.via_subcategories();
+    match (counts.direct, via) {
+        (0, 0) => "None here or in its subcategories".to_string(),
+        (_, 0) => "All filed here directly".to_string(),
+        (0, _) => "All from subcategories".to_string(),
+        (direct, via) => format!("{direct} directly, {via} from subcategories"),
+    }
+}
+
+fn categories_msg(msg: Message) -> application::Message {
+    application::Message::Categories(msg)
+}
+
+fn editor_msg(msg: EditorMessage<CategoryMessage>) -> application::Message {
+    categories_msg(Message::Editor(msg))
 }
 
 fn category_add_msg(parent: CategoryID, child: CategoryID) -> application::Message {
-    application::Message::Categories(Message::AddRelation(parent, child))
+    categories_msg(Message::AddRelation(parent, child))
 }
 
 fn category_remove_msg(parent: CategoryID, child: CategoryID) -> application::Message {
-    application::Message::Categories(Message::RemoveRelation(parent, child))
+    categories_msg(Message::RemoveRelation(parent, child))
+}
+
+#[cfg(test)]
+impl Categories {
+    /// The category shown in the detail panel.
+    pub fn selected(&self) -> Option<CategoryID> {
+        self.selected
+    }
 }
 
 #[cfg(test)]
@@ -332,11 +355,16 @@ mod tests {
         presentation::screen::test_support::{World, drain},
     };
 
+    const SAVE: Message = Message::Editor(EditorMessage::Save);
+
     fn type_name(screen: &mut Categories, world: &World, name: &str) {
-        let input = InputMessage::String(screen.input.name_id(), name.to_string());
+        let input = CategoryMessage::Name(name.to_string());
         assert!(
             screen
-                .update(Message::Input(input), &world.categories)
+                .update(
+                    Message::Editor(EditorMessage::Input(input)),
+                    &world.categories
+                )
                 .is_none()
         );
     }
@@ -355,10 +383,10 @@ mod tests {
     #[test]
     fn saving_a_new_category_adds_it() {
         let mut world = World::new();
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
         type_name(&mut screen, &world, "Gin");
 
-        let command = screen.update(Message::Save, &world.categories);
+        let command = screen.update(SAVE, &world.categories);
         let Some(command @ Command::AddCategory(_)) = command else {
             panic!("expected AddCategory");
         };
@@ -371,19 +399,19 @@ mod tests {
     #[test]
     fn saving_an_empty_form_does_nothing() {
         let world = World::new();
-        let mut screen = Categories::new(&world.config);
-        assert!(screen.update(Message::Save, &world.categories).is_none());
+        let mut screen = Categories::new();
+        assert!(screen.update(SAVE, &world.categories).is_none());
     }
 
     #[test]
     fn editing_updates_the_existing_category() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         screen.update(Message::Edit(gin), &world.categories);
         type_name(&mut screen, &world, "London Dry Gin");
-        let command = screen.update(Message::Save, &world.categories);
+        let command = screen.update(SAVE, &world.categories);
         let Some(command @ Command::UpdateCategory(Category { id, .. })) = command else {
             panic!("expected UpdateCategory");
         };
@@ -398,15 +426,15 @@ mod tests {
     fn editing_the_same_category_again_cancels() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         screen.update(Message::Edit(gin), &world.categories);
         screen.update(Message::Edit(gin), &world.categories);
 
-        assert!(matches!(screen.edit_state, EditState::None));
+        assert_eq!(screen.editor.editing(), None);
         assert!(
-            screen.update(Message::Save, &world.categories).is_none(),
-            "cancelling should clear the form"
+            screen.update(SAVE, &world.categories).is_none(),
+            "canceling should clear the form"
         );
     }
 
@@ -436,24 +464,15 @@ mod tests {
         let mut world = World::new();
         let spirit = world.add_category("Spirit");
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         let add = screen.update(Message::AddRelation(spirit, gin), &world.categories);
         assert!(apply(&mut world, add.unwrap()).is_empty());
-        assert_eq!(
-            world.categories.child_categories(spirit).unwrap(),
-            [gin].into()
-        );
+        assert_eq!(world.categories.children_by_name(spirit), [gin]);
 
         let remove = screen.update(Message::RemoveRelation(spirit, gin), &world.categories);
         assert!(apply(&mut world, remove.unwrap()).is_empty());
-        assert!(
-            world
-                .categories
-                .child_categories(spirit)
-                .unwrap()
-                .is_empty()
-        );
+        assert_eq!(world.categories.children_by_name(spirit), []);
     }
 
     #[test]
@@ -489,7 +508,7 @@ mod tests {
     fn deleting_a_category_removes_it() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
 
         let command = screen.update(Message::DeleteCategory(gin), &world.categories);
         assert_reloads(&apply(&mut world, command.unwrap()));
@@ -518,31 +537,58 @@ mod tests {
     }
 
     #[test]
-    fn reload_ends_editing_and_clamps_the_page() {
+    fn reload_ends_editing_and_keeps_a_live_selection() {
         let mut world = World::new();
         let gin = world.add_category("Gin");
-        let mut screen = Categories::new(&world.config);
+        let mut screen = Categories::new();
+        screen.update(Message::Select(Some(gin)), &world.categories);
         screen.update(Message::Edit(gin), &world.categories);
-        screen.update(Message::SelectPage(4), &world.categories);
-        assert_eq!(screen.current_page, 4);
 
         screen.update(Message::Reload, &world.categories);
 
-        assert!(matches!(screen.edit_state, EditState::None));
-        assert_eq!(screen.current_page, 0);
-        assert!(screen.update(Message::Save, &world.categories).is_none());
+        assert_eq!(screen.editor.editing(), None);
+        assert_eq!(screen.selected, Some(gin));
+        assert!(screen.update(SAVE, &world.categories).is_none());
     }
 
     #[test]
-    fn stale_input_is_discarded() {
-        let world = World::new();
-        let mut screen = Categories::new(&world.config);
-        let stale = InputMessage::String(iced::widget::Id::unique(), "Gin".to_string());
-        assert!(
-            screen
-                .update(Message::Input(stale), &world.categories)
-                .is_none()
-        );
+    fn reload_after_a_delete_clears_the_selection() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let mut screen = Categories::new();
+        screen.update(Message::Select(Some(gin)), &world.categories);
+
+        let command = screen.update(Message::DeleteCategory(gin), &world.categories);
+        apply(&mut world, command.unwrap());
+        screen.update(Message::Reload, &world.categories);
+
+        assert_eq!(screen.selected, None);
+    }
+
+    #[test]
+    fn selecting_a_category_discards_an_edit_in_progress() {
+        let mut world = World::new();
+        let gin = world.add_category("Gin");
+        let vodka = world.add_category("Vodka");
+        let mut screen = Categories::new();
+        screen.update(Message::Edit(gin), &world.categories);
+
+        screen.update(Message::Select(Some(vodka)), &world.categories);
+
+        assert_eq!(screen.selected, Some(vodka));
+        assert_eq!(screen.editor.editing(), None);
+
+        screen.update(Message::Select(None), &world.categories);
+        assert_eq!(screen.selected, None);
+    }
+
+    #[test]
+    fn item_split_says_where_items_are_filed() {
+        let split = |direct, total| item_split(ItemCounts { direct, total });
+        assert_eq!(split(0, 0), "None here or in its subcategories");
+        assert_eq!(split(2, 2), "All filed here directly");
+        assert_eq!(split(0, 3), "All from subcategories");
+        assert_eq!(split(2, 5), "2 directly, 3 from subcategories");
     }
 
     #[test]

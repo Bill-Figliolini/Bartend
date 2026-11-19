@@ -1,10 +1,35 @@
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use crate::{
-    logic::{LogicError, graph::DirectedAcyclicGraph},
+    logic::{LogicError, graph::DirectedAcyclicGraph, ids_by_name},
     models::{BartendError, Category, CategoryBody, CategoryFilter, CategoryID, ItemID},
     persistence::repositories::CategoryRepository,
 };
+
+/// One way down the category tree to a category, for showing where it sits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Breadcrumb {
+    /// From a top-level category down to the category itself.
+    pub path: Vec<CategoryID>,
+    /// How many other ways there are down to it, through other parents.
+    pub other_paths: usize,
+}
+
+/// How many items count as a category, from [`CategoryService::item_counts`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ItemCounts {
+    /// Items filed under the category itself.
+    pub direct: usize,
+    /// Items filed under the category or any of its subcategories.
+    pub total: usize,
+}
+
+impl ItemCounts {
+    /// Items that count only through a subcategory.
+    pub fn via_subcategories(self) -> usize {
+        self.total.saturating_sub(self.direct)
+    }
+}
 
 #[derive(Debug)]
 pub struct CategoryService {
@@ -63,16 +88,6 @@ impl CategoryService {
         items
     }
 
-    pub fn child_categories(
-        &self,
-        category: CategoryID,
-    ) -> Result<HashSet<CategoryID>, BartendError> {
-        match self.graph.get_edges(&category) {
-            Some(children) => Ok(children),
-            None => Err(LogicError::CategoryNotInGraph(category))?,
-        }
-    }
-
     #[must_use]
     pub fn get_all(&self, _filter: CategoryFilter) -> Vec<Category> {
         self.categories
@@ -92,25 +107,27 @@ impl CategoryService {
         }
     }
 
+    /// The category's name, or an empty one if it does not exist, such as
+    /// for an id shown before a reload caught up with a delete.
+    pub fn name_of(&self, id: CategoryID) -> String {
+        self.categories
+            .get(&id)
+            .map_or_default(|body| body.name.clone())
+    }
+
+    #[cfg(test)]
     pub fn get_page(&self, page_number: usize, page_size: usize) -> Vec<CategoryID> {
         let page_offset = page_number * page_size;
-        self.get_sorted()
+        self.sorted_ids()
             .into_iter()
             .skip(page_offset)
             .take(page_size)
             .collect()
     }
 
-    fn get_sorted(&self) -> Vec<CategoryID> {
-        let mut entries: Vec<(String, CategoryID)> = self
-            .categories
-            .iter()
-            .map(|(id, body)| (body.name.to_lowercase(), *id))
-            .collect();
-        entries.sort_unstable_by(|(a_name, a_id), (b_name, b_id)| {
-            a_name.cmp(b_name).then_with(|| a_id.0.cmp(&b_id.0))
-        });
-        entries.into_iter().map(|(_, id)| id).collect()
+    /// Every id, ordered by name (case-insensitively), then by id.
+    pub fn sorted_ids(&self) -> Vec<CategoryID> {
+        self.by_name(self.categories.keys().copied())
     }
 
     pub fn get_items(&self, category: CategoryID) -> HashSet<ItemID> {
@@ -244,11 +261,128 @@ impl CategoryService {
         self.graph.remove_edge(&parent, &child);
         Ok(())
     }
+    /// Every category `item` counts towards: its own, and all of that
+    /// category's ancestors. Empty for an item without a category.
+    pub fn categories_satisfied_by(&self, item: ItemID) -> HashSet<CategoryID> {
+        self.item_category(item)
+            .map_or_else(HashSet::new, |category| self.self_and_ancestors(category))
+    }
+
+    /// `category` and every category above it: the ingredients something
+    /// filed under `category` can fill. Empty for an unknown category.
+    pub fn self_and_ancestors(&self, category: CategoryID) -> HashSet<CategoryID> {
+        self.graph.get_ancestors(&category).unwrap_or_default()
+    }
+
+    /// The direct subcategories of `category`, ordered like
+    /// [`sorted_ids`](Self::sorted_ids). Empty for an unknown category.
+    pub fn children_by_name(&self, category: CategoryID) -> Vec<CategoryID> {
+        self.by_name(self.graph.get_edges(&category).unwrap_or_default())
+    }
+
+    /// The categories `category` sits directly under, ordered like
+    /// [`sorted_ids`](Self::sorted_ids). Empty for a top-level or unknown
+    /// category.
+    pub fn parents_by_name(&self, category: CategoryID) -> Vec<CategoryID> {
+        self.by_name(
+            self.graph
+                .get_immediate_ancestors(&category)
+                .unwrap_or_default(),
+        )
+    }
+
+    /// How many items are filed under `category` itself, and how many count
+    /// as it once its subcategories' items are included.
+    pub fn item_counts(&self, category: CategoryID) -> ItemCounts {
+        ItemCounts {
+            direct: self.get_items(category).len(),
+            total: self.satisfying_items(category).len(),
+        }
+    }
+
+    /// `ids` ordered by name (case-insensitively), then by id.
+    fn by_name(&self, ids: impl IntoIterator<Item = CategoryID>) -> Vec<CategoryID> {
+        ids_by_name(ids.into_iter().map(|id| {
+            let name = self
+                .categories
+                .get(&id)
+                .map_or("", |body| body.name.as_str());
+            (name, id)
+        }))
+    }
+
+    /// The longest path from a top-level category down to `category`, with
+    /// ties going to the path whose names come first alphabetically (from
+    /// the top), and a count of the other paths. `None` for an unknown
+    /// category.
+    pub fn breadcrumb(&self, category: CategoryID) -> Option<Breadcrumb> {
+        if !self.graph.contains_vertex(&category) {
+            return None;
+        }
+        let (path, paths) = self.best_path(category, &mut HashMap::new());
+        Some(Breadcrumb {
+            path,
+            other_paths: paths.saturating_sub(1),
+        })
+    }
+
+    /// The [`breadcrumb`](Self::breadcrumb) path to `category` and the
+    /// number of paths there are to it, memoized in `seen` so that shared
+    /// ancestors are only walked once.
+    fn best_path(
+        &self,
+        category: CategoryID,
+        seen: &mut HashMap<CategoryID, (Vec<CategoryID>, usize)>,
+    ) -> (Vec<CategoryID>, usize) {
+        if let Some(known) = seen.get(&category) {
+            return known.clone();
+        }
+        let parents = self
+            .graph
+            .get_immediate_ancestors(&category)
+            .unwrap_or_default();
+        let mut best: Option<Vec<CategoryID>> = None;
+        let mut paths: usize = 0;
+        for parent in parents {
+            let (path, count) = self.best_path(parent, seen);
+            paths = paths.saturating_add(count);
+            if best
+                .as_ref()
+                .is_none_or(|current| self.path_precedes(&path, current))
+            {
+                best = Some(path);
+            }
+        }
+        let mut path = best.unwrap_or_default();
+        path.push(category);
+        let result = (path, paths.max(1));
+        seen.insert(category, result.clone());
+        result
+    }
+
+    /// Whether path `a` should be shown over `b`: it is longer, or as long
+    /// with names that sort first.
+    fn path_precedes(&self, a: &[CategoryID], b: &[CategoryID]) -> bool {
+        let key = |path: &[CategoryID]| -> Vec<(String, i64)> {
+            path.iter()
+                .map(|id| {
+                    let name = self.get(*id).map(|body| body.name.to_lowercase());
+                    (name.unwrap_or_default(), id.0)
+                })
+                .collect()
+        };
+        b.len()
+            .cmp(&a.len())
+            .then_with(|| key(a).cmp(&key(b)))
+            .is_lt()
+    }
+
     pub fn valid_relations(&self, category: CategoryID) -> HashSet<CategoryID> {
         self.graph
             .get_non_cyclic_additions(&category)
             .unwrap_or_default()
     }
+    #[cfg(test)]
     pub fn category_count(&self) -> usize {
         self.categories.len()
     }
@@ -470,7 +604,100 @@ mod tests {
         }
 
         #[test]
-        fn child_categories_lists_direct_children() {
+        fn an_item_satisfies_its_category_and_every_ancestor() {
+            let (db, mut service) = service();
+            let (spirit, botanical, gin, vodka) =
+                (CategoryID(0), CategoryID(1), CategoryID(2), CategoryID(3));
+            service.add_category_relation(&db, spirit, gin).unwrap();
+            service.add_category_relation(&db, botanical, gin).unwrap();
+            service.add_category_relation(&db, spirit, vodka).unwrap();
+            service.add_item_mapping(&db, ItemID(5), gin).unwrap();
+
+            assert_eq!(
+                service.categories_satisfied_by(ItemID(5)),
+                HashSet::from([spirit, botanical, gin])
+            );
+            assert!(service.categories_satisfied_by(ItemID(6)).is_empty());
+        }
+
+        /// Adds each `(parent, child)` relation, by id.
+        fn relate(db: &TestDB, service: &mut CategoryService, edges: &[(i64, i64)]) {
+            for &(parent, child) in edges {
+                service
+                    .add_category_relation(db, CategoryID(parent), CategoryID(child))
+                    .unwrap();
+            }
+        }
+
+        fn ids(path: &[i64]) -> Vec<CategoryID> {
+            path.iter().copied().map(CategoryID).collect()
+        }
+
+        #[test]
+        fn a_top_level_category_is_its_own_breadcrumb() {
+            let (_, service) = service();
+            let expected = Breadcrumb {
+                path: ids(&[4]),
+                other_paths: 0,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(4)), Some(expected));
+            assert_eq!(service.breadcrumb(CategoryID(999)), None);
+        }
+
+        #[test]
+        fn breadcrumb_follows_the_only_path_down() {
+            let (db, mut service) = service();
+            relate(&db, &mut service, &[(0, 1), (1, 2)]);
+            let expected = Breadcrumb {
+                path: ids(&[0, 1, 2]),
+                other_paths: 0,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(2)), Some(expected));
+        }
+
+        #[test]
+        fn breadcrumb_prefers_the_longest_path_and_counts_the_rest() {
+            let (db, mut service) = service();
+            // 5 -> 9 directly, and 3 -> 4 -> 9.
+            relate(&db, &mut service, &[(5, 9), (3, 4), (4, 9)]);
+            let expected = Breadcrumb {
+                path: ids(&[3, 4, 9]),
+                other_paths: 1,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(9)), Some(expected));
+        }
+
+        #[test]
+        fn breadcrumb_ties_go_to_the_alphabetically_first_path() {
+            let (db, mut service) = service();
+            // Both parents are top-level. Id 4 is "category 5" and id 9 is
+            // "category 10", which sorts first.
+            relate(&db, &mut service, &[(4, 20), (9, 20)]);
+            let expected = Breadcrumb {
+                path: ids(&[9, 20]),
+                other_paths: 1,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(20)), Some(expected));
+        }
+
+        #[test]
+        fn breadcrumb_counts_every_path_through_a_diamond() {
+            let (db, mut service) = service();
+            // 0 -> {1, 2} -> 3 -> 4, plus 5 -> 4: three paths to 4.
+            relate(
+                &db,
+                &mut service,
+                &[(0, 1), (0, 2), (1, 3), (2, 3), (3, 4), (5, 4)],
+            );
+            let expected = Breadcrumb {
+                path: ids(&[0, 1, 3, 4]),
+                other_paths: 2,
+            };
+            assert_eq!(service.breadcrumb(CategoryID(4)), Some(expected));
+        }
+
+        #[test]
+        fn children_are_only_the_direct_ones() {
             let (db, mut service) = service();
             service
                 .add_category_relation(&db, CategoryID(0), CategoryID(1))
@@ -479,14 +706,68 @@ mod tests {
                 .add_category_relation(&db, CategoryID(1), CategoryID(2))
                 .unwrap();
 
+            assert_eq!(service.children_by_name(CategoryID(0)), [CategoryID(1)]);
+        }
+
+        #[test]
+        fn children_and_parents_are_listed_by_name() {
+            let (db, mut service) = service();
+            // Ids 0, 1, 4 and 9 are named "category 1", "category 2",
+            // "category 5" and "category 10", so by name 0 < 9 < 1 < 4.
+            relate(&db, &mut service, &[(0, 1), (0, 9), (0, 4), (1, 4), (9, 4)]);
+
+            assert_eq!(service.children_by_name(CategoryID(0)), ids(&[9, 1, 4]));
+            assert_eq!(service.parents_by_name(CategoryID(4)), ids(&[0, 9, 1]));
+        }
+
+        #[test]
+        fn top_level_leaf_and_unknown_categories_have_no_relatives() {
+            let (_, service) = service();
+            assert_eq!(service.parents_by_name(CategoryID(0)), ids(&[]));
+            assert_eq!(service.children_by_name(CategoryID(0)), ids(&[]));
+            assert_eq!(service.parents_by_name(CategoryID(999)), ids(&[]));
+            assert_eq!(service.children_by_name(CategoryID(999)), ids(&[]));
+        }
+
+        #[test]
+        fn a_category_fills_itself_and_every_ancestor() {
+            let (db, mut service) = service();
+            relate(&db, &mut service, &[(0, 1), (1, 2), (3, 2), (2, 4)]);
+
             assert_eq!(
-                service.child_categories(CategoryID(0)).unwrap(),
-                HashSet::from([CategoryID(1)])
+                service.self_and_ancestors(CategoryID(2)),
+                ids(&[0, 1, 2, 3]).into_iter().collect()
             );
-            assert!(matches!(
-                service.child_categories(CategoryID(999)),
-                Err(BartendError::Logic(LogicError::CategoryNotInGraph(_)))
-            ));
+            assert!(service.self_and_ancestors(CategoryID(999)).is_empty());
+        }
+
+        #[test]
+        fn item_counts_split_direct_items_from_subcategory_items() {
+            let (db, mut service) = service();
+            let (spirit, gin, old_tom) = (CategoryID(0), CategoryID(1), CategoryID(2));
+            relate(&db, &mut service, &[(0, 1), (1, 2)]);
+            service.add_item_mapping(&db, ItemID(5), spirit).unwrap();
+            service.add_item_mapping(&db, ItemID(6), gin).unwrap();
+            service.add_item_mapping(&db, ItemID(7), gin).unwrap();
+            service.add_item_mapping(&db, ItemID(8), old_tom).unwrap();
+
+            let counts = service.item_counts(spirit);
+            assert_eq!(
+                counts,
+                ItemCounts {
+                    direct: 1,
+                    total: 4
+                }
+            );
+            assert_eq!(counts.via_subcategories(), 3);
+            assert_eq!(
+                service.item_counts(gin),
+                ItemCounts {
+                    direct: 2,
+                    total: 3
+                }
+            );
+            assert_eq!(service.item_counts(CategoryID(999)), ItemCounts::default());
         }
 
         #[test]
@@ -524,7 +805,7 @@ mod tests {
                 .remove_category_relation(&db, CategoryID(0), CategoryID(1))
                 .unwrap();
 
-            assert!(service.child_categories(CategoryID(0)).unwrap().is_empty());
+            assert_eq!(service.children_by_name(CategoryID(0)), []);
         }
 
         #[test]
@@ -568,6 +849,7 @@ mod tests {
                     .insert(&ItemBody {
                         name: name.to_string(),
                         quantity: Quantity::new(1.0, Unit::Milliliter),
+                        full_size: None,
                     })
                     .unwrap()
             };
@@ -582,10 +864,7 @@ mod tests {
 
             assert_eq!(service.get_items(gin), HashSet::from([a, b]));
             assert_eq!(service.item_category(c), Some(vodka));
-            assert_eq!(
-                service.child_categories(gin).unwrap(),
-                HashSet::from([vodka])
-            );
+            assert_eq!(service.children_by_name(gin), [vodka]);
         }
 
         #[test]
@@ -593,6 +872,13 @@ mod tests {
             let service = CategoryService::new(&TestDB::new()).unwrap();
             assert_eq!(service.get_all(CategoryFilter {}).len(), 30);
             assert_eq!(service.category_count(), 30);
+        }
+
+        #[test]
+        fn names_are_looked_up_and_unknown_categories_have_none() {
+            let service = CategoryService::new(&TestDB::new()).unwrap();
+            assert_eq!(service.name_of(CategoryID(3)), "category 4");
+            assert_eq!(service.name_of(CategoryID(999)), "");
         }
 
         #[test]

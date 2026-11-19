@@ -1,138 +1,199 @@
+//! The forms in each screen's entry area: one per screen, built from the
+//! fields in [`widget::input`](crate::presentation::widget::input).
+//!
+//! The add-or-edit forms (items, categories and recipes) implement [`Form`]
+//! and are driven by an [`Editor`]:
+//!
+//! - **Messages.** Each form has its own message enum (e.g. [`ItemMessage`])
+//!   with a variant per field, so an edit can only reach the field it was
+//!   meant for. The screen wraps it as [`EditorMessage::Input`], alongside
+//!   `Save` and `Cancel`, and hands it to [`Editor::update`].
+//! - **Rows.** Repeated groups of fields, such as a recipe's ingredients,
+//!   are kept in [`Rows`], and their messages carry the row's [`RowKey`].
+//!   Keys are never reused, so a message for a row that is gone is dropped
+//!   rather than landing on another row.
+//! - **Saving.** [`Form::validate`] checks every field, not just up to the
+//!   first failure, and changes nothing. It returns the finished value or a
+//!   [`FormError`] naming each failed field by the form's own field enum,
+//!   e.g. `ItemField::Quantity` or, for a row,
+//!   `RecipeField::Ingredient(key, IngredientField::Quantity)`. On success
+//!   the editor clears the form and says whether to add or update.
+//! - **Showing errors.** The editor shows no errors until the first save
+//!   attempt, so a form the user has only just started is not covered in
+//!   complaints. After it, each error is worked out afresh on every view, so
+//!   it disappears as soon as the field is fixed. Any reset hides them again.
+//! - **Editing.** [`Editor::toggle_edit`] clears the form and fills it from
+//!   an existing value with [`Form::fill`]; canceling clears it again, so a
+//!   later save cannot add a copy of the value that was being edited.
+//!
+//! [`ServingInput`] is the exception: it has no edit mode and needs the
+//! services to update and draw itself, so it keeps its own `show_errors`
+//! flag and `output`, which validates and clears in one step.
+//!
+//! To add a field: add it to the form struct, a variant to the message enum
+//! and to `update` (the compiler points out that match), then to `view`;
+//! and if the field can fail, a variant to the field enum and a check in
+//! `validate`.
+
 mod category_input;
+mod editor;
 mod item_input;
+mod palette_input;
 mod recipe_input;
 mod serving_input;
 
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
-use iced::widget::Id;
+use iced::Element;
 
 use crate::{
-    models::{Category, Item, Recipe, Unit},
-    presentation::widget::input::Error,
+    models::UnitSystem,
+    presentation::{styling::Styling, widget::input::Error},
 };
 
-#[derive(Clone, Debug)]
-pub enum InputMessage {
-    String(Id, String),
-    Unit(Id, Unit),
-    Category(Id, Category),
-    Recipe(Id, Recipe),
-    Item(Id, Item),
+/// A form that adds or edits one value, driven by an [`Editor`].
+///
+/// A form only holds what the user entered and checks it. When errors are
+/// shown, when the form is cleared, and whether a save adds or updates are
+/// all up to the editor that owns it.
+pub trait Form {
+    /// An edit to one of the form's fields.
+    type Message: Clone + Debug + 'static;
+    /// Names a field in a [`FormError`].
+    type Field;
+    /// What a successful save produces.
+    type Output;
+    /// What an edit fills the form from.
+    type Value;
+
+    fn update(&mut self, msg: Self::Message);
+    /// Checks every field. Reading it changes nothing.
+    fn validate(&self) -> Result<Self::Output, FormError<Self::Field>>;
+    /// Empties the fields. A form may keep a choice that is handy to carry
+    /// over to the next entry, such as a unit.
+    fn clear(&mut self);
+    /// Fills a cleared form from `value`, showing quantities in `units`.
+    fn fill(&mut self, value: &Self::Value, units: UnitSystem);
+    /// The fields, drawn as `styling` says. With `show_errors`, each
+    /// field's current error is shown under it.
+    fn view(&self, styling: &Styling, show_errors: bool) -> Element<'_, Self::Message>;
 }
 
-impl InputMessage {
-    fn id(&self) -> Id {
-        match self {
-            InputMessage::String(id, _)
-            | InputMessage::Unit(id, _)
-            | InputMessage::Category(id, _)
-            | InputMessage::Recipe(id, _)
-            | InputMessage::Item(id, _) => id.clone(),
+/// Identifies one row of a [`Rows`] for as long as it exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RowKey(u64);
+
+/// The repeated rows of a form, such as a recipe's ingredients.
+///
+/// Each row gets a key that is never reused, even after `clear`, so a
+/// message for a removed row cannot reach a different one. That matters
+/// because a message can still be in flight for a row that was removed in
+/// the same frame (e.g. an edit, or a second click on its remove button).
+#[derive(Debug)]
+struct Rows<T> {
+    rows: Vec<(RowKey, T)>,
+    next_key: u64,
+}
+
+impl<T> Default for Rows<T> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            next_key: 0,
         }
     }
 }
 
-/// An input message sent to a form that has no field with its id (or whose
-/// field with that id takes a different kind of message).
-///
-/// Field ids are unique per widget, so this happens when a message arrives
-/// from a widget that has since been removed or rebuilt, for example an
-/// ingredient row deleted in the same frame. Such messages are harmless.
-#[derive(Debug, Clone)]
-pub struct UnknownTarget(InputMessage);
+impl<T> Rows<T> {
+    /// Adds `row` at the end, under a fresh key.
+    fn push(&mut self, row: T) -> RowKey {
+        let key = RowKey(self.next_key);
+        self.next_key += 1;
+        self.rows.push((key, row));
+        key
+    }
 
-impl UnknownTarget {
-    /// Drops the stale message. Builds with the `devtools` feature log it.
-    pub fn discard(self) {
-        #[cfg(feature = "devtools")]
-        eprintln!("{self}");
-        #[cfg(not(feature = "devtools"))]
-        let _ = self;
+    /// Returns whether a row with `key` was there to remove.
+    fn remove(&mut self, key: RowKey) -> bool {
+        let before = self.rows.len();
+        self.rows.retain(|(row_key, _)| *row_key != key);
+        self.rows.len() != before
+    }
+
+    fn get(&self, key: RowKey) -> Option<&T> {
+        self.rows
+            .iter()
+            .find(|(row_key, _)| *row_key == key)
+            .map(|(_, row)| row)
+    }
+
+    fn get_mut(&mut self, key: RowKey) -> Option<&mut T> {
+        self.rows
+            .iter_mut()
+            .find(|(row_key, _)| *row_key == key)
+            .map(|(_, row)| row)
+    }
+
+    /// The rows in display order, with their keys.
+    fn iter(&self) -> impl Iterator<Item = (RowKey, &T)> {
+        self.rows.iter().map(|(key, row)| (*key, row))
+    }
+
+    fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// The rows in display order, with their keys, for changing in place.
+    fn iter_mut(&mut self) -> impl Iterator<Item = (RowKey, &mut T)> {
+        self.rows.iter_mut().map(|(key, row)| (*key, row))
+    }
+
+    /// Removes every row. Keys keep counting up from where they were.
+    fn clear(&mut self) {
+        self.rows.clear();
+    }
+
+    /// The key of the `index`th row.
+    #[cfg(test)]
+    fn key(&self, index: usize) -> RowKey {
+        self.rows[index].0
     }
 }
 
-impl Display for UnknownTarget {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Input message for a field not in this form: {:?}",
-            self.0
-        )
-    }
+/// Drops a message for a row that has since been removed; see [`Rows`].
+/// Such messages are harmless. Builds with the `devtools` feature log them.
+fn discard_stale_row(key: RowKey, msg: &dyn Debug) {
+    #[cfg(feature = "devtools")]
+    eprintln!("Message for a removed row {key:?}: {msg:?}");
+    #[cfg(not(feature = "devtools"))]
+    let _ = (key, msg);
 }
 
-impl std::error::Error for UnknownTarget {}
-
-/// A field of one of the input forms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Field {
-    Name,
-    Quantity,
-    Unit,
-    Recipe,
-    Ingredient {
-        index: usize,
-        field: IngredientField,
-    },
-}
-
-/// A field within one ingredient row of a recipe or serving form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IngredientField {
-    Category,
-    Quantity,
-    Unit,
-    Item,
-}
-
-/// Every field that failed validation when a form was submitted.
+/// Every field that failed validation when a form was saved, keyed by that
+/// form's own field type `F` (e.g. `ItemField`), in the order the fields
+/// were checked.
 ///
-/// The same errors are also shown inline next to each field; this value lets
+/// The same errors are also shown next to each field; this value lets
 /// callers know *which* fields failed rather than only that something did.
+/// Fields in a row carry the row's [`RowKey`], so each one is told apart.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FormError(Vec<(Field, Error)>);
+pub struct FormError<F>(Vec<(F, Error)>);
 
-/// Collects field results while a form is validated, so that every field is
-/// checked (and shows its error) instead of stopping at the first failure.
-#[derive(Debug, Default)]
-struct Validator(Vec<(Field, Error)>);
-
-impl Validator {
-    fn check<T>(&mut self, field: Field, result: Result<T, Error>) -> Option<T> {
-        result.map_err(|error| self.0.push((field, error))).ok()
-    }
-
-    fn into_error(self) -> FormError {
-        FormError(self.0)
+impl<F: PartialEq> FormError<F> {
+    /// Why `field` failed, if it did.
+    pub fn error_for(&self, field: &F) -> Option<Error> {
+        self.0
+            .iter()
+            .find(|(failed, _)| failed == field)
+            .map(|(_, error)| *error)
     }
 }
 
-impl Display for Field {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Field::Name => write!(f, "Name"),
-            Field::Quantity => write!(f, "Quantity"),
-            Field::Unit => write!(f, "Unit"),
-            Field::Recipe => write!(f, "Recipe"),
-            Field::Ingredient { index, field } => write!(f, "Ingredient {} {field}", index + 1),
-        }
-    }
-}
-
-impl Display for IngredientField {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let text = match self {
-            IngredientField::Category => "Category",
-            IngredientField::Quantity => "Quantity",
-            IngredientField::Unit => "Unit",
-            IngredientField::Item => "Item",
-        };
-        write!(f, "{text}")
-    }
-}
-
-impl Display for FormError {
+impl<F: Display> Display for FormError<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (i, (field, error)) in self.0.iter().enumerate() {
             if i > 0 {
@@ -144,90 +205,93 @@ impl Display for FormError {
     }
 }
 
-impl std::error::Error for FormError {}
+impl<F: Debug + Display> std::error::Error for FormError<F> {}
 
+/// Collects field results while a form is validated, so that every field is
+/// checked instead of stopping at the first failure.
+#[derive(Debug)]
+struct Validator<F>(Vec<(F, Error)>);
+
+impl<F> Default for Validator<F> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<F> Validator<F> {
+    /// Passes on a field's value, or records its error under `field`.
+    fn check<T>(&mut self, field: F, result: Result<T, Error>) -> Option<T> {
+        result.map_err(|error| self.0.push((field, error))).ok()
+    }
+
+    fn into_error(self) -> FormError<F> {
+        FormError(self.0)
+    }
+}
+
+#[cfg(test)]
+pub use palette_input::Role;
 pub use {
-    category_input::CategoryInput, item_input::ItemInput, recipe_input::RecipeInput,
-    serving_input::ServingInput,
+    category_input::{CategoryInput, CategoryMessage},
+    editor::{Editor, EditorMessage, Saved},
+    item_input::{ItemInput, ItemMessage},
+    palette_input::{PaletteInput, PaletteMessage, low_contrast},
+    recipe_input::{RecipeInput, RecipeMessage},
+    serving_input::{ServingInput, ServingMessage},
 };
 
 #[cfg(test)]
 mod tests {
-    use iced::widget::Id;
-
     use super::*;
-    use crate::models::{CategoryBody, CategoryID, ItemBody, ItemID, RecipeBody, RecipeID};
 
     #[test]
-    fn every_message_reports_its_field_id() {
-        let id = Id::unique();
-        let messages = [
-            InputMessage::String(id.clone(), String::new()),
-            InputMessage::Unit(id.clone(), Unit::Gram),
-            InputMessage::Category(
-                id.clone(),
-                Category {
-                    id: CategoryID(1),
-                    body: CategoryBody::default(),
-                },
-            ),
-            InputMessage::Recipe(
-                id.clone(),
-                Recipe {
-                    id: RecipeID(1),
-                    body: RecipeBody::default(),
-                },
-            ),
-            InputMessage::Item(
-                id.clone(),
-                Item {
-                    id: ItemID(1),
-                    body: ItemBody::default(),
-                },
-            ),
-        ];
-        for message in messages {
-            assert_eq!(message.id(), id);
+    fn row_keys_are_never_reused() {
+        let mut rows = Rows::default();
+        let a = rows.push("a");
+        rows.clear();
+        let b = rows.push("b");
+        assert_ne!(a, b);
+        assert!(rows.get_mut(a).is_none());
+        assert_eq!(rows.get_mut(b), Some(&mut "b"));
+    }
+
+    #[test]
+    fn removing_a_row_leaves_the_others() {
+        let mut rows = Rows::default();
+        let a = rows.push("a");
+        let b = rows.push("b");
+        assert!(rows.remove(a));
+        assert!(!rows.remove(a), "a second remove finds nothing");
+        assert_eq!(rows.iter().collect::<Vec<_>>(), vec![(b, &"b")]);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.key(0), b);
+    }
+
+    #[test]
+    fn stale_row_messages_are_discarded() {
+        let mut rows = Rows::default();
+        let key = rows.push(());
+        discard_stale_row(key, &"Gin");
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum TestField {
+        Name,
+        Quantity,
+        Row(RowKey),
+    }
+
+    impl Display for TestField {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{self:?}")
         }
-    }
-
-    #[test]
-    fn unknown_targets_name_the_stale_message() {
-        let stale = UnknownTarget(InputMessage::String(Id::unique(), "Gin".to_string()));
-        assert!(stale.to_string().contains("\"Gin\""));
-        stale.discard();
-    }
-
-    #[test]
-    fn fields_display_human_names() {
-        assert_eq!(Field::Name.to_string(), "Name");
-        assert_eq!(Field::Quantity.to_string(), "Quantity");
-        assert_eq!(Field::Unit.to_string(), "Unit");
-        assert_eq!(Field::Recipe.to_string(), "Recipe");
-        let ingredient = |field| Field::Ingredient { index: 0, field };
-        assert_eq!(
-            ingredient(IngredientField::Category).to_string(),
-            "Ingredient 1 Category"
-        );
-        assert_eq!(
-            ingredient(IngredientField::Quantity).to_string(),
-            "Ingredient 1 Quantity"
-        );
-        assert_eq!(
-            ingredient(IngredientField::Unit).to_string(),
-            "Ingredient 1 Unit"
-        );
-        assert_eq!(
-            ingredient(IngredientField::Item).to_string(),
-            "Ingredient 1 Item"
-        );
     }
 
     #[test]
     fn form_errors_list_every_failure() {
         let error = FormError(vec![
-            (Field::Name, Error::StringEmpty),
-            (Field::Quantity, Error::QuantityInvalid),
+            (TestField::Name, Error::StringEmpty),
+            (TestField::Quantity, Error::QuantityInvalid),
         ]);
         assert_eq!(
             error.to_string(),
@@ -238,20 +302,29 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn error_for_finds_only_the_failed_field() {
+        let mut rows = Rows::default();
+        let (a, b) = (rows.push(()), rows.push(()));
+        let mut validator = Validator::default();
+        validator.check(TestField::Name, Ok::<_, Error>(()));
+        validator.check(TestField::Row(a), Ok::<_, Error>(()));
+        validator.check(TestField::Row(b), Err::<(), _>(Error::QuantityInvalid));
+        let error = validator.into_error();
+
+        assert_eq!(error.error_for(&TestField::Name), None);
+        assert_eq!(error.error_for(&TestField::Row(a)), None);
+        assert_eq!(
+            error.error_for(&TestField::Row(b)),
+            Some(Error::QuantityInvalid)
+        );
+    }
 }
 
 #[cfg(test)]
 mod test_support {
-    use super::InputMessage;
-    use crate::{
-        models::{Category, CategoryBody, CategoryID, Config},
-        presentation::application::Message,
-    };
-
-    /// Forms need a message constructor; tests never dispatch messages.
-    pub(super) fn msg(_: InputMessage) -> Message {
-        Message::NoOp
-    }
+    use crate::models::{Category, CategoryBody, CategoryID, Config};
 
     /// A default (metric) config, backed by a throwaway directory.
     pub(super) fn config() -> Config {

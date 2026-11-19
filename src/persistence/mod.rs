@@ -187,6 +187,7 @@ mod tests {
         let body = ItemBody {
             name: "Tanqueray".to_string(),
             quantity: Quantity::new(750.0, Unit::Milliliter),
+            full_size: None,
         };
         let id = Database::load(&path)
             .unwrap()

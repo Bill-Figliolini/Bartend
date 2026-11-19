@@ -3,15 +3,18 @@ pub(super) mod inventory;
 pub(super) mod recipes;
 pub(super) mod serving;
 pub(super) mod settings;
+mod shared;
 
 use iced::{Element, Task};
 
 use crate::{
     logic::{CategoryService, ItemService, RecipeService},
-    models::Config,
+    models::{Config, ConfigError, UnitSystem},
     presentation::{
         application::{Context, Message},
+        input_handling::EditorMessage::{Cancel, Save},
         screen::{recipes::Recipes, serving::Serving},
+        styling::{Styling, Stylings},
     },
 };
 
@@ -19,7 +22,7 @@ use crate::{
 #[derive(Debug)]
 pub enum Screen {
     Inventory(Box<inventory::Inventory>),
-    Settings(settings::Settings),
+    Settings(Box<settings::Settings>),
     Categories(categories::Categories),
     Recipes(Recipes),
     Serving(Serving),
@@ -33,6 +36,34 @@ pub enum ScreenKind {
     Categories,
     Recipes,
     Serving,
+}
+impl ScreenKind {
+    /// Every screen, in tab order.
+    pub const ALL: [ScreenKind; 5] = [
+        ScreenKind::Inventory,
+        ScreenKind::Categories,
+        ScreenKind::Recipes,
+        ScreenKind::Serving,
+        ScreenKind::Settings,
+    ];
+
+    /// The screen's name, as shown on its tab.
+    pub fn label(self) -> &'static str {
+        match self {
+            ScreenKind::Inventory => "Inventory",
+            ScreenKind::Settings => "Settings",
+            ScreenKind::Categories => "Categories",
+            ScreenKind::Recipes => "Recipes",
+            ScreenKind::Serving => "Serving",
+        }
+    }
+}
+
+/// What a screen draws: the list on the left, and the details of what is
+/// selected in it on the right.
+pub struct Panels<'a> {
+    pub master: Element<'a, Message>,
+    pub detail: Element<'a, Message>,
 }
 
 //Sum of module commands
@@ -57,8 +88,7 @@ impl ScreenCommand {
 
 impl Screen {
     pub fn start(config: &Config, categories: &CategoryService) -> Self {
-        let inventory = inventory::Inventory::new(config, categories);
-        Self::Inventory(Box::new(inventory))
+        Self::inventory(config, categories, config.default_units())
     }
 
     pub fn kind(&self) -> ScreenKind {
@@ -74,16 +104,25 @@ impl Screen {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn view(
         &self,
+        styling: &Styling,
         item_service: &ItemService,
         category_service: &CategoryService,
         recipe_service: &RecipeService,
-    ) -> Element<'_, Message> {
+    ) -> Panels<'_> {
         match self {
-            Self::Inventory(inventory) => inventory.view(item_service, category_service),
-            Self::Settings(settings) => settings.view(),
-            Self::Categories(categories) => categories.view(category_service),
-            Self::Recipes(recipes) => recipes.view(category_service, recipe_service),
-            Self::Serving(serving) => serving.view(category_service),
+            Self::Inventory(inventory) => {
+                inventory.view(styling, item_service, category_service, recipe_service)
+            }
+            Self::Settings(settings) => settings.view(styling),
+            Self::Categories(categories) => {
+                categories.view(styling, category_service, recipe_service)
+            }
+            Self::Recipes(recipes) => {
+                recipes.view(styling, item_service, category_service, recipe_service)
+            }
+            Self::Serving(serving) => {
+                serving.view(styling, item_service, category_service, recipe_service)
+            }
         }
     }
 
@@ -108,7 +147,7 @@ impl Screen {
                 .update(message, recipe_service)
                 .map(ScreenCommand::Recipes),
             (Self::Serving(service), Message::Serving(message)) => service
-                .update(item_service, category_service, message)
+                .update(item_service, category_service, recipe_service, message)
                 .map(ScreenCommand::Serving),
             //A message meant for a screen that is no longer active (e.g. an async
             //task, like the DB file picker, resolving after the user navigated away).
@@ -129,22 +168,64 @@ impl Screen {
         }
     }
 
-    pub fn inventory(config: &Config, category_service: &CategoryService) -> Self {
-        let inventory = inventory::Inventory::new(config, category_service);
+    /// The message that switches the active screen to `units`, for screens
+    /// that show amounts.
+    pub fn units_message(&self, units: UnitSystem) -> Option<Message> {
+        match self {
+            Screen::Inventory(_) => Some(Message::Inventory(inventory::Message::SetUnits(units))),
+            Screen::Recipes(_) => Some(Message::Recipes(recipes::Message::SetUnits(units))),
+            Screen::Serving(_) => Some(Message::Serving(serving::Message::SetUnits(units))),
+            Screen::Settings(_) | Screen::Categories(_) => None,
+        }
+    }
+
+    /// What Enter does on the active screen: the same message as its Save
+    /// button.
+    pub fn submit_message(&self) -> Message {
+        match self {
+            Screen::Inventory(_) => Message::Inventory(inventory::Message::Editor(Save)),
+            Screen::Settings(settings) => Message::Settings(settings.submit_message()),
+            Screen::Categories(_) => Message::Categories(categories::Message::Editor(Save)),
+            Screen::Recipes(_) => Message::Recipes(recipes::Message::Editor(Save)),
+            Screen::Serving(_) => Message::Serving(serving::Message::Save),
+        }
+    }
+
+    /// What Escape does on the active screen: cancels the edit on screens
+    /// with an editor, and nothing elsewhere.
+    pub fn cancel_message(&self) -> Option<Message> {
+        match self {
+            Screen::Inventory(_) => Some(Message::Inventory(inventory::Message::Editor(Cancel))),
+            Screen::Categories(_) => Some(Message::Categories(categories::Message::Editor(Cancel))),
+            Screen::Recipes(_) => Some(Message::Recipes(recipes::Message::Editor(Cancel))),
+            Screen::Settings(settings) => settings.cancel_message().map(Message::Settings),
+            Screen::Serving(_) => None,
+        }
+    }
+
+    pub fn inventory(
+        config: &Config,
+        category_service: &CategoryService,
+        units: UnitSystem,
+    ) -> Self {
+        let inventory = inventory::Inventory::new(config, category_service, units);
         Self::Inventory(Box::new(inventory))
     }
 
-    pub fn settings(current_config: &Config) -> Self {
-        Self::Settings(settings::Settings::new(current_config))
+    /// Settings, and what went wrong reading the user's palettes, if
+    /// anything (see [`settings::Settings::new`]).
+    pub fn settings(current_config: &Config, stylings: &Stylings) -> (Self, Option<ConfigError>) {
+        let (settings, notice) = settings::Settings::new(current_config, stylings);
+        (Self::Settings(Box::new(settings)), notice)
     }
-    pub fn categories(config: &Config) -> Self {
-        Self::Categories(categories::Categories::new(config))
+    pub fn categories() -> Self {
+        Self::Categories(categories::Categories::new())
     }
-    pub fn recipes(config: &Config, category_service: &CategoryService) -> Self {
-        Screen::Recipes(Recipes::new(config, category_service))
+    pub fn recipes(config: &Config, category_service: &CategoryService, units: UnitSystem) -> Self {
+        Screen::Recipes(Recipes::new(config, category_service, units))
     }
-    pub fn serving(config: &Config, recipe_service: &RecipeService) -> Self {
-        Screen::Serving(Serving::new(config, recipe_service))
+    pub fn serving(units: UnitSystem) -> Self {
+        Screen::Serving(Serving::new(units))
     }
 }
 
@@ -218,6 +299,7 @@ pub(in crate::presentation) mod test_support {
             let body = ItemBody {
                 name: name.to_string(),
                 quantity: Quantity::new(milliliters, Unit::Milliliter),
+                full_size: None,
             };
             self.items.add(&self.database.item_db(), &body).unwrap()
         }
@@ -234,6 +316,13 @@ pub(in crate::presentation) mod test_support {
         pub fn map_item(&mut self, item: ItemID, category: CategoryID) {
             self.categories
                 .add_item_mapping(&self.database.category_db(), item, category)
+                .unwrap();
+        }
+
+        /// Makes `child` a subcategory of `parent`.
+        pub fn relate(&mut self, parent: CategoryID, child: CategoryID) {
+            self.categories
+                .add_category_relation(&self.database.category_db(), parent, child)
                 .unwrap();
         }
 
@@ -308,16 +397,25 @@ mod tests {
 
     fn screens(world: &World) -> Vec<Screen> {
         vec![
-            Screen::inventory(&world.config, &world.categories),
-            Screen::settings(&world.config),
-            Screen::categories(&world.config),
-            Screen::recipes(&world.config, &world.categories),
-            Screen::serving(&world.config, &world.recipes),
+            Screen::inventory(&world.config, &world.categories, UnitSystem::Metric),
+            Screen::settings(&world.config, &Stylings::new()).0,
+            Screen::categories(),
+            Screen::recipes(&world.config, &world.categories, UnitSystem::Metric),
+            Screen::serving(UnitSystem::Metric),
         ]
     }
 
     fn update(world: &World, screen: &mut Screen, message: Message) -> Option<ScreenCommand> {
         screen.update(&world.items, &world.categories, &world.recipes, message)
+    }
+
+    #[test]
+    fn tabs_list_every_screen_once_with_its_name() {
+        let labels: Vec<&str> = ScreenKind::ALL.iter().map(|kind| kind.label()).collect();
+        assert_eq!(
+            labels,
+            ["Inventory", "Categories", "Recipes", "Serving", "Settings"]
+        );
     }
 
     #[test]
@@ -368,14 +466,14 @@ mod tests {
         }
         // An empty serving form produces no command, but still routes.
         let serving = &mut screens[4];
-        let swap = Message::Serving(serving::Message::SwapUnits);
-        assert!(update(&world, serving, swap).is_none());
+        let units = Message::Serving(serving::Message::SetUnits(UnitSystem::Imperial));
+        assert!(update(&world, serving, units).is_none());
     }
 
     #[test]
     fn messages_for_another_screen_are_ignored() {
         let world = World::new();
-        let mut screen = Screen::categories(&world.config);
+        let mut screen = Screen::categories();
         let stale = Message::Inventory(inventory::Message::DeleteItem(ItemID(1)));
         assert!(update(&world, &mut screen, stale).is_none());
     }
@@ -409,6 +507,84 @@ mod tests {
     }
 
     #[test]
+    fn submit_message_is_the_active_screens_save() {
+        let world = World::new();
+        for screen in screens(&world) {
+            let submit = screen.submit_message();
+            let is_save = matches!(
+                (screen.kind(), &submit),
+                (
+                    ScreenKind::Inventory,
+                    Message::Inventory(inventory::Message::Editor(Save))
+                ) | (
+                    ScreenKind::Settings,
+                    Message::Settings(settings::Message::Save)
+                ) | (
+                    ScreenKind::Categories,
+                    Message::Categories(categories::Message::Editor(Save))
+                ) | (
+                    ScreenKind::Recipes,
+                    Message::Recipes(recipes::Message::Editor(Save))
+                ) | (
+                    ScreenKind::Serving,
+                    Message::Serving(serving::Message::Save)
+                )
+            );
+            assert!(is_save, "{:?} got {submit:?}", screen.kind());
+        }
+    }
+
+    #[test]
+    fn units_message_reaches_only_screens_that_show_amounts() {
+        let world = World::new();
+        for screen in screens(&world) {
+            let message = screen.units_message(UnitSystem::Imperial);
+            let expected = matches!(
+                (screen.kind(), &message),
+                (
+                    ScreenKind::Inventory,
+                    Some(Message::Inventory(inventory::Message::SetUnits(
+                        UnitSystem::Imperial
+                    )))
+                ) | (
+                    ScreenKind::Recipes,
+                    Some(Message::Recipes(recipes::Message::SetUnits(
+                        UnitSystem::Imperial
+                    )))
+                ) | (
+                    ScreenKind::Serving,
+                    Some(Message::Serving(serving::Message::SetUnits(
+                        UnitSystem::Imperial
+                    )))
+                ) | (ScreenKind::Settings | ScreenKind::Categories, None)
+            );
+            assert!(expected, "{:?} got {message:?}", screen.kind());
+        }
+    }
+
+    #[test]
+    fn cancel_message_cancels_only_editors() {
+        let world = World::new();
+        for screen in screens(&world) {
+            let cancel = screen.cancel_message();
+            let expected = matches!(
+                (screen.kind(), &cancel),
+                (
+                    ScreenKind::Inventory,
+                    Some(Message::Inventory(inventory::Message::Editor(Cancel)))
+                ) | (
+                    ScreenKind::Categories,
+                    Some(Message::Categories(categories::Message::Editor(Cancel)))
+                ) | (
+                    ScreenKind::Recipes,
+                    Some(Message::Recipes(recipes::Message::Editor(Cancel)))
+                ) | (ScreenKind::Settings | ScreenKind::Serving, None)
+            );
+            assert!(expected, "{:?} got {cancel:?}", screen.kind());
+        }
+    }
+
+    #[test]
     fn screen_commands_apply_their_inner_command() {
         let mut world = World::new();
         let item = world.add_item("Tanqueray", 750.0);
@@ -419,13 +595,24 @@ mod tests {
             ScreenCommand::Inventory(inventory::Command::Delete(item)),
             ScreenCommand::Categories(categories::Command::DeleteCategory(category)),
             ScreenCommand::Recipes(recipes::Command::Delete(recipe)),
-            ScreenCommand::Serving(serving::Command::UseItems(Vec::new())),
+            ScreenCommand::Serving(serving::Command::UseItems {
+                uses: Vec::new(),
+                served: serving::Served::default(),
+            }),
             ScreenCommand::Settings(settings::Command::UpdateConfig(config)),
         ];
         for command in commands {
             let messages = drain(command.apply(&mut world.ctx()));
+            // Serving reports what it used before reloading.
             assert!(
-                matches!(messages.as_slice(), [Message::ReloadScreen]),
+                matches!(
+                    messages.as_slice(),
+                    [Message::ReloadScreen]
+                        | [
+                            Message::Serving(serving::Message::Served(_)),
+                            Message::ReloadScreen
+                        ]
+                ),
                 "{messages:?}"
             );
         }
