@@ -17,7 +17,7 @@ in
 {
   languages.rust = {
     enable = true;
-    channel = "nightly";
+    channel = "stable";
     components = [ "rustc" "cargo" "clippy" "rust-analyzer" "rustfmt" "llvm-tools-preview" ];
   };
   packages = with pkgs; [
